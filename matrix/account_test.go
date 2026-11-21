@@ -121,19 +121,20 @@ func TestPickleKey(t *testing.T) {
 
 func TestToken(t *testing.T) {
 	openTest(t)
-	if _, err := Token(testUser, testDevice); !errors.Is(err, ErrNoToken) {
+	if _, err := TokensOf(testUser, testDevice); !errors.Is(err, ErrNoToken) {
 		t.Fatalf("missing token: %v, want ErrNoToken", err)
 	}
-	if err := SaveToken(testUser, testDevice, "s3kr3t"); err != nil {
+	if err := SaveTokens(testUser, testDevice, Tokens{Access: "s3kr3t", Refresh: "r3fresh"}); err != nil {
 		t.Fatal(err)
 	}
-	if tok, err := Token(testUser, testDevice); err != nil || tok != "s3kr3t" {
-		t.Fatalf("token = %q, %v", tok, err)
+	tok, err := TokensOf(testUser, testDevice)
+	if err != nil || tok.Access != "s3kr3t" || tok.Refresh != "r3fresh" {
+		t.Fatalf("tokens = %+v, %v", tok, err)
 	}
-	if err := DeleteToken(testUser, testDevice); err != nil {
+	if err := DeleteTokens(testUser, testDevice); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Token(testUser, testDevice); !errors.Is(err, ErrNoToken) {
+	if _, err := TokensOf(testUser, testDevice); !errors.Is(err, ErrNoToken) {
 		t.Fatalf("after delete: %v, want ErrNoToken", err)
 	}
 }

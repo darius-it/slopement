@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "mygo dev",
-    "dev:ios": "mygo dev -platform ios",
-    "dev:android": "mygo dev -platform android",
-    "build": "mygo build",
-    "generate": "mygo generate",
+    "dev": "GOFLAGS=-tags=goolm mygo dev",
+    "dev:ios": "GOFLAGS=-tags=goolm mygo dev -platform ios",
+    "dev:android": "GOFLAGS=-tags=goolm mygo dev -platform android",
+    "build": "GOFLAGS=-tags=goolm mygo build",
+    "generate": "GOFLAGS=-tags=goolm mygo generate",
     "dev:web": "vite",
     "build:web": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit"

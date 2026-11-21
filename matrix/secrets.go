@@ -2,14 +2,16 @@ package matrix
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo"
 )
 
 // What an account keeps in the OS keychain (never in a database): its
-// access token, and the pickle key that encrypts the crypto material in
+// tokens, and the pickle key that encrypts the crypto material in
 // crypto.db. Entries are keyed by user ID and device ID, as the
 // requirements say; the service is the app's own identifier.
 
@@ -23,34 +25,53 @@ type secretStore interface {
 
 var secrets secretStore = mygo.Secrets
 
-// ErrNoToken is returned when the account has no access token saved.
-var ErrNoToken = errors.New("no saved access token")
+// ErrNoToken is returned when the account has no token saved: a revoked
+// login (M_UNKNOWN_TOKEN soft-logout keeps the stores) shows sign-in
+// again, never wiping the keys.
+var ErrNoToken = errors.New("no saved token; sign in again")
 
 // secretKey names one account's secret of a kind.
 func secretKey(userID, deviceID, kind string) string {
 	return fmt.Sprintf("account/%s/%s/%s", userID, deviceID, kind)
 }
 
-// SaveToken stores an account's access token.
-func SaveToken(userID, deviceID, token string) error {
-	return secrets.Set(secretKey(userID, deviceID, "token"), []byte(token))
+// Tokens is what the keychain holds for one login: an access token and,
+// when the server renews it (MAS), the refresh token and when the access
+// one expires.
+type Tokens struct {
+	Access  string    `json:"access"`
+	Refresh string    `json:"refresh,omitempty"`
+	Expires time.Time `json:"expires,omitempty"`
 }
 
-// Token returns the account's saved access token.
-func Token(userID, deviceID string) (string, error) {
-	b, err := secrets.Get(secretKey(userID, deviceID, "token"))
+// SaveTokens stores a login's tokens.
+func SaveTokens(userID, deviceID string, t Tokens) error {
+	b, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	return secrets.Set(secretKey(userID, deviceID, "tokens"), b)
+}
+
+// TokensOf returns a login's saved tokens.
+func TokensOf(userID, deviceID string) (Tokens, error) {
+	b, err := secrets.Get(secretKey(userID, deviceID, "tokens"))
 	if errors.Is(err, mygo.ErrSecretNotFound) {
-		return "", fmt.Errorf("%w for %s/%s", ErrNoToken, userID, deviceID)
+		return Tokens{}, fmt.Errorf("%w for %s/%s", ErrNoToken, userID, deviceID)
 	}
 	if err != nil {
-		return "", err
+		return Tokens{}, err
 	}
-	return string(b), nil
+	var t Tokens
+	if err := json.Unmarshal(b, &t); err != nil {
+		return Tokens{}, err
+	}
+	return t, nil
 }
 
-// DeleteToken forgets an account's access token, as a logout does.
-func DeleteToken(userID, deviceID string) error {
-	return secrets.Delete(secretKey(userID, deviceID, "token"))
+// DeleteTokens forgets a login's tokens, as a logout does.
+func DeleteTokens(userID, deviceID string) error {
+	return secrets.Delete(secretKey(userID, deviceID, "tokens"))
 }
 
 // PickleKey returns the key that encrypts the account's crypto material

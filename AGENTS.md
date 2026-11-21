@@ -53,6 +53,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 ### mygo specifics
 - Pinned mygo: see `go.mod`. Source: `go list -m -f '{{.Dir}}' github.com/egoist/mygo`;
   read `docs/ui/*.md` before using a widget. Follow `.agents/skills/mygo-maintenance`.
+- **Never build without `-tags goolm`** (mautrix's crypto is pure Go only with
+  it; the default pulls libolm via cgo and fails). `mygo dev`, `mygo build` and
+  `mygo generate` take it from the environment: `GOFLAGS=-tags=goolm mygo dev`
+  (the package.json scripts carry it; a bare `mygo dev` breaks the build).
 - Never store `ui.Element` values in state; give stateful widgets keys
   (`c.Key`).
 
@@ -72,6 +76,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   directly.
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
+- `login/`: the sign-in screen over `matrix/` (probe a server, the MAS
+  browser flow or a password form), handing the session to `main.go`,
+  which then swaps the window to the app on the account. Reached with
+  `SLOPEMENT_LOGIN=1 go run .`.
 - `matrix/`: the Matrix layer (mautrix-go, `-tags goolm`): one `Account`
   per login — its directory (`<config>/slopement/accounts/<sha256(user)>/`)
   holds `state.db` and `crypto.db`, a session lock enforces one process per

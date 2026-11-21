@@ -33,7 +33,7 @@ type Account struct {
 	Crypto *crypto.SQLCryptoStore
 
 	stateDB, cryptoDB *dbutil.Database
-	lock               *sessionLock
+	lock              *sessionLock
 }
 
 // configDir is where slopement keeps per-user data; tests point it at a
