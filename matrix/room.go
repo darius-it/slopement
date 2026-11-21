@@ -52,6 +52,9 @@ type room struct {
 	// event and when (the receipt's time, for an event this room does not
 	// hold).
 	reads map[string]readMark
+	// edits is each edited event's latest edit, kept until the event is
+	// there to take it.
+	edits map[string]editMark
 }
 
 // readMark is one person's place in a room.
@@ -79,6 +82,9 @@ type rawEvent struct {
 // fromMe says whether the sender is the user: their own messages don't
 // count unread.
 func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
+	if mark, ok := r.edits[e.ID]; ok && e.Kind != model.EventUndecryptable && e.Kind != model.EventSystem {
+		e.Body, e.Edited = mark.Body, true // an edit that came before the event could take it
+	}
 	for i := range r.events {
 		if r.events[i].ID == e.ID {
 			if e.Kind == model.EventUndecryptable && r.events[i].Kind != model.EventUndecryptable {
@@ -201,19 +207,36 @@ func previewText(e model.Event) string {
 }
 
 // editEvent replaces what e (a message's edit) says about its target.
-func (r *room) editEvent(target, body string) {
-	for i := range r.events {
-		if r.events[i].ID == target {
-			r.events[i].Body = body
-			r.events[i].Edited = true
-			if i == len(r.events)-1 {
-				if who, _, ok := strings.Cut(r.preview, ": "); ok {
-					r.preview = who + ": " + previewText(r.events[i])
-				}
-			}
-			return
+//
+// The edit is kept by its target, newest by time: the target may not be
+// readable yet (still waiting for its keys, or not synced) and takes the
+// edit when it is — an edit that finds nothing and is forgotten leaves the
+// message as it first was.
+func (r *room) editEvent(target, body string, ts int64) {
+	if old, ok := r.edits[target]; ok && old.TS > ts {
+		return // an older edit arriving late
+	}
+	if r.edits == nil {
+		r.edits = map[string]editMark{}
+	}
+	r.edits[target] = editMark{Body: body, TS: ts}
+	i := r.indexOf(target)
+	if i < 0 || r.events[i].Kind == model.EventUndecryptable {
+		return
+	}
+	r.events[i].Body = body
+	r.events[i].Edited = true
+	if i == len(r.events)-1 {
+		if who, _, ok := strings.Cut(r.preview, ": "); ok {
+			r.preview = who + ": " + previewText(r.events[i])
 		}
 	}
+}
+
+// editMark is the latest edit of an event: its new text, and when.
+type editMark struct {
+	Body string
+	TS   int64
 }
 
 // react records sender's reaction key on an event, or takes it back with

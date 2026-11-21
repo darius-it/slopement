@@ -68,6 +68,42 @@ func TestOnMessage(t *testing.T) {
 	}
 }
 
+// The user's own name and picture come from their member events (and
+// their profile): everywhere the app shows them, not only in the people
+// list. A room where they set no picture of its own must not blank it.
+func TestOwnAvatarAndName(t *testing.T) {
+	s, _ := testSynced()
+	member := func(room, avatar, display string) *event.Event {
+		return &event.Event{
+			ID: id.EventID("$m" + room), RoomID: id.RoomID(room), Sender: "@me:example.org",
+			StateKey: ptr("@me:example.org"), Timestamp: 1, Type: event.StateMember,
+			Mautrix: event.MautrixInfo{EventSource: event.SourceJoin | event.SourceState},
+			Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin,
+				Displayname: display, AvatarURL: id.ContentURIString(avatar)}},
+		}
+	}
+	if s.Me().Avatar != "" || s.Me().Name != "me" {
+		t.Fatalf("before: %+v", s.Me())
+	}
+	s.onMember(nil, member("!a", "mxc://example.org/mine", "Ada"))
+	if me := s.Me(); me.Avatar != "mxc://example.org/mine" || me.Name != "Ada" {
+		t.Fatalf("after the member event: %+v", me)
+	}
+	if p, _ := s.Person("@me:example.org"); p.Avatar != "mxc://example.org/mine" {
+		t.Fatalf("Person(me) = %+v", p)
+	}
+	s.onMember(nil, member("!b", "", "")) // another room, nothing set there
+	if me := s.Me(); me.Avatar != "mxc://example.org/mine" || me.Name != "Ada" {
+		t.Fatalf("blanked by a room without them: %+v", me)
+	}
+	// And from the profile, which needs no member event at all.
+	s2, _ := testSynced()
+	s2.setMe("Ada", "mxc://example.org/profile")
+	if me := s2.Me(); me.Avatar != "mxc://example.org/profile" || me.Name != "Ada" {
+		t.Fatalf("setMe: %+v", me)
+	}
+}
+
 func TestOnMemberStateVsTimeline(t *testing.T) {
 	s, _ := testSynced()
 
@@ -286,6 +322,69 @@ func TestSpacesStayOutOfRooms(t *testing.T) {
 	}
 	if cs := s.Communities(); len(cs) != 1 || cs[0].ID != "!space" {
 		t.Fatalf("communities = %+v", cs)
+	}
+}
+
+// An edit is the edited message, never a message of its own — whichever
+// of the two is readable first, and even when the edit was a "waiting for
+// keys" tile before it could be read.
+func TestEditsNeverShowTwice(t *testing.T) {
+	edit := func(idv string, ts int64, newBody string) *event.Event {
+		c := &event.MessageEventContent{MsgType: event.MsgText, Body: "* " + newBody,
+			NewContent: &event.MessageEventContent{MsgType: event.MsgText, Body: newBody},
+			RelatesTo:  &event.RelatesTo{Type: event.RelReplace, EventID: "$o"}}
+		return msgEvent(idv, "!a", "@kai:example.org", ts, c)
+	}
+	original := func() *event.Event {
+		return msgEvent("$o", "!a", "@kai:example.org", 1000, &event.MessageEventContent{MsgType: event.MsgText, Body: "tyop"})
+	}
+	join := func(s *Source) {
+		s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{"!a": {}}}})
+	}
+
+	// The original, then its edit.
+	s, _ := testSynced()
+	join(s)
+	s.onMessage(nil, original())
+	s.onMessage(nil, edit("$e", 2000, "typo"))
+	if tl := s.Timeline("!a"); len(tl) != 1 || tl[0].Body != "typo" || !tl[0].Edited {
+		t.Fatalf("original then edit: %+v", tl)
+	}
+
+	// The edit comes first (the original was not readable yet): the
+	// original takes it when it arrives, and the edit never shows.
+	s, _ = testSynced()
+	join(s)
+	s.onMessage(nil, edit("$e", 2000, "typo"))
+	if len(s.Timeline("!a")) != 0 {
+		t.Fatal("an edit with nothing to edit showed as a message")
+	}
+	s.onMessage(nil, original())
+	if tl := s.Timeline("!a"); len(tl) != 1 || tl[0].Body != "typo" || !tl[0].Edited {
+		t.Fatalf("edit then original: %+v", tl)
+	}
+	// An older edit arriving late does not undo a newer one.
+	s.onMessage(nil, edit("$e0", 1500, "tpyo"))
+	if tl := s.Timeline("!a"); tl[0].Body != "typo" {
+		t.Fatalf("a late old edit won: %+v", tl)
+	}
+
+	// The edit was a lock tile (its keys had not come), and is read later.
+	s, _ = testSynced()
+	join(s)
+	r := s.rooms["!a"]
+	lock := model.Event{ID: "$e", Room: "!a", Sender: "@kai:example.org", Kind: model.EventUndecryptable, Time: time.UnixMilli(2000)}
+	r.appendEvent(lock, "kai", false)
+	r.raw = map[string]*rawEvent{"$e": {evt: &event.Event{ID: "$e"}, tile: lock}}
+	s.encrypted = 1
+	s.onMessage(nil, original())
+	s.onMessage(nil, edit("$e", 2000, "typo"))
+	tl := s.Timeline("!a")
+	if len(tl) != 1 || tl[0].ID != "$o" || tl[0].Body != "typo" {
+		t.Fatalf("after the edit's tile was read: %+v", tl)
+	}
+	if s.encrypted != 0 || len(r.raw) != 0 {
+		t.Fatalf("the edit still counts as waiting: encrypted=%d raw=%d", s.encrypted, len(r.raw))
 	}
 }
 

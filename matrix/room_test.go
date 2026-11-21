@@ -66,11 +66,11 @@ func TestRoomEditAndReactions(t *testing.T) {
 	r := &room{id: "!r"}
 	r.appendEvent(model.Event{ID: "$1", Time: at(1), Kind: model.EventText, Body: "tyop"}, "Ada", false)
 
-	r.editEvent("$1", "typo")
+	r.editEvent("$1", "typo", 10)
 	if r.events[0].Body != "typo" || !r.events[0].Edited {
 		t.Fatalf("edit = %+v", r.events[0])
 	}
-	r.editEvent("$nope", "nothing")
+	r.editEvent("$nope", "nothing", 11)
 	if r.events[0].Body != "typo" {
 		t.Fatal("an edit of a missing event rewrote something")
 	}

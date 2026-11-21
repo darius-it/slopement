@@ -144,6 +144,34 @@ func badSyncToken(err error) bool {
 	return false
 }
 
+// setMe is the user's own name and picture, from their profile or their
+// member events. Empty values leave what is there: a member event of a
+// room where they set no picture of their own must not blank the account's.
+// UI thread.
+func (s *Source) setMe(name, avatar string) {
+	if name != "" && name != mxidName(s.me.ID) {
+		s.me.Name = name
+	}
+	if avatar != "" {
+		s.me.Avatar = avatar
+	}
+}
+
+// fetchMe reads the user's own profile: the sync's member events may never
+// mention them (lazy loading sends only some members), but the profile
+// always has their name and picture.
+func (s *Source) fetchMe(ctx context.Context) {
+	prof, err := s.cli.GetProfile(ctx, s.cli.UserID)
+	if err != nil || prof == nil {
+		return
+	}
+	name, avatar := prof.DisplayName, ""
+	if !prof.AvatarURL.IsEmpty() {
+		avatar = prof.AvatarURL.String()
+	}
+	s.post(func() { s.setMe(name, avatar) })
+}
+
 // Start runs the sync loop until ctx ends. Call it after SetUpdate, so
 // the first sync's rooms reach the window.
 func (s *Source) Start(ctx context.Context) {
@@ -151,6 +179,7 @@ func (s *Source) Start(ctx context.Context) {
 		return
 	}
 	s.started = true
+	go s.fetchMe(ctx)
 	if s.verify != nil {
 		go s.verify.restoreSaved(ctx)
 		go s.keyWatch(ctx)
@@ -219,7 +248,12 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 
 	// An edit rewrites its target; it is not an event of its own.
 	if target, body, ok := editOf(c); ok {
-		s.post(func() { s.roomOf(evt.RoomID.String()).editEvent(target, body) })
+		id, ts := evt.ID.String(), evt.Timestamp
+		s.post(func() {
+			r := s.roomOf(evt.RoomID.String())
+			r.editEvent(target, body, ts)
+			s.clearLock(r, id) // the edit itself may have shown as waiting for keys
+		})
 		return
 	}
 
@@ -253,7 +287,25 @@ func (s *Source) onReaction(ctx context.Context, evt *event.Event) {
 	if !ok {
 		return
 	}
-	s.post(func() { s.roomOf(evt.RoomID.String()).react(target, evt.Sender.String(), key) })
+	id := evt.ID.String()
+	s.post(func() {
+		r := s.roomOf(evt.RoomID.String())
+		r.react(target, evt.Sender.String(), key)
+		s.clearLock(r, id) // a reaction that was waiting for its keys is no tile
+	})
+}
+
+// clearLock removes what a room kept of an event that was waiting for its
+// keys — the "waiting" tile and the raw copy — when it turns out to be
+// something that is not a tile of its own (an edit, a reaction). UI thread.
+func (s *Source) clearLock(r *room, id string) {
+	if _, raw := r.raw[id]; raw {
+		delete(r.raw, id)
+		s.encrypted--
+	}
+	if i := r.indexOf(id); i >= 0 && r.events[i].Kind == model.EventUndecryptable {
+		r.removeAt(i)
+	}
 }
 
 // onEncrypted is a message that did not decrypt: the crypto helper
@@ -313,6 +365,9 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 	line, isLine := memberLine(evt)
 	fromTimeline := evt.Mautrix.EventSource&event.SourceTimeline != 0
 	s.post(func() {
+		if who == s.me.ID {
+			s.setMe(name, string(c.AvatarURL))
+		}
 		if p, ok := s.people[who]; ok {
 			p.Name, p.Avatar = name, string(c.AvatarURL)
 		} else {
@@ -626,21 +681,13 @@ func (s *Source) redecryptAll() {
 // applyDecrypted puts a late-decrypted event in place of its "waiting"
 // tile. Off the UI thread.
 func (s *Source) applyDecrypted(snap *rawSnapshot, evtID string, decrypted *event.Event) {
-	e := textEvent(s.me.ID, decrypted)
-	sender := decrypted.Sender.String()
-	name := snap.names[sender]
-	room := snap.id
-	s.post(func() {
-		if rr, ok := s.rooms[room]; ok {
-			if _, waiting := rr.raw[evtID]; !waiting {
-				return // another retry got there first
-			}
-			rr.appendEvent(e, name, sender == s.me.ID)
-			delete(rr.raw, evtID)
-			s.encrypted--
-			s.markDirty(room)
-		}
-	})
+	// Through the same handlers a live event takes, as the crypto helper
+	// dispatches one it decrypts on arrival: whatever it turns out to be —
+	// a message, an edit of one, a reaction — is handled as that, and not
+	// shown as a message of its own.
+	if d, ok := s.cli.Syncer.(mautrix.DispatchableSyncer); ok {
+		d.Dispatch(context.Background(), decrypted)
+	}
 }
 
 // rawSnapshot is one room's still-encrypted events with the names the

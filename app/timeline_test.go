@@ -50,6 +50,34 @@ func (t typingSource) Room(id string) (model.Room, bool) {
 	return r, ok
 }
 
+// "(edited)" ends the text it belongs to — short or wrapping — and is not a
+// line of its own (a snapshot with SNAP_DIR).
+func TestEditedMarkerIsInline(t *testing.T) {
+	a := testApp()
+	room, _ := longTimeline(a, 4)
+	long := "Und was wäre, wenn man einfach einen anderen Namen drunterschreibt? Würdest du da mitmachen? " +
+		"Dann wärich auf einmal ein Herbert Handwerker oder sowas, und niemand würde je etwas merken, weil niemand nachsieht."
+	now := time.Now()
+	tl := []model.Event{
+		{ID: "1", Room: room.ID, Sender: room.Partner, Kind: model.EventText, Body: "ja da hast du recht", Edited: true, Time: now.Add(-2 * time.Minute)},
+		{ID: "2", Room: room.ID, Sender: room.Partner, Kind: model.EventText, Body: long, Edited: true, Time: now.Add(-time.Minute)},
+	}
+	a.src = timeline{a.src, tl}
+	a.open(room.ID)
+	tt := ui.NewTester(a.View, 1000, 520)
+	settle(tt)
+	snap(t, "edited-inline", tt)
+
+	short, ok := tt.Find("ja da hast du recht")
+	mark, ok2 := tt.Find("(edited)")
+	if !ok || !ok2 {
+		t.Fatal("the message or its marker does not show")
+	}
+	if mark.Y+mark.H < short.Y || mark.Y > short.Y+short.H+4 {
+		t.Fatalf("the marker is not on the line of its message: text %+v marker %+v", short, mark)
+	}
+}
+
 // readSource counts the read markers it is given, and reports a room's
 // unread count as it is set.
 type readSource struct {

@@ -30,7 +30,10 @@ import (
 //
 // 2: rooms carry their avatar (m.room.avatar), which a resumed sync would
 // never send again for rooms cached without it.
-const cacheVersion = "2"
+//
+// 3: edits are kept by their target; earlier caches hold edits that were
+// shown as messages of their own.
+const cacheVersion = "3"
 
 // Cache is the room cache of one account.
 type Cache struct {

@@ -219,13 +219,23 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				if m.Failed {
 					fg = p.Danger
 				}
-				if m.Doc != nil {
-					MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg})
-				} else if m.Body != "" {
-					ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45).Selectable()
+				body := func() {
+					if m.Doc != nil {
+						MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg})
+					} else if m.Body != "" {
+						ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45).Selectable()
+					}
 				}
 				if m.Edited {
-					ui.Text(c, "(edited)").FontSize(SizeCaption).TextColor(p.TextFaint)
+					// "(edited)" at the end of the text, on its last line's
+					// level: right after a short message, at the end of the
+					// column of a long one — not a line of its own.
+					ui.Row(c.Key("edited")).Gap(S2).AlignItems(ui.End).Children(func() {
+						ui.Column(c).Shrink(1).MinWidth(0).Children(body)
+						ui.Text(c, "(edited)").FontSize(SizeCaption).TextColor(p.TextFaint).SingleLine().Shrink(0).MarginY(3)
+					})
+				} else {
+					body()
 				}
 				if m.Failed {
 					why := "Not sent"

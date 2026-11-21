@@ -36,6 +36,7 @@ type roomRecord struct {
 	Children  []childRecord
 	Parent    string
 	Reads     map[string]readMark
+	Edits     map[string]editMark
 }
 
 type rawRecord struct {
@@ -52,7 +53,7 @@ func (r *room) record() roomRecord {
 		Unread: r.unread, Mentions: r.mentions,
 		Favourite: r.favourite, LowPriority: r.lowPriority, Muted: r.muted,
 		Last: r.last, Preview: r.preview, Parent: r.parent,
-		Reactions: r.reactions, Reads: r.reads,
+		Reactions: r.reactions, Reads: r.reads, Edits: r.edits,
 	}
 	for _, e := range r.events {
 		if strings.HasPrefix(e.ID, localPrefix) {
@@ -81,7 +82,7 @@ func (rec roomRecord) room() *room {
 		unread: rec.Unread, mentions: rec.Mentions,
 		favourite: rec.Favourite, lowPriority: rec.LowPriority, muted: rec.Muted,
 		last: rec.Last, preview: rec.Preview, parent: rec.Parent,
-		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads,
+		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits,
 	}
 	for id, raw := range rec.Raw {
 		var evt event.Event
@@ -131,6 +132,9 @@ func (s *Source) loadCache(ctx context.Context) bool {
 	}
 	for _, id := range direct {
 		s.direct[id] = true
+	}
+	if me, ok := s.people[s.me.ID]; ok { // the user's own name and picture, as last known
+		s.setMe(me.Name, me.Avatar)
 	}
 	for _, r := range s.rooms {
 		s.encrypted += len(r.raw)
