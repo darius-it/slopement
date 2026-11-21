@@ -37,6 +37,9 @@ type roomRecord struct {
 	Parent    string
 	Reads     map[string]readMark
 	Edits     map[string]editMark
+	Back      string
+	BackDone  bool
+	Pinned    []string
 }
 
 type rawRecord struct {
@@ -53,13 +56,22 @@ func (r *room) record() roomRecord {
 		Unread: r.unread, Mentions: r.mentions,
 		Favourite: r.favourite, LowPriority: r.lowPriority, Muted: r.muted,
 		Last: r.last, Preview: r.preview, Parent: r.parent,
-		Reactions: r.reactions, Reads: r.reads, Edits: r.edits,
+		Reactions: r.reactions, Reads: r.reads, Edits: r.edits, Pinned: r.pinned,
 	}
-	for _, e := range r.events {
+	events := r.events
+	if len(events) > timelineCap {
+		events = events[len(events)-timelineCap:] // the cache holds the newest; history is paged back in
+	}
+	for _, e := range events {
 		if strings.HasPrefix(e.ID, localPrefix) {
 			continue // not sent yet: it dies with the process
 		}
 		rec.Events = append(rec.Events, e)
+	}
+	// Where history was: only worth keeping while the cache holds the events
+	// the token was taken from (it is dropped when they are trimmed).
+	if len(r.events) <= timelineCap {
+		rec.Back, rec.BackDone = r.back, r.backDone
 	}
 	if len(r.raw) > 0 {
 		rec.Raw = make(map[string]rawRecord, len(r.raw))
@@ -82,7 +94,7 @@ func (rec roomRecord) room() *room {
 		unread: rec.Unread, mentions: rec.Mentions,
 		favourite: rec.Favourite, lowPriority: rec.LowPriority, muted: rec.Muted,
 		last: rec.Last, preview: rec.Preview, parent: rec.Parent,
-		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits,
+		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, backDone: rec.BackDone, pinned: rec.Pinned,
 	}
 	for id, raw := range rec.Raw {
 		var evt event.Event

@@ -77,8 +77,10 @@ func (a *App) draft(room string) *kit.ComposerState {
 // who is typing, and the composer.
 func (a *App) roomView(c *ui.Context, back bool) {
 	r, _ := a.src.Room(a.room)
-	ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0).Children(func() {
+	col := ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0)
+	col.Children(func() {
 		a.roomHeader(c, r, back)
+		a.pinBar(c, r.ID)
 		if r.Call {
 			if kit.CallBanner(c, 3, a.inCall == r.ID) {
 				a.joinCall(r)
@@ -93,6 +95,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 		ls.Key = func(i int) any { return rows[i].key }
 		a.jumpStep(r.ID, rows, ls)
 		a.readStep(r, rows, ls)
+		a.pageStep(r.ID, ls)
 		// The timeline with what floats over it: who is typing and Jump to
 		// latest sit on its bottom edge, in the 24 left under the last
 		// message, and take no room — a line that came and went would move
@@ -125,6 +128,13 @@ func (a *App) roomView(c *ui.Context, back bool) {
 		}
 		a.composer(c, r)
 	})
+	// Files dropped anywhere on the room wait in its composer.
+	if files := col.DroppedFiles(); len(files) > 0 {
+		a.addPaths(r.ID, files)
+	}
+	if col.FileDragOver() {
+		col.Background(kit.Of(c).AccentSubtle.Alpha(0.5))
+	}
 }
 
 // encryptedWaiting reports whether this room has messages waiting for
@@ -269,7 +279,12 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
 	if ev.Kind != model.EventUndecryptable {
 		m.Doc, m.Media, m.YouTube = a.content(ev)
+		m.File = a.fileSpec(ev)
+		if m.YouTube == nil && len(m.Media) == 0 {
+			m.Embed = a.linkCard(ev, m.Doc)
+		}
 	}
+	m.Menu = a.msgMenu(ev)
 	if ev.Poll != nil {
 		m.Poll = a.pollData(ev.ID, *ev.Poll, me)
 	}
@@ -293,12 +308,16 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		d := a.draft(room)
 		d.Reply = a.quote(room, ev.ID)
 		a.replyTo[room] = ev.ID
-	case act.More:
-		a.toast = "Message actions (copy, pin, edit, delete) come with the Matrix layer"
+	case act.Menu != kit.MsgNone:
+		a.messageChoice(room, ev, act.Menu)
 	case act.OpenMedia >= 0:
 		a.viewerItems, a.viewerAt, a.viewer = media, act.OpenMedia, true
 	case act.JumpTo != "":
 		a.jumpTo(room, act.JumpTo)
+	case act.Download:
+		a.downloadFile(ev)
+	case act.DismissPreview:
+		a.noPreview[ev.ID] = true
 	case act.PlayVideo:
 		a.toast = "Inline YouTube playback comes later"
 	case act.Vote >= 0:
@@ -342,6 +361,7 @@ func (a *App) composer(c *ui.Context, r model.Room) {
 	if r.Kind == model.KindRoom {
 		place = "Message #" + r.Name
 	}
+	st.Suggest = a.suggestions(r.ID, st)
 	var res kit.ComposerResult
 	if kit.Compact(c) {
 		res = kit.PhoneComposer(c.Key("composer:"+r.ID), st, "Message", &a.colors)
@@ -364,7 +384,17 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 	case res.Poll:
 		a.pollRoom, a.pollSheet.Open = r.ID, true
 	case res.Attach:
-		a.toast = "Uploading files comes with the Matrix layer"
+		a.pickFiles(r.ID)
+	}
+	if res.Pick >= 0 && res.Pick < len(st.Suggest) {
+		a.applySuggestion(r.ID, st, st.Suggest[res.Pick])
+		return // taking a suggestion is not sending
+	}
+	if res.Paste {
+		a.pasteStep(r.ID)
+	}
+	if res.RemovedFile >= 0 {
+		a.removeFile(r.ID, res.RemovedFile)
 	}
 	if a.picker.Open {
 		a.pickerRoom = r.ID
@@ -383,17 +413,26 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 		case ch.Emoji != "":
 			st.Text += ch.Emoji
 		case ch.Item != nil:
-			// A GIF or sticker goes as its link for now (uploads come with
-			// the Matrix layer); a lone GIF link shows as the GIF.
-			a.src.Send(r.ID, ch.Item.Full.URL, "")
+			// A GIF or sticker is uploaded as a picture (its link where
+			// that cannot be).
+			a.sendGIF(r.ID, ch.Item.Full.URL)
 			a.picker.Open = false
 		}
 	}
 	if !a.picker.Open {
 		a.reactTo = ""
 	}
+	if res.Send && a.editStep(r.ID, st) {
+		return // the words replaced a message; nothing new was sent
+	}
 	if res.Send {
-		a.src.Send(r.ID, st.Text, a.replyTo[r.ID])
+		reply := a.replyTo[r.ID]
+		if a.sendFiles(r.ID, reply) {
+			reply = "" // the files took the reply; the words follow as their own message
+		}
+		if hasWords(st.Text) {
+			a.src.Send(r.ID, a.expandMentions(r.ID, st.Text), reply)
+		}
 		st.Text, st.Reply = "", nil
 		delete(a.replyTo, r.ID)
 		a.listState(r.ID).ScrollToEnd()
@@ -442,6 +481,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 		case h.More:
 			a.roomSheet.Open, a.roomSheetID = true, r.ID
 		}
+		a.pinBar(c, r.ID)
 		if a.inCall == r.ID {
 			a.callArea(c, r)
 		}
@@ -451,6 +491,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 		ls.Key = func(i int) any { return rows[i].key }
 		a.jumpStep(r.ID, rows, ls)
 		a.readStep(r, rows, ls)
+		a.pageStep(r.ID, ls)
 		// The messages with the typing bubble floating on their bottom
 		// edge: it takes no room, so nothing above it moves when it comes
 		// and goes.
@@ -494,8 +535,14 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 		}
 	}
 	if ev.Kind != model.EventUndecryptable {
-		b.Doc, b.Media, _ = a.content(ev)
+		var yt *kit.YouTubeSpec
+		b.Doc, b.Media, yt = a.content(ev)
+		b.File = a.fileSpec(ev)
+		if yt == nil && len(b.Media) == 0 {
+			b.Embed = a.linkCard(ev, b.Doc)
+		}
 	}
+	b.Menu = a.msgMenu(ev)
 	if ev.Poll != nil {
 		b.Poll = a.pollData(ev.ID, *ev.Poll, b.Out)
 	}

@@ -55,6 +55,18 @@ type room struct {
 	// edits is each edited event's latest edit, kept until the event is
 	// there to take it.
 	edits map[string]editMark
+
+	// pinned are the room's pinned events (m.room.pinned_events).
+	pinned []string
+
+	// History: back is the token to page older events from ("" until the
+	// first page is asked for), backDone says there are no older ones,
+	// backBusy that a page is on its way. keep is how many events the room
+	// holds after pages were loaded, so live events do not trim them.
+	back     string
+	backDone bool
+	backBusy bool
+	keep     int
 }
 
 // readMark is one person's place in a room.
@@ -104,8 +116,8 @@ func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
 		}
 	}
 	r.events = append(r.events, e)
-	if len(r.events) > timelineCap {
-		r.events = r.events[len(r.events)-timelineCap:]
+	if limit := max(timelineCap, r.keep); len(r.events) > limit {
+		r.events = r.events[len(r.events)-limit:] // history the user loaded stays, while it fits
 	}
 	if e.Kind != model.EventSystem {
 		r.last = e.Time
@@ -123,6 +135,28 @@ func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
 			}
 		}
 	}
+}
+
+// insertOlder puts an event loaded from the room's history in its place by
+// time. It is not news: the room's last activity, preview and unread count
+// stay as they are. An event the room already holds is replaced, as
+// appendEvent does.
+func (r *room) insertOlder(e model.Event) {
+	if r.indexOf(e.ID) >= 0 {
+		r.appendEvent(e, "", false)
+		return
+	}
+	if mark, ok := r.edits[e.ID]; ok && e.Kind != model.EventUndecryptable && e.Kind != model.EventSystem {
+		e.Body, e.Edited = mark.Body, true
+	}
+	i := len(r.events)
+	for i > 0 && r.events[i-1].Time.After(e.Time) {
+		i--
+	}
+	r.events = append(r.events, model.Event{})
+	copy(r.events[i+1:], r.events[i:])
+	r.events[i] = e
+	r.keep = max(r.keep, len(r.events)) // what was loaded is kept, up to here
 }
 
 // localPrefix marks the ID of a message that is shown before the server

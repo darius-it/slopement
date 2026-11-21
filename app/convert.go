@@ -2,6 +2,7 @@ package app
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"slopement/embeds"
@@ -160,15 +161,35 @@ type parsed struct {
 	doc  *format.Node
 }
 
+// fileSpec is the card of a message that is a file (a document, audio), or
+// nil.
+func (a *App) fileSpec(ev model.Event) *kit.FileSpec {
+	for _, m := range ev.Media {
+		if m.Kind == model.MediaFile {
+			return &kit.FileSpec{Name: m.Name, Size: sizeLabel(int(m.Size)), Progress: -1}
+		}
+	}
+	return nil
+}
+
 // content fills a message's body, media and embeds: a message that is
 // only a GIF link shows as the GIF; a YouTube link gets its card.
 func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, yt *kit.YouTubeSpec) {
 	doc = a.doc(ev)
+	if ev.Kind == model.EventMedia && len(ev.Media) > 0 && strings.TrimSpace(ev.Body) == ev.Media[0].Name {
+		doc = nil // the body of a picture or file is its file name: the card or picture says it
+	}
 	for i, m := range ev.Media {
+		if m.Kind == model.MediaFile {
+			continue // a file card (fileSpec), not a picture
+		}
 		spec := kit.MediaSpec{ID: ev.ID + ":" + strconv.Itoa(i), Kind: kit.MediaImage, W: float32(m.W), H: float32(m.H),
 			Progress: -1, Label: m.Name, Spoiler: m.Spoiler}
 		spec.Still = a.still(m)
 		media = append(media, spec)
+	}
+	if doc == nil {
+		return nil, media, nil // nothing written beside the picture or file: no links to preview
 	}
 	if e, ok := embeds.SoleMedia(doc); ok {
 		gif := embeds.IsGIF(e.MediaURL)

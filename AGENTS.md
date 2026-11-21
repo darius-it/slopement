@@ -74,6 +74,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   inbox) and the phone layout, room view, side panel, People, Settings and
   every overlay. Built from `kit` on a `model.Source`; never touches Matrix
   directly.
+  The app's composer pieces live in `app/files.go` (files waiting as chips,
+  paste, drop, GIFs uploaded), `app/suggest.go` (@mentions, `:emoji:`),
+  `app/actions.go` (message menu, edit, pins), `app/previews.go` (link
+  cards), `app/history.go` (asks for older messages near the top).
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
 - `login/`: the sign-in screen over `matrix/` (probe a server, the MAS
@@ -97,6 +101,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   Security Key (SSSS) with the key backup behind it — after which the
   still-encrypted events re-decrypt into their tiles. Sliding sync
   (MSC4186) replaces the loop behind the same constructor later.
+  Optional capabilities the app asks of a `Source` through small interfaces
+  in `model/` (the mock needs none): `History` (`history.go`: pages older
+  events in above what is held, by `/messages`), `Uploader` (`upload.go`:
+  sends files, encrypted in encrypted rooms), `Actions` (`actions.go`: edit,
+  delete, pin; each shows at once, a refusal is said as a quiet line),
+  `Previewer` (`preview.go`: the homeserver's `preview_url`), `MediaLoader`
+  (`media.go`: attachments and avatar thumbnails), `ReceiptPrivacy`. Events
+  paged in are marked `sourceHistory` and placed by time by `insertOlder`
+  (no unread, no preview change).
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: the component gallery and mock screens, built only from `kit`.
   It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.

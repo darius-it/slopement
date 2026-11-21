@@ -73,6 +73,13 @@ type App struct {
 	statePath        string
 	stateLast        string
 	statePending     bool
+	files            map[string][]model.File // per room, waiting in the composer (files.go)
+	mentions         map[string]map[string]string // per room, the mentions chosen in the draft: text → who (suggest.go)
+	previews         map[string]*previewState // link previews by URL (previews.go)
+	noPreview        map[string]bool          // messages whose preview the user dismissed
+	msgSheet         kit.SheetState          // phones: a message's menu (actions.go)
+	msgRoom, msgID   string
+	pinAt            map[string]int // per room, which pinned message the bar shows
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)
 	flash            string       // the message just jumped to, highlighted a moment
@@ -157,6 +164,11 @@ func New(src model.Source, pick *picker.Controller) *App {
 		stills:    map[string]ui.ImageSource{},
 		stillBusy: map[string]bool{},
 		readMarked: map[string]string{},
+		files:      map[string][]model.File{},
+		pinAt:      map[string]int{},
+		previews:   map[string]*previewState{},
+		mentions:   map[string]map[string]string{},
+		noPreview:  map[string]bool{},
 		avatars:    map[string]*ui.Bitmap{},
 		avatarBusy: map[string]bool{},
 		call:      kit.NewCall(),

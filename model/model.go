@@ -139,6 +139,57 @@ type Event struct {
 	ReadBy []string
 }
 
+// Preview is what a page says about itself (OpenGraph), as the
+// homeserver's URL preview gives it.
+type Preview struct {
+	URL, Site, Title, Description string
+	Image                         string // an mxc:// URL on the homeserver
+	W, H                          int
+}
+
+// Previewer is what a Source may offer: asking the homeserver what a link
+// says about itself. It does the fetching, so the user's own address is not
+// shown to the site; done gets the answer on any goroutine.
+type Previewer interface {
+	LinkPreview(url string, done func(Preview, error))
+}
+
+// Actions is what a Source may offer on messages: editing one of the
+// user's own, deleting one, pinning (and unpinning) one to its room. Each
+// takes effect at once and is confirmed by the server after; Pinned lists a
+// room's pinned events in the order they were pinned.
+type Actions interface {
+	Edit(room, event, markdown string)
+	Redact(room, event string)
+	Pin(room, event string, on bool)
+	IsPinned(room, event string) bool
+	Pinned(room string) []string
+}
+
+// File is something the user sends: its name, its media type ("" to
+// detect it) and its bytes.
+type File struct {
+	Name string
+	Mime string
+	Data []byte
+}
+
+// Uploader is what a Source may offer: sending a file or picture to a room
+// (as a reply when replyTo is set). It shows at once, and a failure marks
+// the message as the failure of any send.
+type Uploader interface {
+	SendFile(room string, f File, replyTo string)
+}
+
+// History is what a Source may offer: paging a room's older messages in
+// above what it holds. HasOlder says there may be more; LoadOlder asks for
+// a page (one at a time per room, a no-op when there is none), whose
+// events arrive as the room's timeline changing.
+type History interface {
+	HasOlder(room string) bool
+	LoadOlder(room string)
+}
+
 // ReceiptPrivacy is what a Source may offer: whether the read receipts
 // the user sends are public (others see them) or private (only the
 // server's own unread counts and the user's other devices do).
@@ -158,6 +209,9 @@ type Media struct {
 	Length  time.Duration // video and audio
 	Spoiler bool
 	Secret  string // the source's own key material for an encrypted attachment; opaque
+	// Local is the picture's own bytes while it is being sent: it shows at
+	// once, before the server has it. Never stored.
+	Local []byte `json:"-"`
 	// Square, when set, asks for a thumbnail of that many pixels a side
 	// (cropped) rather than the whole file: a profile picture.
 	Square int

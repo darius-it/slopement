@@ -57,6 +57,8 @@ type MessageData struct {
 	// Sent shows the hollow check of the user's last message, sent and not
 	// read yet.
 	Sent bool
+	// Menu says what the message's ⋯ and context menus offer.
+	Menu MessageMenuState
 	// Image, with ImageW/H, is an image message's thumbnail.
 	Image          *ui.Bitmap
 	ImageW, ImageH float32
@@ -89,7 +91,6 @@ type MessageAction struct {
 	React     string // a reaction key toggled
 	OpenEmoji bool   // the reaction picker asked for
 	Reply     bool
-	More      bool
 	// OpenMedia is the attachment clicked, or -1.
 	OpenMedia int
 	// PlayVideo is set when an embedded video's play was pressed.
@@ -105,6 +106,12 @@ type MessageAction struct {
 	ProfileAct ProfileAction
 	// JumpTo is the event whose quote was pressed: scroll to it.
 	JumpTo string
+	// Download: the message's file card was pressed.
+	Download bool
+	// Menu is what was chosen from the message's menu (Reply is Reply).
+	Menu MessageChoice
+	// DismissPreview: the × of the message's link card was pressed.
+	DismissPreview bool
 }
 
 // senderName is a sender's name: in their color, a link to their card
@@ -253,8 +260,8 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						a.OpenMedia = i
 					}
 				}
-				if m.File != nil {
-					FileCard(c, *m.File)
+				if m.File != nil && FileCard(c, *m.File).Clicked() {
+					a.Download = true
 				}
 				if m.Poll != nil {
 					pd := *m.Poll
@@ -269,7 +276,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						a.PlayVideo = true
 					}
 				} else if m.Embed != nil {
-					LinkPreview(c, *m.Embed, 420)
+					if LinkPreview(c, *m.Embed, 420) {
+						a.DismissPreview = true
+					}
 				}
 			}
 			if len(m.Reactions) > 0 {
@@ -309,13 +318,29 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					if toolButton(c, "Reply", func(fg ui.Color) { ui.Icon(c, IconReply).Size(16, 16).TextColor(fg) }).Clicked() {
 						a.Reply = true
 					}
-					if toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) }).Clicked() {
-						a.More = true
+					if !m.Menu.Off {
+						more := toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) })
+						MenuButton(c, more, func(mm *ui.Menu) { a.chose(MessageMenu(mm, m.Menu)) })
 					}
 				})
 		}
 	})
+	if !m.Menu.Off {
+		ContextMenu(c, row, func(mm *ui.Menu) { a.chose(MessageMenu(mm, m.Menu)) })
+	}
 	return a
+}
+
+// chose records a choice of a message's menu in the action. Reply is the
+// toolbar's Reply, as before.
+func (a *MessageAction) chose(ch MessageChoice) {
+	switch ch {
+	case MsgNone:
+	case MsgReply:
+		a.Reply = true
+	default:
+		a.Menu = ch
+	}
 }
 
 // ReplyQuote is the line a reply shows above its text: a thin neutral bar,

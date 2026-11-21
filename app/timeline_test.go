@@ -201,6 +201,42 @@ func TestReplyQuoteJumpsToOriginal(t *testing.T) {
 	}
 }
 
+// olderSource counts the pages asked for.
+type olderSource struct {
+	timeline
+	more  bool
+	pages int
+}
+
+func (s *olderSource) HasOlder(string) bool { return s.more }
+func (s *olderSource) LoadOlder(string)     { s.pages++ }
+
+// Older messages are asked for when the user is near the top of the
+// timeline — not while they read at the end, and not when there are none.
+func TestHistoryIsPagedAtTheTop(t *testing.T) {
+	a := testApp()
+	room, tl := longTimeline(a, 200)
+	src := &olderSource{timeline: timeline{a.src, tl}, more: true}
+	a.src = src
+	a.open(room.ID)
+	tt := ui.NewTester(a.View, 1200, 800)
+	settle(tt)
+	if src.pages != 0 {
+		t.Fatalf("asked for history while at the end: %d", src.pages)
+	}
+	a.listState(room.ID).ScrollTo(0, ui.Start)
+	settle(tt)
+	settle(tt)
+	if src.pages == 0 {
+		t.Fatal("did not ask for older messages at the top")
+	}
+	src.pages, src.more = 0, false
+	settle(tt)
+	if src.pages != 0 {
+		t.Fatal("asked for history that is not there")
+	}
+}
+
 // Jump to latest ends on the last message — in one move, not past it.
 func TestJumpToLatest(t *testing.T) {
 	a := testApp()

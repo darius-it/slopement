@@ -42,6 +42,8 @@ type BubbleData struct {
 	ReadBy []AvatarSpec
 	// Sent: the user's last message, sent and not read yet.
 	Sent bool
+	// Menu says what the message's menu (a long press) offers.
+	Menu MessageMenuState
 	// Pending shows as any sent message does; only a failure is marked.
 	Pending bool
 	Failed  bool
@@ -115,8 +117,8 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 			row.TransformOrigin(0, 1)
 		}
 	}
-	if row.LongPressed() || row.RightClicked() {
-		a.More = true
+	if !b.Menu.Off && (row.LongPressed() || row.RightClicked()) {
+		a.Menu = MsgOpenSheet // the app shows what can be done, as a sheet
 	}
 	row.Children(func() {
 		if !b.Out {
@@ -214,7 +216,11 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 			})
 		}
 		if b.File != nil {
-			ui.Box(c).Padding(S1).Children(func() { FileCard(c, *b.File) })
+			ui.Box(c).Padding(S1).Children(func() {
+				if FileCard(c, *b.File).Clicked() {
+					a.Download = true
+				}
+			})
 		}
 		if b.Reply != nil || hasText || b.Embed != nil {
 			ui.Column(c).Padding(S2, S3, S2+1, S3).Gap(S15).Children(func() {
@@ -411,7 +417,11 @@ func PhoneChatHeader(c *ui.Context, h ChatHeader) (a ChatHeaderAction) {
 // text.
 func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors *UserColors) (r ComposerResult) {
 	p := Of(c)
+	r.RemovedFile, r.Pick = -1, -1
 	ui.Column(c).Shrink(0).Background(p.Wallpaper).Children(func() {
+		editBanner(c, st)
+		r.RemovedFile = fileTray(c, st)
+		r.Pick = suggestPopup(c, st)
 		if q := st.Reply; q != nil {
 			ui.Row(c).Gap(S2).Padding(S2, S3, 0, S4).AlignItems(ui.Center).
 				Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}).
@@ -437,6 +447,13 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 				ta := ui.TextAreaBase(c, &st.Text).Grow(1).MinWidth(0).Lines(1, 6).Placeholder(placeholder).
 					PlaceholderColor(p.TextMuted).FontSize(SizeBodyTouch).LineHeight(1.35).MarginY(10).Label(placeholder)
 				ta.OnTextKey(func(k ui.TextKey) bool {
+					if suggestKey(st, k) {
+						return true
+					}
+					if pasteKey(k) {
+						st.wantPaste = true
+						return false
+					}
 					if k.Key == ui.KeyEnter && k.Mods == 0 && !Touch(c) {
 						st.send = true
 						return true
@@ -449,7 +466,7 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 			})
 			// Mic, or send once there is text: they swap with a quick
 			// scale, as one button changing its mind.
-			if hasText(st.Text) {
+			if st.canSend() {
 				s := roundIcon(c.Key("send"), IconSend, "Send", p.Accent, p.OnAccent)
 				s.Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.6, Rotate: -30}, Exit: &ui.Motion{Scale: 0.6}})
 				if s.Clicked() {
@@ -463,7 +480,7 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 	})
 	if st.send {
 		st.send = false
-		if hasText(st.Text) {
+		if st.canSend() {
 			r.Send = true
 		}
 	}

@@ -175,6 +175,9 @@ func YouTubePlayer(id string, start int) string {
 // Links returns the links of a message to preview: at most max, in
 // order, without duplicates, skipping those in code.
 func Links(n *format.Node, max int) []string {
+	if n == nil {
+		return nil
+	}
 	var out []string
 	seen := map[string]bool{}
 	var walk func(*format.Node)

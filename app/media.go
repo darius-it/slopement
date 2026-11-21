@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -56,10 +57,38 @@ func (a *App) avatarPic(url string) *ui.Bitmap {
 	return nil
 }
 
+// localStill is the picture of a message being sent, decoded from the bytes
+// the user chose (off the UI thread, once).
+func (a *App) localStill(m model.Media) ui.ImageSource {
+	key := "local:" + m.Name + ":" + strconv.Itoa(len(m.Local))
+	if s, ok := a.stills[key]; ok {
+		return s
+	}
+	if a.runUI == nil || a.stillBusy[key] {
+		return nil
+	}
+	a.stillBusy[key] = true
+	runUI, data := a.runUI, m.Local
+	go func() {
+		bmp, err := ui.DecodeBitmapScaled(data, stillSide)
+		runUI(func() {
+			if err != nil {
+				return
+			}
+			a.stills[key] = bmp
+			a.stillOrder = append(a.stillOrder, key)
+		})
+	}()
+	return nil
+}
+
 // still is an attachment's picture: the decoded one when it has arrived,
 // otherwise nil (the placeholder) while it is fetched, off the UI thread,
 // from the source. Pictures are kept by URL, the oldest dropped first.
 func (a *App) still(m model.Media) ui.ImageSource {
+	if len(m.Local) > 0 && m.Kind == model.MediaImage {
+		return a.localStill(m) // being sent: shown from its own bytes
+	}
 	if m.Kind != model.MediaImage || !strings.HasPrefix(m.URL, "mxc://") {
 		return nil
 	}

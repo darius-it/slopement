@@ -397,7 +397,7 @@ func (a *App) phoneChat(c *ui.Context) {
 				a.profileAct(b.ID, act)
 				if act.OpenMedia >= 0 {
 					a.openViewer(b.Media, act.OpenMedia)
-				} else if act.More {
+				} else if act.Menu != kit.MsgNone {
 					a.did = "Message actions"
 				}
 			}

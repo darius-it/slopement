@@ -238,6 +238,9 @@ func sasOf(emoji []model.SASEmoji) []kit.SASEmoji {
 
 // phoneSheets are the phone's sheets: a room's actions and its info.
 func (a *App) phoneSheets(c *ui.Context) {
+	if a.msgID != "" {
+		a.messageSheet(c)
+	}
 	if r, ok := a.src.Room(a.roomSheetID); ok {
 		kit.Sheet(c, &a.roomSheet, r.Name, func() {
 			st := a.menuState(r)

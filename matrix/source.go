@@ -37,8 +37,10 @@ type Source struct {
 	// mu guards the batch: posts made while a sync response is processed
 	// are queued and applied together.
 	mu       sync.Mutex
-	batching bool
-	queue    []func()
+	batching  int
+	queue     []func()
+	pendToken string   // the sync token of a batch that ended inside another
+	pendLeft  []string // and the rooms it left
 
 	// keyKick wakes the key watcher when a message arrives locked.
 	keyKick chan struct{}
@@ -102,7 +104,7 @@ func (s *Source) post(fn func()) {
 		return
 	}
 	s.mu.Lock()
-	if s.batching {
+	if s.batching > 0 {
 		s.queue = append(s.queue, fn)
 		s.mu.Unlock()
 		return
@@ -117,9 +119,12 @@ func (s *Source) post(fn func()) {
 // beginBatch starts collecting posts: one sync response is dozens of
 // events, and the UI must see it whole — or a room shows in Chats for a
 // frame before its space and parent claims arrive, then moves.
+//
+// Batches nest (a page of history loaded while a sync is processed): what
+// is collected runs when the last one ends.
 func (s *Source) beginBatch() {
 	s.mu.Lock()
-	s.batching = true
+	s.batching++
 	s.mu.Unlock()
 }
 
@@ -131,8 +136,17 @@ func (s *Source) beginBatch() {
 // last events would otherwise bring them back).
 func (s *Source) endBatch(token string, left []string) {
 	s.mu.Lock()
-	q := s.queue
-	s.queue, s.batching = nil, false
+	if token != "" {
+		s.pendToken = token
+	}
+	s.pendLeft = append(s.pendLeft, left...)
+	s.batching--
+	if s.batching > 0 {
+		s.mu.Unlock()
+		return // an outer batch is still collecting
+	}
+	q, token, left := s.queue, s.pendToken, s.pendLeft
+	s.queue, s.pendToken, s.pendLeft = nil, "", nil
 	s.mu.Unlock()
 	if s.update == nil {
 		return

@@ -388,6 +388,20 @@ func TestEditsNeverShowTwice(t *testing.T) {
 	}
 }
 
+// A chosen @mention goes as a link to the person and notifies them.
+func TestMentionsInSentContent(t *testing.T) {
+	c := contentOf("hi [@Alex](https://matrix.to/#/@alex:example.org) and [site](https://example.org)")
+	if c.Mentions == nil || len(c.Mentions.UserIDs) != 1 || c.Mentions.UserIDs[0] != "@alex:example.org" {
+		t.Fatalf("mentions = %+v", c.Mentions)
+	}
+	if !strings.Contains(c.FormattedBody, "https://matrix.to/#/@alex:example.org") {
+		t.Fatalf("formatted body = %q", c.FormattedBody)
+	}
+	if contentOf("no one here").Mentions != nil {
+		t.Fatal("a message without mentions carries a mentions list")
+	}
+}
+
 // A sent message shows pending at once and ends up once, whichever of
 // the send's answer and the sync's echo comes first.
 func TestLocalEcho(t *testing.T) {

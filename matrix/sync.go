@@ -87,11 +87,13 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 
 	syncer.OnEventType(event.EventMessage, s.onMessage)
 	syncer.OnEventType(event.EventReaction, s.onReaction)
+	syncer.OnEventType(event.EventRedaction, s.onRedaction)
 	syncer.OnEventType(event.EventEncrypted, s.onEncrypted)
 	syncer.OnEventType(event.StateMember, s.onMember)
 	syncer.OnEventType(event.StateRoomName, s.onRoomName)
 	syncer.OnEventType(event.StateTopic, s.onTopic)
 	syncer.OnEventType(event.StateRoomAvatar, s.onRoomAvatar)
+	syncer.OnEventType(event.StatePinnedEvents, s.onPinned)
 	syncer.OnEventType(event.StateCanonicalAlias, s.onAlias)
 	syncer.OnEventType(event.StateEncryption, s.onEncryption)
 	syncer.OnEventType(event.StateCreate, s.onCreate)
@@ -238,12 +240,20 @@ func (s *Source) onSync(resp *mautrix.RespSync) {
 	})
 }
 
+// sourceHistory marks an event that came from paging a room's history
+// back, not from the sync: the handlers put it in its place by time and do
+// not count it as news.
+const sourceHistory event.Source = 1 << 30
+
 // onMessage is a room message: text, media, a reply, an edit — what the
 // timeline is made of.
 func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 	c := evt.Content.AsMessage()
 	if c == nil {
 		return
+	}
+	if c.MsgType == "" && c.Body == "" && c.NewContent == nil {
+		return // a redacted message: nothing of it is left to show
 	}
 
 	// An edit rewrites its target; it is not an event of its own.
@@ -265,7 +275,11 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 		if txn := evt.Unsigned.TransactionID; sender == s.me.ID && txn != "" {
 			r.adoptEcho(txn, e.ID) // the message the user sent: same place, server's ID
 		}
-		r.appendEvent(e, name, sender == s.me.ID)
+		if evt.Mautrix.EventSource&sourceHistory != 0 {
+			r.insertOlder(e) // a page of history: in its place, and not news
+		} else {
+			r.appendEvent(e, name, sender == s.me.ID)
+		}
 		// A decrypted event may be one that had waited for keys
 		// re-dispatched: its raw copy goes with its tile.
 		if _, raw := r.raw[e.ID]; raw {
@@ -292,6 +306,32 @@ func (s *Source) onReaction(ctx context.Context, evt *event.Event) {
 		r := s.roomOf(evt.RoomID.String())
 		r.react(target, evt.Sender.String(), key)
 		s.clearLock(r, id) // a reaction that was waiting for its keys is no tile
+	})
+}
+
+// onRedaction is an event taken back (deleted): it goes from the timeline,
+// with its reactions and edit — and, if it was a lock tile or waiting for
+// keys, from the count of those.
+func (s *Source) onRedaction(ctx context.Context, evt *event.Event) {
+	target := evt.Redacts
+	if c := evt.Content.AsRedaction(); c != nil && c.Redacts != "" {
+		target = c.Redacts
+	}
+	if target == "" {
+		return
+	}
+	id := target.String()
+	s.post(func() {
+		r := s.roomOf(evt.RoomID.String())
+		if i := r.indexOf(id); i >= 0 {
+			r.removeAt(i)
+		}
+		if _, raw := r.raw[id]; raw {
+			delete(r.raw, id)
+			s.encrypted--
+		}
+		delete(r.reactions, id)
+		delete(r.edits, id)
 	})
 }
 
@@ -330,7 +370,11 @@ func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 		if i := r.indexOf(e.ID); i >= 0 && r.events[i].Kind != model.EventUndecryptable {
 			return
 		}
-		r.appendEvent(e, s.nameOf(evt.Sender.String()), false)
+		if evt.Mautrix.EventSource&sourceHistory != 0 {
+			r.insertOlder(e)
+		} else {
+			r.appendEvent(e, s.nameOf(evt.Sender.String()), false)
+		}
 		if age := time.Since(e.Time); age < unreadableGrace && s.update != nil {
 			// Hidden for now (Timeline): show it, as waiting, if its key
 			// has not come by then.
@@ -826,5 +870,32 @@ func contentOf(markdown string) *event.MessageEventContent {
 	if format.NeedsHTML(doc) {
 		content.FormattedBody, content.Format = format.HTML(doc), event.FormatHTML
 	}
+	if ids := mentionedUsers(doc); len(ids) > 0 {
+		content.Mentions = &event.Mentions{UserIDs: ids} // they are notified, as the spec has it
+	}
 	return &content
+}
+
+// mentionedUsers are the people a message links to as matrix.to user
+// links (what the composer makes of a chosen @mention).
+func mentionedUsers(n *format.Node) []id.UserID {
+	var out []id.UserID
+	seen := map[id.UserID]bool{}
+	var walk func(*format.Node)
+	walk = func(n *format.Node) {
+		if n.Kind == format.Link {
+			if who, ok := strings.CutPrefix(n.Href, "https://matrix.to/#/@"); ok && who != "" {
+				uid := id.UserID("@" + strings.SplitN(who, "?", 2)[0])
+				if !seen[uid] {
+					seen[uid] = true
+					out = append(out, uid)
+				}
+			}
+		}
+		for _, ch := range n.Children {
+			walk(ch)
+		}
+	}
+	walk(n)
+	return out
 }
