@@ -21,7 +21,7 @@ func TestStateRoundTrip(t *testing.T) {
 		t.Fatal("the mock needs rooms")
 	}
 	a.theme, a.nav, a.sidebar = 2, kit.NavTabs, false
-	a.prefs.gifAutoplay, a.prefs.myColor, a.prefs.peopleSub = false, 3, 1
+	a.prefs.gifAutoplay, a.prefs.myColor, a.prefs.peopleSub, a.prefs.gifFiles = false, 3, 1, true
 	a.settings = "Privacy"
 	a.expanded["c1"] = true
 	a.open(rooms[1].ID)
@@ -37,7 +37,7 @@ func TestStateRoundTrip(t *testing.T) {
 	switch {
 	case a2.theme != 2, a2.nav != kit.NavTabs, a2.sidebar:
 		t.Fatalf("appearance: theme=%d nav=%d sidebar=%v", a2.theme, a2.nav, a2.sidebar)
-	case a2.prefs.gifAutoplay, a2.prefs.myColor != 3, a2.prefs.peopleSub != 1:
+	case a2.prefs.gifAutoplay, a2.prefs.myColor != 3, a2.prefs.peopleSub != 1, !a2.prefs.gifFiles:
 		t.Fatalf("prefs = %+v", a2.prefs)
 	case a2.settings != "Privacy", !a2.expanded["c1"]:
 		t.Fatalf("settings=%q expanded=%v", a2.settings, a2.expanded)

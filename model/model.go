@@ -209,6 +209,7 @@ type Media struct {
 	Length  time.Duration // video and audio
 	Spoiler bool
 	Secret  string // the source's own key material for an encrypted attachment; opaque
+	Mime    string // its media type, as the sender said ("image/gif")
 	// Local is the picture's own bytes while it is being sent: it shows at
 	// once, before the server has it. Never stored.
 	Local []byte `json:"-"`

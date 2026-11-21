@@ -68,11 +68,16 @@ func mediaOf(c *event.MessageEventContent) (model.Media, bool) {
 		return model.Media{}, false
 	}
 	if c.Info != nil {
+		m.Mime = c.Info.MimeType
 		m.W, m.H = c.Info.Width, c.Info.Height
 		m.Size = int64(c.Info.Size)
 		m.Length = time.Duration(c.Info.Duration) * time.Millisecond
 	}
 	switch c.MsgType {
+	case event.MsgImage:
+		if m.Mime == "image/gif" {
+			m.Kind = model.MediaGIF // it animates: the app plays it
+		}
 	case event.MsgVideo:
 		m.Kind = model.MediaVideo
 		if c.Info != nil && c.Info.MauGIF {

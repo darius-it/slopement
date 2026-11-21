@@ -46,10 +46,13 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 	}
 	info := &event.FileInfo{MimeType: mimeType, Size: len(f.Data)}
 	msgType := event.MsgFile
-	media := model.Media{Kind: model.MediaFile, Name: f.Name, Size: int64(len(f.Data))}
+	media := model.Media{Kind: model.MediaFile, Name: f.Name, Size: int64(len(f.Data)), Mime: mimeType}
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
 		msgType, media.Kind = event.MsgImage, model.MediaImage
+		if mimeType == "image/gif" {
+			media.Kind = model.MediaGIF
+		}
 		if len(f.Data) <= 12<<20 {
 			media.Local = f.Data // shown while it uploads
 		}

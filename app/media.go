@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -54,6 +55,77 @@ func (a *App) avatarPic(url string) *ui.Bitmap {
 			}
 		})
 	})
+	return nil
+}
+
+const (
+	gifMax      = 24       // looping players kept (each holds its frames)
+	gifMaxBytes = 20 << 20 // a GIF larger than this stays a still
+)
+
+// isGIFFile reports an attachment that is a real GIF (image/gif bytes),
+// which animates; a "GIF" that is a short video is not one.
+func isGIFFile(m model.Media) bool {
+	return m.Mime == "image/gif" && m.Kind == model.MediaGIF
+}
+
+// gifPlayer is the looping player of a GIF attachment, once its bytes are
+// here and decoded (nil until then: a placeholder shows, then it plays):
+// downloaded (and decrypted) off the UI thread, or taken from the bytes of
+// one the user is sending. A GIF that cannot be decoded stays a placeholder,
+// asked for once. The newest players are kept.
+func (a *App) gifPlayer(m model.Media) *ui.VideoPlayer {
+	key := m.URL
+	if len(m.Local) > 0 {
+		key = "local:" + m.Name + ":" + strconv.Itoa(len(m.Local))
+	}
+	if key == "" {
+		return nil
+	}
+	if p, ok := a.gifs[key]; ok {
+		return p
+	}
+	if a.runUI == nil || a.gifBusy[key] {
+		return nil
+	}
+	runUI := a.runUI
+	finish := func(data []byte, err error) {
+		var d ui.VideoDecoder
+		if err == nil && len(data) <= gifMaxBytes {
+			d, err = ui.NewGIFDecoder(data)
+		} else if err == nil {
+			err = errors.New("gif too large")
+		}
+		runUI(func() {
+			if err != nil {
+				return // stays a placeholder; busy stays set: no retry storm
+			}
+			pl, perr := ui.NewVideoPlayer(d)
+			if perr != nil {
+				return
+			}
+			pl.SetLoop(true).SetMuted(true)
+			a.gifs[key] = pl
+			a.gifOrder = append(a.gifOrder, key)
+			if len(a.gifOrder) > gifMax {
+				delete(a.gifs, a.gifOrder[0])
+				delete(a.gifBusy, a.gifOrder[0])
+				a.gifOrder = a.gifOrder[1:]
+			}
+		})
+	}
+	if len(m.Local) > 0 {
+		a.gifBusy[key] = true
+		data := m.Local
+		go finish(data, nil)
+		return nil
+	}
+	loader, ok := a.src.(model.MediaLoader)
+	if !ok || !strings.HasPrefix(m.URL, "mxc://") {
+		return nil
+	}
+	a.gifBusy[key] = true
+	loader.LoadMedia(m, finish)
 	return nil
 }
 

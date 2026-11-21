@@ -388,6 +388,20 @@ func TestEditsNeverShowTwice(t *testing.T) {
 	}
 }
 
+// A GIF sent as a file is a GIF: it carries its type, and the app plays it.
+func TestGIFAttachmentKind(t *testing.T) {
+	file := func(mime string, msg event.MessageType) *event.Event {
+		return msgEvent("$f", "!a", "@kai:example.org", 1, &event.MessageEventContent{
+			MsgType: msg, Body: "x", URL: "mxc://example.org/x", Info: &event.FileInfo{MimeType: mime, Width: 8, Height: 6}})
+	}
+	if m := textEvent("@me:example.org", file("image/gif", event.MsgImage)).Media[0]; m.Kind != model.MediaGIF || m.Mime != "image/gif" {
+		t.Fatalf("gif: %+v", m)
+	}
+	if m := textEvent("@me:example.org", file("image/png", event.MsgImage)).Media[0]; m.Kind != model.MediaImage || m.Mime != "image/png" {
+		t.Fatalf("png: %+v", m)
+	}
+}
+
 // A chosen @mention goes as a link to the person and notifies them.
 func TestMentionsInSentContent(t *testing.T) {
 	c := contentOf("hi [@Alex](https://matrix.to/#/@alex:example.org) and [site](https://example.org)")

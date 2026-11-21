@@ -32,6 +32,10 @@ type settingsPrefs struct {
 	myColor                                                    int
 	peopleSub                                                  int // under names in People: kit.PeopleSubStatus or PeopleSubLastChat
 	glass                                                      int // glassOff, glassTinted, glassClear
+	// gifFiles: GIFs from the picker go as uploaded files, which every
+	// client animates, instead of as links (the default, which asks nothing
+	// of the homeserver's storage).
+	gifFiles bool
 }
 
 func defaultPrefs() settingsPrefs {
@@ -175,6 +179,7 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Video previews", "Video links show as the video", &a.prefs.videoPreviews)
 			switchRow(c, "GIF previews", "A message that is only a GIF link shows as the GIF", &a.prefs.gifPreviews)
 			switchRow(c, "Animate GIFs", "Only while they're on screen", &a.prefs.gifAutoplay)
+			switchRow(c, "Send GIFs as files", "Off: the picker sends a link, which costs your homeserver nothing, and shows as the GIF here and in clients that preview links. On: the GIF is uploaded, so every client animates it.", &a.prefs.gifFiles)
 			switchRow(c, "Animate profile pictures", "Otherwise only on hover", &a.prefs.animatedAvatars)
 			switchRow(c, "Hide joins and leaves", "In large rooms they're collapsed anyway", &a.prefs.hideJoins)
 		})

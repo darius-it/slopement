@@ -173,13 +173,15 @@ func (a *App) downloadFile(ev model.Event) {
 	}()
 }
 
-// sendGIF sends a GIF or sticker from the picker as a picture — uploaded to
-// the media repo, so it is the room's own and does not need the provider —
-// and as its link if it cannot be fetched or this account cannot upload.
+// sendGIF sends a GIF or sticker from the picker: as its link, which costs
+// the homeserver nothing and shows as the GIF here (the default), or — with
+// "Send GIFs as files" on — as a picture uploaded to the media repo, which
+// every client animates. The link also stands in when the file cannot be
+// fetched or this account cannot upload.
 func (a *App) sendGIF(room, url string) {
 	up, ok := a.src.(model.Uploader)
 	runUI := a.runUI
-	if !ok || runUI == nil {
+	if !a.prefs.gifFiles || !ok || runUI == nil {
 		a.src.Send(room, url, "")
 		return
 	}

@@ -98,6 +98,9 @@ type App struct {
 	// runUI runs a function on the UI thread (the window's Update; a test
 	// runs it at once): where work done off-thread comes back.
 	runUI       func(func())
+	gifs        map[string]*ui.VideoPlayer // GIF attachments' looping players (media.go)
+	gifOrder    []string
+	gifBusy     map[string]bool
 	avatars     map[string]*ui.Bitmap // profile pictures by mxc URL (media.go)
 	avatarOrder []string
 	avatarBusy  map[string]bool
@@ -169,6 +172,8 @@ func New(src model.Source, pick *picker.Controller) *App {
 		previews:   map[string]*previewState{},
 		mentions:   map[string]map[string]string{},
 		noPreview:  map[string]bool{},
+		gifs:       map[string]*ui.VideoPlayer{},
+		gifBusy:    map[string]bool{},
 		avatars:    map[string]*ui.Bitmap{},
 		avatarBusy: map[string]bool{},
 		call:      kit.NewCall(),

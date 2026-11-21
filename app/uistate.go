@@ -44,20 +44,21 @@ type prefsState struct {
 	MyColor                                                    int
 	PeopleSub                                                  int
 	Glass                                                      int
+	GifFiles                                                   bool
 }
 
 func (p settingsPrefs) state() prefsState {
 	return prefsState{p.notifyDesktop, p.notifySound, p.notifyMentions, p.notifyKeywords,
 		p.receipts, p.typing, p.previewsE2EE, p.previewsDirect,
 		p.gifAutoplay, p.animatedAvatars, p.hideJoins,
-		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass}
+		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass, p.gifFiles}
 }
 
 func (p prefsState) prefs() settingsPrefs {
 	return settingsPrefs{p.NotifyDesktop, p.NotifySound, p.NotifyMentions, p.NotifyKeywords,
 		p.Receipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
 		p.GifAutoplay, p.AnimatedAvatars, p.HideJoins,
-		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass}
+		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass, p.GifFiles}
 }
 
 // stateWriter writes the file one write at a time, newest wins.

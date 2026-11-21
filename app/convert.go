@@ -195,6 +195,18 @@ func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, 
 		}
 		spec := kit.MediaSpec{ID: ev.ID + ":" + strconv.Itoa(i), Kind: kit.MediaImage, W: float32(m.W), H: float32(m.H),
 			Progress: -1, Label: m.Name, Spoiler: m.Spoiler}
+		if isGIFFile(m) {
+			// A GIF sent as a file: it plays, looping and muted, as the
+			// picker's does — and, with "Animate GIFs" off, holds its first
+			// frame.
+			spec.Kind, spec.Paused = kit.MediaGIF, !a.prefs.gifAutoplay
+			spec.Player = a.gifPlayer(m)
+			if spec.Player != nil {
+				if w, h := spec.Player.Size(); w > 0 && h > 0 {
+					spec.W, spec.H = float32(w), float32(h)
+				}
+			}
+		}
 		spec.Still = a.still(m)
 		media = append(media, spec)
 	}
