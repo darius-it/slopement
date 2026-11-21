@@ -50,10 +50,20 @@ func (a *App) kitPerson(p model.Person) kit.Person {
 
 // contacts are the people listed in People: those with a DM.
 func (a *App) contacts() []kit.Person {
+	// When the user last chatted with each person: the last activity of
+	// their DM.
+	lastChat := map[string]time.Time{}
+	for _, r := range a.src.Rooms() {
+		if r.Kind == model.KindDM && r.Partner != "" && r.LastActivity.After(lastChat[r.Partner]) {
+			lastChat[r.Partner] = r.LastActivity
+		}
+	}
 	var out []kit.Person
 	for _, p := range a.src.People() {
 		if p.Contact {
-			out = append(out, a.kitPerson(p))
+			kp := a.kitPerson(p)
+			kp.LastChat = lastChat[p.ID]
+			out = append(out, kp)
 		}
 	}
 	return out

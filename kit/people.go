@@ -18,12 +18,61 @@ type Person struct {
 	Status   Status
 	// LastSeen is when they were last active, for those offline.
 	LastSeen time.Time
+	// LastChat is when the user and they last wrote to each other in their
+	// DM; zero when they have not.
+	LastChat time.Time
 }
+
+// What the People view says under each name.
+const (
+	PeopleSubStatus   = iota // their status, or how they are (Online, Away, last seen)
+	PeopleSubLastChat        // when the user and they last chatted
+)
 
 // PeopleState is the People view's filter and search.
 type PeopleState struct {
 	Query  string
 	Filter int // 0 all, 1 online
+	// Sub is what shows under each name: PeopleSubStatus or
+	// PeopleSubLastChat. Set by the app from its settings.
+	Sub int
+}
+
+// personSub is the line under someone's name in the People view, and
+// whether it is a quiet (faint) one. With Status it is the words of their
+// status, and when they have none how they are: Online, Away or when they
+// were last seen. With LastChat it is when they last chatted.
+func personSub(ps Person, mode int, now time.Time) (text string, faint bool) {
+	if mode == PeopleSubLastChat {
+		return lastChatText(ps.LastChat, now), ps.LastChat.IsZero()
+	}
+	if ps.Status.Set(now) && ps.Status.Text != "" {
+		return ps.Status.Text, false
+	}
+	switch ps.Presence {
+	case PresenceAway:
+		return "Away", false
+	case PresenceNone:
+		return lastSeenText(ps.LastSeen, now), true
+	}
+	return "Online", false
+}
+
+// lastChatText says when a chat with someone last happened.
+func lastChatText(t, now time.Time) string {
+	if t.IsZero() {
+		return "No chat yet"
+	}
+	day := func(x time.Time) time.Time { return time.Date(x.Year(), x.Month(), x.Day(), 0, 0, 0, 0, x.Location()) }
+	switch days := int(day(now).Sub(day(t)).Hours() / 24); {
+	case days <= 0:
+		return "Chatted today, " + t.Format("15:04")
+	case days == 1:
+		return "Chatted yesterday"
+	case days < 7:
+		return "Chatted " + t.Format("Monday")
+	}
+	return "Chatted " + t.Format("2 Jan")
 }
 
 // PeopleAction is what the user did in the People view.
@@ -116,7 +165,7 @@ func People(c *ui.Context, st *PeopleState, people []Person, colors *UserColors,
 				FontWeight(WeightSemibold).TextColor(p.TextMuted).Padding(S2, S2, 0, S2)
 			ui.Column(c.Key("list" + title)).Gap(1).Children(func() {
 				for _, ps := range list {
-					if act := personRow(c, ps, colors, now); act.Open != "" || act.Profile != "" {
+					if act := personRow(c, ps, st.Sub, colors, now); act.Open != "" || act.Profile != "" {
 						a = act
 					}
 				}
@@ -135,7 +184,7 @@ func People(c *ui.Context, st *PeopleState, people []Person, colors *UserColors,
 
 // personRow is a contact: avatar with presence, name, and their status in
 // one line under it; message and more on hover.
-func personRow(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a PeopleAction) {
+func personRow(c *ui.Context, ps Person, mode int, colors *UserColors, now time.Time) (a PeopleAction) {
 	p := Of(c)
 	b := ui.ButtonBase(c.Key(ps.ID)).MinHeight(56).PaddingX(S2).Gap(S3).Radius(RadiusMd - 2).AlignItems(ui.Center).
 		Justify(ui.Start).Label(ps.Name)
@@ -153,15 +202,15 @@ func personRow(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a P
 		Avatar(c, av)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, ps.Name).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.Text).SingleLine()
-			switch {
-			case ps.Status.Set(now):
-				StatusLine(c, ps.Status, now, false)
-			case ps.Presence == PresenceAway:
-				ui.Text(c, "Away").FontSize(SizeSmall).TextColor(p.TextMuted)
-			case ps.Presence == PresenceOnline:
-				ui.Text(c, "Online").FontSize(SizeSmall).TextColor(p.TextMuted)
-			default:
-				ui.Text(c, lastSeenText(ps.LastSeen, now)).FontSize(SizeSmall).TextColor(p.TextFaint)
+			if mode == PeopleSubStatus && ps.Status.Set(now) {
+				StatusLine(c, ps.Status, now, false) // emoji and words, as people wrote them
+			} else {
+				text, faint := personSub(ps, mode, now)
+				col := p.TextMuted
+				if faint {
+					col = p.TextFaint
+				}
+				ui.Text(c, text).FontSize(SizeSmall).TextColor(col).SingleLine()
 			}
 		})
 		if hov || Touch(c) {

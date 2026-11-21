@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"slopement/kit"
 )
 
 // TestNameOpensProfile clicks a sender's name in the timeline: their card
@@ -32,31 +34,35 @@ func TestNameOpensProfile(t *testing.T) {
 	}
 }
 
-// TestThoughtBubbleOpens hovers a person in the People grid: their
-// bubble opens to the whole status. With SNAP_DIR it writes the frame.
-func TestThoughtBubbleOpens(t *testing.T) {
+// TestPeopleStatusUnderName: in the People grid a person's status words
+// are the line under their name (no hover, no sliding bubble to wait for);
+// with the setting on "Last chat" the line says when you chatted instead.
+// With SNAP_DIR it writes the frame.
+func TestPeopleStatusUnderName(t *testing.T) {
 	a := testApp()
 	a.page, a.themeMode, a.room = "Desktop", 1, "people"
 	tt := ui.NewTester(a.View, 1440, 1000)
 	tt.Frame()
-	// Kai: a status, and no chat, so the chat list's bubbles (whose text
-	// is always laid out, clipped) don't answer for the grid's.
-	if _, open := tt.Find("Travelling this month"); open {
-		t.Fatal("the bubble is open at rest")
-	}
-	kai, ok := tt.Find("Kai")
-	if !ok {
-		t.Fatal("no Kai tile")
-	}
-	tt.Move(kai.X+kai.W/2, kai.Y+kai.H/2) // over Kai's tile
+	tt.Advance(100 * time.Millisecond)
 	tt.Frame()
-	tt.Advance(500 * time.Millisecond)
-	tt.Frame()
-	if _, open := tt.Find("Travelling this month"); !open {
-		t.Fatal("the bubble did not open on hover")
+	// Kai: a status, and no chat, so the chat list's text does not answer
+	// for the grid's.
+	if _, ok := tt.Find("Travelling this month"); !ok {
+		t.Fatal("the status is not under the name")
 	}
 	if dir := os.Getenv("SNAP_DIR"); dir != "" {
-		writePNG(t, filepath.Join(dir, "thought-hover.png"), tt)
+		writePNG(t, filepath.Join(dir, "people-status.png"), tt)
+	}
+
+	a.people.Sub = kit.PeopleSubLastChat
+	tt.Frame()
+	tt.Advance(100 * time.Millisecond)
+	tt.Frame()
+	if _, ok := tt.Find("Travelling this month"); ok {
+		t.Fatal("the status shows under the name with the setting on Last chat")
+	}
+	if !tt.HasText("No chat yet") && !tt.HasText("Chatted") {
+		t.Fatal("no last-chat line under the names")
 	}
 }
 

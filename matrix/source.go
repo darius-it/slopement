@@ -355,7 +355,6 @@ func (s *Source) Verify() model.Verify {
 // reacting, reading. The rest are quiet no-ops, marked for their own
 // milestones.
 
-func (s *Source) SetStatus(model.Status)              {}
 func (s *Source) SetFavourite(string, bool)           {}
 func (s *Source) SetCommunityFavourite(string, bool)  {}
 func (s *Source) SetLowPriority(string, bool)         {}

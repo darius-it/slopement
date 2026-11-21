@@ -233,6 +233,7 @@ func (a *App) peopleView(c *ui.Context, back bool) {
 		})
 		ui.Scroll(c).Grow(1).Padding(kit.S4).Children(func() {
 			var act kit.PeopleAction
+			a.people.Sub = a.prefs.peopleSub
 			if kit.Compact(c) {
 				act = kit.People(c, &a.people, a.contacts(), &a.colors, a.now)
 			} else {

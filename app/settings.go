@@ -30,6 +30,7 @@ type settingsPrefs struct {
 	gifAutoplay, animatedAvatars, hideJoins                    bool
 	linkPreviews, videoPreviews, gifPreviews                   bool
 	myColor                                                    int
+	peopleSub                                                  int // under names in People: kit.PeopleSubStatus or PeopleSubLastChat
 	glass                                                      int // glassOff, glassTinted, glassClear
 }
 
@@ -163,6 +164,11 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 		group(c, "Layout", "How Chats and Communities are laid out. At phone widths the rail shows as tabs.", func() {
 			ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
+		})
+		group(c, "People", "What shows under each name in People: their status (or how they are, when they have none), or when you last chatted.", func() {
+			ui.Column(c).Padding(kit.S2).Children(func() {
+				kit.Tabs(c.Key("peoplesub"), &a.prefs.peopleSub, "Status", "Last chat")
+			})
 		})
 		group(c, "Timeline", "Previews apply in chats, communities and rooms alike.", func() {
 			switchRow(c, "Link previews", "A card for YouTube and other links", &a.prefs.linkPreviews)

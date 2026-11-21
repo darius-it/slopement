@@ -7,11 +7,11 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// PeopleGrid is the People view on desktops: everyone as a tile, the
-// status they set floating over their avatar in a comic thought bubble,
-// trailed by three shrinking dots down to them. At rest a bubble holds the
-// emoji alone; over the tile it opens to the whole status. Online, then
-// offline; those with a status first.
+// PeopleGrid is the People view on desktops: everyone as a tile, with a
+// small thought bubble on the avatar of those who set a status. The bubble
+// holds their emoji (a chat glyph when they chose none); the whole status is
+// its tooltip, and — with the setting for it — the line under the name. Online,
+// then offline; those with a status first.
 func PeopleGrid(c *ui.Context, st *PeopleState, people []Person, colors *UserColors, now time.Time) (a PeopleAction) {
 	p := Of(c)
 	online, offline, q := splitPeople(st, people, now)
@@ -25,7 +25,7 @@ func PeopleGrid(c *ui.Context, st *PeopleState, people []Person, colors *UserCol
 				FontWeight(WeightSemibold).TextColor(p.TextMuted).Padding(0, S1)
 			ui.Row(c.Key("grid" + title)).Wrap().Gap(S2).Children(func() {
 				for _, ps := range list {
-					if act := personTile(c, ps, colors, now); act.Open != "" || act.Profile != "" {
+					if act := personTile(c, ps, st.Sub, colors, now); act.Open != "" || act.Profile != "" {
 						a = act
 					}
 				}
@@ -45,13 +45,14 @@ func PeopleGrid(c *ui.Context, st *PeopleState, people []Person, colors *UserCol
 const (
 	tileW       = 168
 	tileAvatar  = 64
-	bubbleSpace = 14 // room over the avatar for the overlaid bubble's top
+	bubbleSpace = 14 // room over the avatar for the bubble's top
 )
 
-// personTile is a person in the grid: their thought bubble (if they set a
-// status), avatar with presence, name, and how they are (Online, Away,
-// last seen). A click opens their card; Message shows on hover.
-func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a PeopleAction) {
+// personTile is a person in the grid: their avatar with presence and, if
+// they set a status, its bubble; their name; and a line under it (their
+// status words, or how they are, or when you last chatted — the setting). A
+// click opens their card; Message shows on hover.
+func personTile(c *ui.Context, ps Person, mode int, colors *UserColors, now time.Time) (a PeopleAction) {
 	p := Of(c)
 	b := ui.ButtonBase(c.Key(ps.ID)).Width(tileW).Padding(S2, S2, S3, S2).Gap(S1).Column().AlignItems(ui.Center).
 		Radius(RadiusLg).Label(ps.Name)
@@ -63,37 +64,37 @@ func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a 
 		bg = p.Hover
 	}
 	b.Background(b.AnimateColor("bg", bg, Color))
-	if ps.Status.Set(now) {
-		b.Description(ps.Status.Emoji + " " + ps.Status.Text)
+	hasStatus := ps.Status.Set(now)
+	if hasStatus {
+		b.Description(statusWords(ps.Status))
 	}
 	b.Children(func() {
-		// The avatar, the bubble overlaid on its top-right corner and off to
-		// the side, its trail dropping into the avatar: only a little room
-		// above for the cloud's top. It opens to the right, past the tile,
-		// over its neighbours.
-		ui.Box(c).Margin(bubbleSpace, 0, 0, 0).ZIndex(2).Children(func() {
+		ui.Box(c).Margin(bubbleSpace, 0, 0, 0).Children(func() {
 			av := ps.Avatar
 			av.Size, av.Name, av.ID, av.Colors, av.Presence = tileAvatar, ps.Name, ps.ID, colors, ps.Presence
 			Avatar(c, av)
-			if ps.Status.Set(now) {
-				ui.Box(c.Key("float")).Attach(ui.AnchorTopRight, ui.AnchorBottomLeft).Left(-14).Top(30).Width(290).
+			if hasStatus {
+				// At the avatar's top-right, trail dropping into it. It is a
+				// small, fixed-size mark: it takes no room, covers no
+				// neighbour, and does not move.
+				ui.Box(c.Key("float")).Attach(ui.AnchorTopRight, ui.AnchorBottomLeft).Left(-14).Top(30).
 					AlignItems(ui.Start).PassThrough().Children(func() {
-					ThoughtBubble(c, ps.Status, now, hov)
+					ThoughtBubble(c, ps.Status)
 				})
 			}
 		})
 		ui.Text(c, ps.Name).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(tileW-S4).
 			Margin(S1, 0, 0, 0)
-		how, col := "Online", p.TextMuted
-		switch {
-		case ps.Presence == PresenceAway:
-			how = "Away"
-		case ps.Presence == PresenceNone:
-			how, col = lastSeenText(ps.LastSeen, now), p.TextFaint
+		text, faint := personSub(ps, mode, now)
+		col := p.TextMuted
+		if faint {
+			col = p.TextFaint
 		}
-		ui.Text(c, how).FontSize(SizeCaption).TextColor(col).SingleLine()
-		// Message, on hover, at the tile's top-left corner, clear of the
-		// bubble, which opens to the right.
+		sub := ui.Text(c, text).FontSize(SizeCaption).TextColor(col).SingleLine().MaxWidth(tileW - S4)
+		if hasStatus && mode == PeopleSubStatus && ps.Status.Text != "" {
+			sub.Tooltip(statusWords(ps.Status)) // the whole status, where the line is cut
+		}
+		// Message, on hover, at the tile's top-left corner.
 		if hov || Touch(c) {
 			m := ui.ButtonBase(c.Key("msg")).Size(28, 28).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
 				Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Top(S2).Left(S2).Background(p.Raised).Border(1, p.Border).
@@ -110,25 +111,33 @@ func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a 
 	return a
 }
 
-// ThoughtBubble is a status as a comic thought bubble: a rounded cloud of
-// the raised surface holding the emoji (and, open, the text), trailed by
-// three dots shrinking toward whoever thinks it, below and to the left.
-// It opens with a quick spring, growing from its trail.
-func ThoughtBubble(c *ui.Context, s Status, now time.Time, open bool) ui.Element {
+// statusWords is a status as one string: "🎧 Focusing on the kit".
+func statusWords(s Status) string {
+	switch {
+	case s.Emoji == "":
+		return s.Text
+	case s.Text == "":
+		return s.Emoji
+	}
+	return s.Emoji + " " + s.Text
+}
+
+// ThoughtBubble is a status as a small comic thought bubble: a rounded
+// cloud of the raised surface holding the emoji — a chat glyph when the
+// status has none — trailed by three dots shrinking toward whoever thinks
+// it, below and to the left. Static, and its tooltip is the whole status.
+func ThoughtBubble(c *ui.Context, s Status) ui.Element {
 	p := Of(c)
 	var cloud ui.Element
-	wrap := ui.Column(c.Key("thought")).AlignItems(ui.Start)
-	wrap.Children(func() {
-		cloud = ui.Row(c.Key("cloud")).Height(30).PaddingX(S3).Gap(S15).Radius(RadiusFull).AlignItems(ui.Center).
-			Background(p.Raised).Border(1, p.Border).Shadow(0, 4, 12, -4, p.Shadow).MaxWidth(280).
-			TransformOrigin(0, 1).
-			Transition(ui.ElementTransition{Animation: &ui.Animation{Spring: ui.SpringOptions{Duration: 280 * time.Millisecond, Bounce: 0.12}},
-				Width: true})
+	ui.Column(c.Key("thought")).AlignItems(ui.Start).Children(func() {
+		cloud = ui.Row(c.Key("cloud")).Height(28).MinWidth(28).PaddingX(S2).Radius(RadiusFull).
+			AlignItems(ui.Center).Justify(ui.Center).Background(p.Raised).Border(1, p.Border).
+			Shadow(0, 4, 12, -4, p.Shadow).Tooltip(statusWords(s)).Label(statusWords(s))
 		cloud.Children(func() {
-			ui.Text(c, s.Emoji).FontSize(15)
-			if open && s.Text != "" {
-				ui.Text(c.Key("txt"), s.Text).FontSize(SizeSmall).TextColor(p.Text).SingleLine().Shrink(1).MinWidth(0).
-					Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{X: -4}})
+			if s.Emoji != "" {
+				ui.Text(c, s.Emoji).FontSize(15)
+			} else {
+				ui.Icon(c, IconMessage).Size(14, 14).TextColor(p.TextMuted)
 			}
 		})
 		// The trail: three dots, each smaller, down toward the avatar.

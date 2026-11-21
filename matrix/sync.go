@@ -182,6 +182,12 @@ func (s *Source) Start(ctx context.Context) {
 	}
 	s.started = true
 	go s.fetchMe(ctx)
+	go func() {
+		// The sync's first answer brings the DMs; their presence and
+		// status are then asked for (a resumed sync would never say).
+		time.Sleep(3 * time.Second)
+		s.fetchPresence(ctx)
+	}()
 	if s.verify != nil {
 		go s.verify.restoreSaved(ctx)
 		go s.keyWatch(ctx)
@@ -644,24 +650,8 @@ func (s *Source) onPresence(ctx context.Context, evt *event.Event) {
 		return
 	}
 	who := evt.Sender.String()
-	presence := model.Offline
-	switch c.Presence {
-	case event.PresenceOnline:
-		presence = model.Online
-	case event.PresenceUnavailable:
-		presence = model.Away
-	}
-	s.post(func() {
-		if who == s.me.ID {
-			s.me.Presence = presence
-			return
-		}
-		if p, ok := s.people[who]; ok {
-			p.Presence = presence
-		} else {
-			s.people[who] = &model.Person{ID: who, Name: nameFor(c.Displayname, who), Presence: presence, Contact: true}
-		}
-	})
+	presence, msg, name, ago := presenceOf(c.Presence), c.StatusMessage, nameFor(c.Displayname, who), c.LastActiveAgo
+	s.post(func() { s.setPresence(who, name, presence, msg, ago) })
 }
 
 // onDirect is the m.direct map: which rooms are DMs, with whom.
