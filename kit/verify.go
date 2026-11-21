@@ -108,17 +108,21 @@ func VerifyStart(c *ui.Context) (ch VerifyChoice) {
 }
 
 // choiceRow is a large option row with an icon, a title and a subtitle.
+// It sits inside a group card or a sheet, so it is flat — no background
+// or border of its own (no cards in cards); hover and press tint over
+// what is behind it.
 func choiceRow(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 	p := Of(c)
 	b := ui.ButtonBase(c.Key(title))
-	bg, bd := p.Raised, p.Border
-	if b.Pressed() {
-		bg = p.Pressed.Over(p.Raised)
-	} else if b.Hovered() {
-		bg, bd = p.Hover.Over(p.Raised), p.BorderStrong
+	bg := ui.Transparent
+	switch {
+	case b.Pressed():
+		bg = p.Pressed
+	case b.Hovered():
+		bg = p.Hover
 	}
-	b.Padding(S3).Gap(S3).Radius(RadiusMd).AlignItems(ui.Center).
-		Background(b.AnimateColor("bg", bg, Color)).Border(1, b.AnimateColor("bd", bd, Color)).Label(title)
+	b.Padding(S3).Gap(S3).Radius(RadiusMd - 2).AlignItems(ui.Center).
+		Background(b.AnimateColor("bg", bg, Color)).Label(title)
 	b.Children(func() {
 		ui.Box(c).Size(36, 36).Radius(RadiusSm+2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
 			Children(func() { ui.Icon(c, icon).Size(18, 18).TextColor(p.AccentStrong) })

@@ -36,6 +36,10 @@ const (
 	Code // Text
 	Link // Href
 	Break
+	// Mention is a user pill: Text is what shows ("@Robin"), Href the
+	// matrix.to link of the user ("https://matrix.to/#/@robin:server");
+	// typed as "@name" or "@name:server".
+	Mention
 )
 
 // Node is a node of a message's tree.
@@ -60,7 +64,7 @@ func Plain(n *Node) string {
 	var walk func(n *Node, top bool)
 	walk = func(n *Node, top bool) {
 		switch n.Kind {
-		case Text, Code:
+		case Text, Code, Mention:
 			b = append(b, n.Text...)
 		case CodeBlock:
 			b = append(b, n.Text...)

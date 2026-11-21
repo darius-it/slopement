@@ -16,8 +16,10 @@ type Actions struct {
 	NewRoom       func()
 	JoinRoom      func()
 	ToggleSidebar func()
-	// Appearance sets 0 the system's, 1 light, 2 dark.
-	Appearance func(mode int)
+	// Appearance sets 0 the system's, 1 light, 2 dark; AppearanceNow is
+	// the one in use, checked.
+	Appearance    func(mode int)
+	AppearanceNow int
 	// Layout sets the navigation layout (kit.NavLayout); LayoutNow is the
 	// one in use, checked in View → Layout.
 	Layout    func(l kit.NavLayout)
@@ -28,6 +30,9 @@ type Actions struct {
 	Mute         func(d kit.MuteFor)
 	RoomSettings func()
 	Leave        func()
+	// Gallery opens the design kit's component gallery: the Debug menu,
+	// left out when nil.
+	Gallery func()
 }
 
 // MenuBar builds the app's menu bar: the standard menus with the
@@ -98,7 +103,7 @@ func MenuBar(a Actions, update func(func())) *mygo.Menu {
 		var modes []*mygo.MenuItem
 		for i, l := range []string{"Match System", "Light", "Dark"} {
 			mode := i
-			modes = append(modes, &mygo.MenuItem{Label: l, Type: mygo.MenuItemRadio, Checked: i == 0,
+			modes = append(modes, &mygo.MenuItem{Label: l, Type: mygo.MenuItemRadio, Checked: i == a.AppearanceNow,
 				Click: do(func() { a.Appearance(mode) })})
 		}
 		view = append(view, mygo.Separator(), &mygo.MenuItem{Label: "Appearance", Submenu: modes})
@@ -146,6 +151,13 @@ func MenuBar(a Actions, update func(func())) *mygo.Menu {
 		item("Leave Room…", "", a.Leave),
 	)...)
 	bar = append(bar, &mygo.MenuItem{Label: "Room", Submenu: room})
+
+	// Debug: tools for building the app, out of the way of everyday use.
+	if a.Gallery != nil {
+		bar = append(bar, &mygo.MenuItem{Label: "Debug", Submenu: []*mygo.MenuItem{
+			{Label: "Component Gallery", Accelerator: "CmdOrCtrl+Alt+G", Click: do(a.Gallery)},
+		}})
+	}
 
 	bar = append(bar, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
 	if mac {

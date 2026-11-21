@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -27,6 +28,12 @@ import (
 
 // maxMedia bounds the animations kept in memory: a page or two of tiles.
 const maxMedia = 96
+
+// maxDownload bounds one animation's file. KLIPY's full-size GIFs run to
+// several MB (a 480×360 clip is often over 4 MiB), so the cap is generous.
+// What matters is that an over-limit body fails loudly instead of being
+// cut short: a truncated GIF cannot be decoded at all.
+const maxDownload = 32 << 20
 
 // Controller is the picker's model and its loading.
 type Controller struct {
@@ -63,15 +70,21 @@ type saved struct {
 	RecentStickers []klipy.Item `json:"recent_stickers"`
 }
 
-// New returns a controller. update runs a function on the UI thread and
-// redraws (mygo's Window.Update); until SetUpdate gives one, background
-// results are dropped.
+// New returns a controller over the user's saved favorites and recents,
+// kept in their config directory, as the app uses it.
 func New(client *klipy.Client) *Controller {
 	dir, _ := os.UserConfigDir()
+	return newAt(client, filepath.Join(dir, "slopement", "picker.json"))
+}
+
+// newAt returns a controller that keeps its state at path, loading what
+// is already there. Tests give it a scratch directory, so they never
+// touch the user's saved favorites.
+func newAt(client *klipy.Client, path string) *Controller {
 	c := &Controller{
 		client: client,
 		http:   &http.Client{Timeout: 15 * time.Second},
-		path:   filepath.Join(dir, "slopement", "picker.json"),
+		path:   path,
 		items:  map[string]klipy.Item{},
 		media:  newMediaCache(maxMedia),
 	}
@@ -394,7 +407,17 @@ func (c *Controller) download(url string) ([]byte, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New(res.Status)
 	}
-	return io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	if res.ContentLength > maxDownload {
+		return nil, fmt.Errorf("animation is %d bytes, over the %d-byte limit", res.ContentLength, maxDownload)
+	}
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxDownload+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxDownload {
+		return nil, fmt.Errorf("animation is over the %d-byte limit", maxDownload)
+	}
+	return data, nil
 }
 
 func (c *Controller) isFavorite(id string) bool {

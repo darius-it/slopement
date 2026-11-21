@@ -41,9 +41,22 @@ func TestParseDiscordFavorites(t *testing.T) {
 	}
 }
 
+func TestFavoriteURL(t *testing.T) {
+	c := newAt(nil, filepath.Join(t.TempDir(), "picker.json"))
+	u := "https://static.klipy.com/ii/abc/8a/b1/uAaLRrFA.gif"
+	c.SetFavoriteURL(u, 320, 240, true)
+	if !c.FavoriteURL(u) || len(c.saved.Favorites) != 1 || c.saved.Favorites[0].Full.Width != 320 {
+		t.Fatalf("not added: %+v", c.saved.Favorites)
+	}
+	c.SetFavoriteURL(u, 0, 0, true) // again: no duplicate
+	c.SetFavoriteURL(u, 0, 0, false)
+	if c.FavoriteURL(u) || len(c.saved.Favorites) != 0 {
+		t.Fatal("not removed")
+	}
+}
+
 func TestImportDiscordFavorites(t *testing.T) {
-	c := New(nil)
-	c.path = filepath.Join(t.TempDir(), "picker.json")
+	c := newAt(nil, filepath.Join(t.TempDir(), "picker.json"))
 	n, err := c.ImportDiscordFavorites([]byte(discordExport))
 	if err != nil || n != 3 {
 		t.Fatalf("imported %d, %v", n, err)
@@ -52,9 +65,7 @@ func TestImportDiscordFavorites(t *testing.T) {
 	if n, _ := c.ImportDiscordFavorites([]byte(discordExport)); n != 0 {
 		t.Fatalf("re-import added %d", n)
 	}
-	again := New(nil)
-	again.path = c.path
-	again.load()
+	again := newAt(nil, c.path)
 	if len(again.saved.Favorites) != 3 {
 		t.Fatal("not saved")
 	}

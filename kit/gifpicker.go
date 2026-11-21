@@ -410,15 +410,18 @@ func itemTile(c *ui.Context, t *PickerTile, r *PickerResult, sticker bool) ui.El
 			fit = ui.Contain
 		}
 		tileMedia(c, t, fit, !sticker)
-		if !sticker && (hov || t.Favorite || Touch(c)) {
+		// The star is a pointer-hover affordance (touch keeps it), not a
+		// permanent badge; a favorite is filled gold. Keyboard focus alone
+		// doesn't show it: a click leaves focus behind.
+		if !sticker && (b.Hovered() || Touch(c)) {
 			s := ui.ButtonBase(c.Key("fav")).Size(28, 28).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
 				Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(4).Left(-4).
 				Background(ui.RGBA(10, 8, 20, 0.45)).Label("Favorite").Checked(t.Favorite)
-			col := ui.Hex("#FFFFFF")
+			col, ic := ui.Hex("#FFFFFF"), IconStar
 			if t.Favorite {
-				col = p.Warning
+				col, ic = p.Warning, IconStarFilled
 			}
-			s.Children(func() { ui.Icon(c, IconStar).Size(15, 15).TextColor(col) })
+			s.Children(func() { ui.Icon(c, ic).Size(15, 15).TextColor(col) })
 			Pressable(s)
 			if s.Clicked() {
 				r.ToggleFav = t

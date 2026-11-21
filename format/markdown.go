@@ -218,6 +218,16 @@ func inline(s string) []*Node {
 				continue
 			}
 		}
+		// @name and @name:server, at a word's start (not an email's middle).
+		if c == '@' && (i == 0 || !isWord(s[i-1])) {
+			if n := mention(s[i:]); n > 0 {
+				flush()
+				m := s[i : i+n]
+				out = append(out, &Node{Kind: Mention, Text: m, Href: "https://matrix.to/#/" + m})
+				i += n
+				continue
+			}
+		}
 		if node, n := emphasis(s, i); node != nil {
 			flush()
 			out = append(out, node)
@@ -229,6 +239,39 @@ func inline(s string) []*Node {
 	}
 	flush()
 	return out
+}
+
+// mention returns the length of an @mention at s's start: @ and a name of
+// letters, digits and ._=-, then optionally :server; 0 for none. A
+// trailing dot or dash is punctuation, not part of the name.
+func mention(s string) int {
+	isName := func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '=' || r == '-'
+	}
+	n := 1
+	for n < len(s) {
+		r, w := utf8.DecodeRuneInString(s[n:])
+		if !isName(r) {
+			break
+		}
+		n += w
+	}
+	if n < len(s) && s[n] == ':' { // a server: host and an optional port
+		m := n + 1
+		for m < len(s) && (isWord(s[m]) || s[m] == '.' || s[m] == '-' || s[m] == ':') {
+			m++
+		}
+		if m > n+1 && strings.Contains(s[n+1:m], ".") || (m > n+1 && strings.HasPrefix(s[n+1:m], "localhost")) {
+			n = m
+		}
+	}
+	for n > 1 && (s[n-1] == '.' || s[n-1] == '-' || s[n-1] == ':') {
+		n--
+	}
+	if n <= 1 {
+		return 0
+	}
+	return n
 }
 
 func run(s string, i int, c byte) int {

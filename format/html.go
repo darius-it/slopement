@@ -97,6 +97,10 @@ func writeHTML(b *strings.Builder, n *Node) {
 		b.WriteString("<code>" + html.EscapeString(n.Text) + "</code>")
 	case Link:
 		wrap(`<a href="`+html.EscapeString(n.Href)+`">`, "</a>")
+	case Mention:
+		// Matrix's mention: a matrix.to link to the user (the Matrix layer
+		// fills the MXID in place of a bare name), the name its text.
+		b.WriteString(`<a href="` + html.EscapeString(n.Href) + `">` + html.EscapeString(n.Text) + "</a>")
 	case Break:
 		b.WriteString("<br>")
 	default:
@@ -234,6 +238,14 @@ func convert(n *xhtml.Node) []*Node {
 		href, _ := attr(n, "href")
 		if !SafeURL(href) {
 			return convertChildren(n)
+		}
+		// A matrix.to link to a user is a mention, its text the name.
+		if strings.HasPrefix(href, "https://matrix.to/#/@") {
+			name := textOf(n)
+			if !strings.HasPrefix(name, "@") {
+				name = "@" + name
+			}
+			return []*Node{{Kind: Mention, Text: name, Href: href}}
 		}
 		return []*Node{{Kind: Link, Href: href, Children: convertChildren(n)}}
 	case atom.Span, atom.Font:

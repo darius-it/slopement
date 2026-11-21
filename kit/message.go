@@ -150,9 +150,6 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 	}
 	row.Padding(top, S4, S05, S4).Gap(S3).AlignItems(ui.Start).
 		Background(row.AnimateColor("bg", bg, Color))
-	if m.Highlight {
-		row.BorderWidth(0, 0, 0, 2).BorderColor(p.Accent)
-	}
 	row.Children(func() {
 		// The gutter.
 		ui.Box(c).Width(36).Shrink(0).AlignItems(ui.End).Children(func() {

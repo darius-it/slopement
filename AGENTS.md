@@ -64,8 +64,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - Live: `go run .` opens the gallery window.
 
 ## Layout
+- `app/`: the app itself: the shell in all three layouts (Rail / Tabs / One
+  inbox) and the phone layout, room view, side panel, People, Settings and
+  every overlay. Built from `kit` on a `model.Source`; never touches Matrix
+  directly.
+- `model/`: the app's data types and the `Source` interface (the Matrix
+  layer will implement it). `model/mock`: fake data with simulated replies.
 - `kit/`: design tokens, theme, and components (the design kit).
-- `gallery/`: a component gallery window and mock screens built only from `kit`.
+- `gallery/`: the component gallery and mock screens, built only from `kit`.
+  It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.
 - `klipy/`: the KLIPY client (native API: GIFs, stickers, categories).
   `KLIPY_LIVE=1 go test ./klipy/` hits the real API with the key from `.env`.
 - `picker/`: the picker's controller (KLIPY fetches, favorites, recents,
@@ -84,7 +91,8 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `docs/`: `requirements.md`, `design-language.md`, `landscape.md` (other
   Matrix clients), `calls-research.md` (Jitsi vs Element Call), `ideas.md`
   (far-future ideas, e.g. activities in calls).
-- `main.go`: the app entry (currently opens the gallery).
+- `main.go`: the app entry: the app on mock data; the gallery behind Debug.
+- App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
 ## Secrets
 - `KLIPY_API_KEY` lives in `.env` (gitignored). Never commit keys or print them.

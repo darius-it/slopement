@@ -123,8 +123,11 @@ func Avatar(c *ui.Context, a AvatarSpec) ui.Element {
 
 // AvatarEditor is an avatar the user can change: on hover (or always on
 // touch) a camera badge shows; Clicked reports a press to open the picker.
+// It shows no presence dot or trust shield: its corner badge is the
+// pencil, and a dot there would draw under it.
 func AvatarEditor(c *ui.Context, a AvatarSpec) ui.Element {
 	p := Of(c)
+	a.Presence, a.Trust = PresenceNone, TrustUnknown
 	b := ui.ButtonBase(c).Radius(avatarRadius(a)).Label("Change picture")
 	b.Children(func() {
 		Avatar(c, a)

@@ -161,6 +161,16 @@ func (b *bodyBuilder) inline(n *format.Node, path string) {
 			col = p.LinkOnBubble
 		}
 		ui.Link(c, format.Plain(n), n.Href).TextColor(col).Tooltip(n.Href)
+	case format.Mention:
+		// A mention is a pill: a tinted box around the name, in the accent,
+		// so a ping stands out in the sentence without shouting. On an
+		// accent bubble it becomes a lighter box on the fill instead.
+		bg, fg := p.AccentSubtle, p.AccentStrong
+		if b.s.OnAccent {
+			bg, fg = b.textColor().Alpha(0.18), b.textColor()
+		}
+		ui.RichText(c, ui.Span{Text: n.Text, Weight: WeightMedium, Color: fg,
+			Background: bg, Radius: RadiusSm, PaddingX: 4})
 	case format.Spoiler:
 		key := b.key + "#" + path
 		open := b.rv != nil && b.rv[key]
@@ -217,8 +227,26 @@ func (b *bodyBuilder) codeBlock(n *format.Node, path string) {
 			}
 		})
 		ui.Scroll(c).Row().Scrollbars(false).Padding(0, S3, S3, S3).Children(func() {
-			ui.Text(c, n.Text).Font("monospace").FontSize(SizeSmall).LineHeight(1.5).TextColor(b.textColor()).
-				NoWrap().Selectable()
+			ui.RichText(c).Font("monospace").FontSize(SizeSmall).LineHeight(1.5).NoWrap().Selectable().Children(func() {
+				// Quiet highlighting: comments, strings, numbers and the
+				// language's keywords only (format.Highlight, no dependency).
+				for _, tok := range format.Highlight(n.Lang, n.Text) {
+					col := b.textColor()
+					switch {
+					case b.s.OnAccent && tok.Kind == format.CodeComment:
+						col = b.muted()
+					case !b.s.OnAccent && tok.Kind == format.CodeKeyword:
+						col = p.AccentStrong
+					case !b.s.OnAccent && tok.Kind == format.CodeString:
+						col = p.Success
+					case !b.s.OnAccent && tok.Kind == format.CodeComment:
+						col = p.TextFaint
+					case !b.s.OnAccent && tok.Kind == format.CodeNumber:
+						col = p.Warning
+					}
+					ui.RichText(c, ui.Span{Text: tok.Text, Color: col, Italic: tok.Kind == format.CodeComment})
+				}
+			})
 		})
 	})
 }

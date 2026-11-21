@@ -47,6 +47,23 @@ func TestMarkdownToHTML(t *testing.T) {
 	}
 }
 
+func TestMentions(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"@Robin can you check", `<a href="https://matrix.to/#/@Robin">@Robin</a> can you check`},
+		{"hi @mira:matrix.org.", `hi <a href="https://matrix.to/#/@mira:matrix.org">@mira:matrix.org</a>.`},
+		{"mail me at a@b.com", "mail me at a@b.com"},
+		{"just @ alone", "just @ alone"},
+	} {
+		if got := HTML(Parse(tc.in)); got != tc.want && got != "<p>"+tc.want+"</p>" {
+			t.Errorf("HTML(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	back := ParseHTML(`<a href="https://matrix.to/#/@jun:kde.org">Jun</a> hello`)
+	if m := back.Children[0].Children[0]; m.Kind != Mention || m.Text != "@Jun" {
+		t.Fatalf("received mention = %+v", m)
+	}
+}
+
 func TestNeedsHTML(t *testing.T) {
 	if NeedsHTML(Parse("just text")) {
 		t.Error("plain text needs no formatted_body")

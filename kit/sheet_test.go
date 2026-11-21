@@ -70,6 +70,39 @@ func TestSheetSpring(t *testing.T) {
 	}
 }
 
+// TestViewerClickOutside: a click on the picture keeps the media viewer
+// open; one beside it closes it.
+func TestViewerClickOutside(t *testing.T) {
+	open, at := true, 0
+	items := []MediaSpec{{ID: "m", Kind: MediaImage, W: 400, H: 300, Label: "Photo"}}
+	view := func(c *ui.Context) {
+		Apply(c)
+		MediaViewer(c, &open, items, &at)
+	}
+	tt := ui.NewTester(view, 1000, 800)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	click := func(x, y float32) {
+		tt.Move(x, y)
+		tt.Frame()
+		tt.Press(x, y)
+		tt.Frame()
+		tt.Release(x, y)
+		tt.Frame()
+	}
+	click(500, 450) // the middle: the picture
+	tt.Frame()
+	if !open {
+		t.Fatal("a click on the picture closed the viewer")
+	}
+	click(40, 450) // beside it
+	tt.Frame()
+	if open {
+		t.Fatal("a click beside the picture didn't close the viewer")
+	}
+}
+
 // TestSheetDrag drags a sheet by its body, as Control Center: a short,
 // slow drag bounces back; a slow drag past half way closes it, with no
 // flick needed; and a sheet caught mid-flight stays under the finger.

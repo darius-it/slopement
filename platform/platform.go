@@ -54,8 +54,9 @@ func Window(o mygo.WindowOptions) mygo.WindowOptions {
 	case MacOS:
 		o.TitleBarStyle = mygo.TitleBarHidden
 		o.Vibrancy = mygo.VibrancySidebar
-		// The traffic lights, lined up with the rail's first item.
-		o.TrafficLightPosition = &mygo.Point{X: 20, Y: 20}
+		// The traffic lights, centred in the app's thin top bar (32 high,
+		// the buttons 12): see app.topBar.
+		o.TrafficLightPosition = &mygo.Point{X: 12, Y: 10}
 	case Windows:
 		o.TitleBarStyle = mygo.TitleBarHidden
 		o.Vibrancy = mygo.VibrancyMica

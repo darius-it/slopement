@@ -45,7 +45,7 @@ func PeopleGrid(c *ui.Context, st *PeopleState, people []Person, colors *UserCol
 const (
 	tileW       = 168
 	tileAvatar  = 64
-	bubbleSpace = 52 // room over the avatar for the bubble and its dots
+	bubbleSpace = 14 // room over the avatar for the overlaid bubble's top
 )
 
 // personTile is a person in the grid: their thought bubble (if they set a
@@ -67,20 +67,21 @@ func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a 
 		b.Description(ps.Status.Emoji + " " + ps.Status.Text)
 	}
 	b.Children(func() {
-		// The bubble's room, kept for everyone so the tiles line up. The
-		// bubble floats in it, free of the tile's width, so it can open
-		// past its edges, over the tiles beside it.
-		ui.Box(c).Height(bubbleSpace).AlignSelf(ui.Stretch).ZIndex(2).Children(func() {
+		// The avatar, the bubble overlaid on its top-right corner and off to
+		// the side, its trail dropping into the avatar: only a little room
+		// above for the cloud's top. It opens to the right, past the tile,
+		// over its neighbours.
+		ui.Box(c).Margin(bubbleSpace, 0, 0, 0).ZIndex(2).Children(func() {
+			av := ps.Avatar
+			av.Size, av.Name, av.ID, av.Colors, av.Presence = tileAvatar, ps.Name, ps.ID, colors, ps.Presence
+			Avatar(c, av)
 			if ps.Status.Set(now) {
-				ui.Box(c.Key("float")).Attach(ui.AnchorBottom, ui.AnchorBottomLeft).Left(-10).Width(290).
+				ui.Box(c.Key("float")).Attach(ui.AnchorTopRight, ui.AnchorBottomLeft).Left(-14).Top(30).Width(290).
 					AlignItems(ui.Start).PassThrough().Children(func() {
 					ThoughtBubble(c, ps.Status, now, hov)
 				})
 			}
 		})
-		av := ps.Avatar
-		av.Size, av.Name, av.ID, av.Colors, av.Presence = tileAvatar, ps.Name, ps.ID, colors, ps.Presence
-		Avatar(c, av)
 		ui.Text(c, ps.Name).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(tileW - S4).
 			Margin(S1, 0, 0, 0)
 		how, col := "Online", p.TextMuted

@@ -172,6 +172,16 @@ menus clashed with the look; `kit.NativeMenus` stays false):
 - A message that is **only** a link to a GIF, image or video (KLIPY, Tenor,
   Giphy, Imgur, a direct file) shows as that media alone; the link text is
   hidden (`embeds.SoleMedia`). With other words around it, it stays a link.
+- GIFs show at their **own size and shape**, never cropped or enlarged,
+  shrunk only to fit the timeline's width. On hover a star at their
+  top-right corner adds them to the picker's favorite GIFs (filled in the
+  Warning yellow once starred, as in the picker).
+- The media viewer closes on Escape, its ✕, or a click anywhere around the
+  picture.
+- Window glass (Settings → Appearance): **Tinted** (default) lays the
+  sidebar colour at 78% (dark) / 66% (light) over the system material, so
+  contrast stays steady over any wallpaper; **Clear** shows the material as
+  it is; **Off** is opaque.
 - Link and video cards: **no coloured marks**, neither a side bar nor a
   brand rule. The site name over the title says where a card is from
   (option B, chosen 2026-11-21). The card's radius is 8 and its picture's 6,

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -90,8 +91,7 @@ func (q *queue) settle(t *testing.T, until func() bool) {
 func TestGIFTabFlow(t *testing.T) {
 	srv := fakeKlipy(t)
 	q := &queue{}
-	c := New(klipy.New(klipy.Config{Key: "k", BaseURL: srv.URL}))
-	c.path = filepath.Join(t.TempDir(), "picker.json")
+	c := newAt(klipy.New(klipy.Config{Key: "k", BaseURL: srv.URL}), filepath.Join(t.TempDir(), "picker.json"))
 	c.SetUpdate(q.post)
 
 	st := &kit.PickerState{Tab: kit.TabGIFs}
@@ -122,9 +122,7 @@ func TestGIFTabFlow(t *testing.T) {
 	if m := c.Model(st); len(m.Results) != 1 || m.Results[0].ID != "7" {
 		t.Fatalf("favorites = %+v", m.Results)
 	}
-	again := New(nil)
-	again.path = c.path
-	again.load()
+	again := newAt(nil, c.path)
 	if len(again.saved.Favorites) != 1 {
 		t.Fatal("favorites did not persist")
 	}
@@ -136,8 +134,7 @@ func TestGIFTabFlow(t *testing.T) {
 }
 
 func TestEmojiRecents(t *testing.T) {
-	c := New(nil)
-	c.path = filepath.Join(t.TempDir(), "picker.json")
+	c := newAt(nil, filepath.Join(t.TempDir(), "picker.json"))
 	st := &kit.PickerState{Tab: kit.TabEmoji}
 	st.Open = true
 	c.Handle(st, kit.PickerResult{Emoji: "🔥"})
@@ -174,5 +171,38 @@ func TestMediaCacheBound(t *testing.T) {
 	}
 	if _, ok := m.get("a"); ok {
 		t.Fatal("oldest kept")
+	}
+}
+
+// A body over the limit must fail, never arrive cut short: a truncated GIF
+// cannot be decoded. Real full-size GIFs are several MB, so the limit has
+// room for them.
+func TestDownloadLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/small":
+			w.Write(tinyGIF())
+		case "/declared":
+			w.Header().Set("Content-Length", strconv.Itoa(maxDownload+1))
+		case "/streamed":
+			w.(http.Flusher).Flush() // no Content-Length: read until the limit
+			chunk := make([]byte, 1<<20)
+			for written := 0; written <= maxDownload; written += len(chunk) {
+				w.Write(chunk)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := &Controller{http: srv.Client()}
+	if b, err := c.download(srv.URL + "/small"); err != nil || len(b) == 0 {
+		t.Fatalf("small: %v", err)
+	}
+	if _, err := c.download(srv.URL + "/declared"); err == nil {
+		t.Fatal("accepted a declared over-limit body")
+	}
+	if _, err := c.download(srv.URL + "/streamed"); err == nil {
+		t.Fatal("truncated an over-limit body instead of failing")
 	}
 }

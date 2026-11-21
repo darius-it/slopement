@@ -34,6 +34,13 @@ type MediaSpec struct {
 	// Progress is an upload's progress, 0 to 1; negative when done.
 	Progress float32
 	Label    string // for screen readers: the file's name or the caption
+	// Star, when set, shows a star on hover (GIFs) that adds the media to
+	// the picker's favorites; Starred fills it. Star gets the new state.
+	Star    func(on bool)
+	Starred bool
+	// Paused shows a GIF's first frame without playing it (the app's
+	// "Animate GIFs" setting).
+	Paused bool
 }
 
 // fit returns w×h scaled into maxW×maxH, keeping the aspect ratio, never
@@ -62,6 +69,11 @@ func fit(w, h, maxW, maxH float32) (float32, float32) {
 // it uploads. Clicked opens the viewer (or reveals a spoiler first).
 func MediaPreview(c *ui.Context, m MediaSpec, maxW, maxH float32, rv Reveals) ui.Element {
 	w, h := fit(m.W, m.H, maxW, maxH)
+	if m.Kind == MediaGIF && m.W > 0 && m.H > 0 {
+		// A GIF shows at its own size (never enlarged), shrunk only to fit.
+		s := min(1, maxW/m.W, maxH/m.H)
+		w, h = m.W*s, m.H*s
+	}
 	return mediaTile(c, m, w, h, RadiusMd, rv)
 }
 
@@ -72,6 +84,14 @@ func mediaTile(c *ui.Context, m MediaSpec, w, h, radius float32, rv Reveals) ui.
 	b.Children(func() {
 		var pic ui.Element
 		switch {
+		case m.Player != nil && m.Kind == MediaGIF:
+			pic = ui.Video(c, m.Player).Fill().Fit(ui.Contain) // never cropped
+			// Paused (the "Animate GIFs" setting off) holds the first
+			// frame; Pause is idempotent, so calling it every frame is
+			// fine, and a paused player draws no further frames.
+			if m.Paused {
+				m.Player.Pause()
+			}
 		case m.Player != nil:
 			pic = ui.Video(c, m.Player).Fill().Fit(ui.Cover)
 		case m.Still != nil:
@@ -114,6 +134,35 @@ func mediaTile(c *ui.Context, m MediaSpec, w, h, radius float32, rv Reveals) ui.
 		if m.Progress >= 0 && m.Progress < 1 {
 			ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Background(ui.RGBA(10, 8, 20, 0.3)).PassThrough()
 			progressRing(c, m.Progress, white)
+		}
+		// The favorite star appears at the top-right corner on pointer hover
+		// (and on touch), never just because the GIF is starred — nor while
+		// the tile merely holds the keyboard focus, which a click leaves
+		// behind; starred is a filled gold star.
+		if m.Star != nil && !hidden && (b.Hovered() || Touch(c)) {
+			label := "Add to favorite GIFs"
+			if m.Starred {
+				label = "Remove from favorite GIFs"
+			}
+			s := ui.ButtonBase(c.Key("star")).Size(28, 28).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
+				Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(S15).Left(-S15).Label(label).Tooltip(label).
+				Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.9}, Exit: &ui.Motion{Scale: 0.9}})
+			bg := overlay
+			if s.Hovered() {
+				bg = ui.RGBA(10, 8, 20, 0.75)
+			}
+			s.Background(s.AnimateColor("bg", bg, Color))
+			s.Children(func() {
+				col, ic := white, IconStar
+				if m.Starred {
+					col, ic = p.Warning, IconStarFilled // gold, as the picker's favorites
+				}
+				ui.Icon(c, ic).Size(15, 15).TextColor(col)
+			})
+			Pressable(s)
+			if s.Clicked() {
+				m.Star(!m.Starred)
+			}
 		}
 	})
 	if b.Clicked() && hidden && rv != nil {
@@ -338,9 +387,14 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				}
 			}
 		})
-		ui.Row(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4).Children(func() {
+		// A click around the picture (not on it) closes the viewer.
+		var picBox ui.Rect // the picture, last frame, in window DIPs
+		area := ui.Row(c.Key("area")).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4)
+		area.Children(func() {
 			mw, mh := fit(m.W, m.H, w-S8*2, h-140)
-			ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Clip().Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}}).Children(func() {
+			pic := ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Clip().Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}})
+			picBox = pic.Bounds()
+			pic.Children(func() {
 				switch {
 				case m.Player != nil:
 					ui.Video(c, m.Player).Fill().Fit(ui.Contain)
@@ -351,6 +405,14 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				}
 			})
 		})
+		if area.Clicked() {
+			x, y, _ := area.PointerPosition()
+			ab := area.Bounds()
+			px, py := ab.X+x, ab.Y+y
+			if px < picBox.X || px > picBox.X+picBox.W || py < picBox.Y || py > picBox.Y+picBox.H {
+				*open = false
+			}
+		}
 		if c.Shortcut(0, ui.KeyRight) && *index < len(items)-1 {
 			*index++
 		}
