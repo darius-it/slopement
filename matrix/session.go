@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"maunium.net/go/mautrix/id"
 )
@@ -67,7 +68,42 @@ func Sessions() ([]*Session, error) {
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return mtime[out[i]] > mtime[out[j]] })
+	// The one used last comes first, whatever else was touched since: it is
+	// the one the app opens on its own.
+	if last := LastUsed(); last != "" {
+		sort.SliceStable(out, func(i, j int) bool { return string(out[i].UserID) == last && string(out[j].UserID) != last })
+	}
 	return out, nil
+}
+
+// lastUsedFile is where the account used last is remembered, in the config
+// directory (not in an account's: it names which account).
+const lastUsedFile = "last-account"
+
+// SetLastUsed remembers which account the app was on, so the next launch
+// opens it without asking.
+func SetLastUsed(userID string) error {
+	root, err := configDir()
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(root, 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(root, lastUsedFile), []byte(userID), 0o600)
+}
+
+// LastUsed is the account the app was on last ("" for none).
+func LastUsed() string {
+	root, err := configDir()
+	if err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(root, lastUsedFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }
 
 // Delete forgets a session's record — the tokens with it, as a logout

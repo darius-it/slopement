@@ -23,7 +23,7 @@ type secretStore interface {
 	Delete(key string) error
 }
 
-var secrets secretStore = mygo.Secrets
+var secrets secretStore = pickSecrets()
 
 // ErrNoToken is returned when the account has no token saved: a revoked
 // login (M_UNKNOWN_TOKEN soft-logout keeps the stores) shows sign-in

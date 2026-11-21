@@ -30,6 +30,8 @@ type Login struct {
 	// OnSignedIn runs on the UI thread with the fresh session; the app
 	// takes over from there.
 	OnSignedIn func(*matrix.Session)
+
+	onCancel func() // adding an account: back to the app
 }
 
 // New returns the login screen with the sessions recorded on this
@@ -49,6 +51,37 @@ func New() *Login {
 // the UI thread comes back through it.
 func (l *Login) SetUpdate(update func(func())) { l.update = update }
 
+// Resume signs the account used last back in, without asking: the screen
+// shows only if that fails (its token is gone, or unreadable). It reports
+// whether there was an account to try.
+func (l *Login) Resume() bool {
+	if len(l.sessions) == 0 {
+		return false
+	}
+	l.continueSession(0)
+	return true
+}
+
+// BeginAdd turns the screen into the way to add another account to a
+// running app: the server step, with a Cancel that calls cancel.
+func (l *Login) BeginAdd(cancel func()) {
+	l.st = kit.LoginState{Adding: true}
+	l.probed = nil
+	l.onCancel = cancel
+}
+
+// Reload reads the recorded logins again (after one was added or removed).
+func (l *Login) Reload() {
+	l.sessions = nil
+	l.st.Saved = nil
+	if sessions, err := matrix.Sessions(); err == nil {
+		l.sessions = sessions
+		for _, s := range sessions {
+			l.st.Saved = append(l.st.Saved, kit.SavedLogin{User: string(s.UserID), Server: s.ServerName})
+		}
+	}
+}
+
 	// Fail shows what stopped a sign-in from booting, as its quiet line.
 func (l *Login) Fail(msg string) {
 	l.post(func() { l.st.Err = msg })
@@ -65,6 +98,8 @@ func (l *Login) View(c *ui.Context) {
 		return // one sign-in at a time: a second click races the first's
 	}
 	switch {
+	case act.Cancel && l.onCancel != nil:
+		l.onCancel()
 	case act.Continue >= 0:
 		l.continueSession(act.Continue)
 	case act.Probe != "":
