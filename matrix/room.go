@@ -44,7 +44,9 @@ type room struct {
 	// set; a room may say which space it belongs to itself (m.space.parent,
 	// canonical), which wins over any space's claim.
 	events    []model.Event
-	reactions map[string]map[string]string // event ID → sender → key
+	reactions map[string]map[string]reactionRec // event ID → reaction event ID → who and which key
+	reactSeq  int                               // orders the reactions as they were made
+	reactTxn  map[string]string                 // transaction ID → local ID, of reactions the user is sending
 	raw       map[string]*rawEvent         // event ID → still encrypted
 	children  []spaceChild
 	parent    string // a m.space.parent claim, canonical ones alone
@@ -273,45 +275,113 @@ type editMark struct {
 	TS   int64
 }
 
-// react records sender's reaction key on an event, or takes it back with
-// an empty key.
-func (r *room) react(target, sender, key string) {
+// reactionRec is one reaction: who put which key on an event, and in what
+// order it came (the pills keep the order the reactions were made in).
+type reactionRec struct {
+	Sender, Key string
+	Seq         int
+}
+
+// react records a reaction — the event that is the reaction, by its ID (or
+// a local ID while it is being sent) — of sender's key on target. The same
+// reaction event arriving twice (an echo of one shown at once) is one.
+func (r *room) react(target, reactionID, sender, key string) {
+	if key == "" || reactionID == "" {
+		return
+	}
 	if r.reactions == nil {
-		r.reactions = map[string]map[string]string{}
+		r.reactions = map[string]map[string]reactionRec{}
 	}
-	bySender := r.reactions[target]
-	if bySender == nil {
-		bySender = map[string]string{}
-		r.reactions[target] = bySender
+	byID := r.reactions[target]
+	if byID == nil {
+		byID = map[string]reactionRec{}
+		r.reactions[target] = byID
 	}
-	if key == "" {
-		delete(bySender, sender)
-	} else {
-		bySender[sender] = key
+	if _, have := byID[reactionID]; have {
+		return
+	}
+	r.reactSeq++
+	byID[reactionID] = reactionRec{Sender: sender, Key: key, Seq: r.reactSeq}
+}
+
+// unreact takes a reaction away, by the ID of the event that was the
+// reaction (it was redacted); reports whether it was there.
+func (r *room) unreact(reactionID string) bool {
+	found := false
+	for target, byID := range r.reactions {
+		if _, ok := byID[reactionID]; ok {
+			delete(byID, reactionID)
+			found = true
+			if len(byID) == 0 {
+				delete(r.reactions, target)
+			}
+		}
+	}
+	return found
+}
+
+// hasReaction reports whether a reaction event is recorded.
+func (r *room) hasReaction(reactionID string) bool {
+	for _, byID := range r.reactions {
+		if _, ok := byID[reactionID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// myReaction is the ID of the reaction event by which sender put key on
+// target, or "".
+func (r *room) myReaction(target, sender, key string) string {
+	for id, rec := range r.reactions[target] {
+		if rec.Sender == sender && rec.Key == key {
+			return id
+		}
+	}
+	return ""
+}
+
+// renameReaction gives a reaction shown while it was being sent the ID the
+// server gave it.
+func (r *room) renameReaction(local, real string) {
+	for _, byID := range r.reactions {
+		if rec, ok := byID[local]; ok {
+			delete(byID, local)
+			byID[real] = rec
+		}
 	}
 }
 
-// reactionList is the counted reactions of one event, me's included.
+// reactionList is the counted reactions of one event, me's included, in the
+// order each key was first used.
 func (r *room) reactionList(eventID, me string) []model.Reaction {
-	bySender := r.reactions[eventID]
-	if len(bySender) == 0 {
+	byID := r.reactions[eventID]
+	if len(byID) == 0 {
 		return nil
 	}
 	counts := map[string]*model.Reaction{}
-	var order []string
-	for sender, key := range bySender {
-		if it := counts[key]; it == nil {
-			counts[key] = &model.Reaction{Key: key}
-			order = append(order, key)
+	first := map[string]int{}
+	for _, rec := range byID {
+		it := counts[rec.Key]
+		if it == nil {
+			it = &model.Reaction{Key: rec.Key}
+			counts[rec.Key] = it
+			first[rec.Key] = rec.Seq
 		}
-		counts[key].Count++
-		if sender == me {
-			counts[key].Mine = true
+		it.Count++
+		if rec.Sender == me {
+			it.Mine = true
 		}
+		first[rec.Key] = min(first[rec.Key], rec.Seq)
 	}
-	out := make([]model.Reaction, 0, len(order))
-	for _, key := range order {
-		out = append(out, *counts[key])
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return first[keys[i]] < first[keys[j]] })
+	out := make([]model.Reaction, len(keys))
+	for i, k := range keys {
+		out[i] = *counts[k]
 	}
 	return out
 }

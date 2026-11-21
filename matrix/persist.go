@@ -31,7 +31,7 @@ type roomRecord struct {
 	Preview                       string
 
 	Events    []model.Event
-	Reactions map[string]map[string]string
+	Reactions map[string]map[string]reactionRec
 	Raw       map[string]rawRecord
 	Children  []childRecord
 	Parent    string
@@ -95,6 +95,11 @@ func (rec roomRecord) room() *room {
 		favourite: rec.Favourite, lowPriority: rec.LowPriority, muted: rec.Muted,
 		last: rec.Last, preview: rec.Preview, parent: rec.Parent,
 		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, backDone: rec.BackDone, pinned: rec.Pinned,
+	}
+	for _, byID := range r.reactions {
+		for _, rr := range byID {
+			r.reactSeq = max(r.reactSeq, rr.Seq) // new reactions order after the stored ones
+		}
 	}
 	for id, raw := range rec.Raw {
 		var evt event.Event

@@ -76,10 +76,10 @@ func TestRoomEditAndReactions(t *testing.T) {
 	}
 
 	// Two keys, one mine, one taken back.
-	r.react("$1", "@ada:example.org", "🔥")
-	r.react("$1", "@me:example.org", "🔥")
-	r.react("$1", "@sam:example.org", "❤️")
-	r.react("$1", "@sam:example.org", "")
+	r.react("$1", "$r1", "@ada:example.org", "🔥")
+	r.react("$1", "$r2", "@me:example.org", "🔥")
+	r.react("$1", "$r3", "@sam:example.org", "❤️")
+	r.unreact("$r3")
 	out := r.timeline("@me:example.org")
 	if len(out[0].Reactions) != 1 { // the ❤️ was taken back; only 🔥 stays
 		t.Fatalf("reactions = %+v", out[0].Reactions)

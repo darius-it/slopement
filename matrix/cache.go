@@ -33,7 +33,10 @@ import (
 //
 // 3: edits are kept by their target; earlier caches hold edits that were
 // shown as messages of their own.
-const cacheVersion = "3"
+//
+// 4: reactions are kept by the event that made each (so one can be taken
+// back), not by who made it.
+const cacheVersion = "4"
 
 // Cache is the room cache of one account.
 type Cache struct {

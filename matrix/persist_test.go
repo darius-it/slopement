@@ -44,7 +44,7 @@ func TestCacheRoundTrip(t *testing.T) {
 	r.children = []spaceChild{{room: "!b", order: "x"}}
 	r.appendEvent(model.Event{ID: "$1", Sender: "@kai:example.org", Body: "hi", Kind: model.EventText}, "kai", false)
 	r.appendEvent(model.Event{ID: localPrefix + "9", Pending: true, Body: "never sent"}, "You", true)
-	r.react("$1", "@me:example.org", "👍")
+	r.react("$1", "$r1", "@me:example.org", "👍")
 	enc := &event.Event{ID: "$enc", RoomID: "!a", Sender: "@kai:example.org", Type: event.EventEncrypted,
 		Content: event.Content{Parsed: &event.EncryptedEventContent{SessionID: "sess", Algorithm: id.AlgorithmMegolmV1}}}
 	r.raw = map[string]*rawEvent{"$enc": {evt: enc, tile: undecryptable(enc)}}

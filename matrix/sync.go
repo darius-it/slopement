@@ -295,16 +295,24 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 	})
 }
 
-// onReaction is one reaction: a key on an event, or its taking-back.
+// onReaction is one reaction: a key put on an event. (It is taken back by
+// redacting the reaction event: onRedaction.)
 func (s *Source) onReaction(ctx context.Context, evt *event.Event) {
-	target, key, ok := reactionOf(evt.Content.AsMessage())
-	if !ok {
+	rel := evt.Content.AsReaction().RelatesTo
+	if rel.Type != event.RelAnnotation || rel.EventID == "" || rel.Key == "" {
 		return
 	}
-	id := evt.ID.String()
+	target, key := rel.EventID.String(), rel.Key
+	id, sender, txn := evt.ID.String(), evt.Sender.String(), evt.Unsigned.TransactionID
 	s.post(func() {
 		r := s.roomOf(evt.RoomID.String())
-		r.react(target, evt.Sender.String(), key)
+		// The echo of a reaction the user made from here: it is already
+		// shown, under a local ID, which this one takes over.
+		if local, mine := r.reactTxn[txn]; mine && sender == s.me.ID {
+			r.unreact(local)
+			delete(r.reactTxn, txn)
+		}
+		r.react(target, id, sender, key)
 		s.clearLock(r, id) // a reaction that was waiting for its keys is no tile
 	})
 }
@@ -330,7 +338,8 @@ func (s *Source) onRedaction(ctx context.Context, evt *event.Event) {
 			delete(r.raw, id)
 			s.encrypted--
 		}
-		delete(r.reactions, id)
+		delete(r.reactions, id) // the reactions on the event that went
+		r.unreact(id)           // or the event was a reaction, taken back
 		delete(r.edits, id)
 	})
 }
@@ -365,6 +374,9 @@ func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 		// keys for words they typed a moment ago.
 		if evt.Sender.String() == s.me.ID && txn != "" && r.adoptEcho(txn, e.ID) {
 			return
+		}
+		if _, reaction := r.reactTxn[txn]; reaction && evt.Sender.String() == s.me.ID {
+			return // the echo of a reaction made here: shown already, no tile for it
 		}
 		// Already shown readable (a sync that repeats an event): nothing.
 		if i := r.indexOf(e.ID); i >= 0 && r.events[i].Kind != model.EventUndecryptable {
@@ -809,12 +821,70 @@ func (s *Source) Send(room, markdown, replyTo string) {
 }
 
 // React puts a reaction on an event, or takes it back with an empty key.
+//
+// It toggles: the user's own reaction with that key is taken back (the
+// reaction event is redacted), otherwise it is made. Each shows at once; the
+// server's answer settles it, and a refusal undoes it with a quiet line in
+// the room.
 func (s *Source) React(room, eventID, key string) {
-	if s.cli == nil {
+	if s.cli == nil || key == "" || eventID == "" {
 		return
 	}
+	r, ok := s.rooms[room]
+	if !ok {
+		return
+	}
+	me := s.me.ID
+	if mine := r.myReaction(eventID, me, key); mine != "" {
+		r.unreact(mine)
+		s.markDirty(room)
+		// One still being sent has no ID on the server yet: its answer
+		// finds it gone and takes it back then.
+		if !strings.HasPrefix(mine, localPrefix) {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				if _, err := s.cli.RedactEvent(ctx, id.RoomID(room), id.EventID(mine)); err != nil {
+					s.notice(room, "Could not take the reaction back: "+plain(err))
+				}
+			}()
+		}
+		return
+	}
+
+	txn := s.cli.TxnID()
+	local := localPrefix + txn
+	if r.reactTxn == nil {
+		r.reactTxn = map[string]string{}
+	}
+	r.reactTxn[txn] = local
+	r.react(eventID, local, me, key)
+	s.markDirty(room)
 	go func() {
-		_, _ = s.cli.SendReaction(context.Background(), id.RoomID(room), id.EventID(eventID), key)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		content := &event.ReactionEventContent{RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID(eventID), Key: key}}
+		resp, err := s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventReaction, content, mautrix.ReqSendEvent{TransactionID: txn})
+		s.post(func() {
+			rr := s.roomOf(room)
+			delete(rr.reactTxn, txn)
+			switch {
+			case err != nil:
+				rr.unreact(local)
+				s.notice(room, "Could not react: "+plain(err))
+			case rr.hasReaction(resp.EventID.String()):
+				rr.unreact(local) // the echo got here first and replaced it
+			case rr.hasReaction(local):
+				rr.renameReaction(local, resp.EventID.String())
+			default:
+				// The user took it back while it was being sent.
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					_, _ = s.cli.RedactEvent(ctx, id.RoomID(room), resp.EventID)
+				}()
+			}
+		})
 	}()
 }
 
