@@ -39,8 +39,11 @@ type MessageData struct {
 	Edited    bool
 	// Unverified marks a message from a device not verified.
 	Unverified bool
-	// Pending is set while it is being sent.
+	// Pending is set while it is being sent: it shows as any sent message
+	// does — only a failure (Failed, with its Error) is marked.
 	Pending bool
+	Failed  bool
+	Error   string
 	// Undecryptable shows the "unable to decrypt" state.
 	Undecryptable bool
 	// ReadBy are the people who have read up to this message, shown small
@@ -204,8 +207,8 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 			default:
 				fg := p.Text
-				if m.Pending {
-					fg = p.TextMuted
+				if m.Failed {
+					fg = p.Danger
 				}
 				if m.Doc != nil {
 					MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg})
@@ -214,6 +217,13 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				}
 				if m.Edited {
 					ui.Text(c, "(edited)").FontSize(SizeCaption).TextColor(p.TextFaint)
+				}
+				if m.Failed {
+					why := "Not sent"
+					if m.Error != "" {
+						why += ": " + m.Error
+					}
+					ui.Text(c, why).FontSize(SizeCaption).TextColor(p.Danger)
 				}
 				if m.Image != nil {
 					w, h := fitBox(m.ImageW, m.ImageH, 360, 280)

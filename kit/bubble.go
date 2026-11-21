@@ -41,8 +41,11 @@ type BubbleData struct {
 	// with more than one other (a DM says "Read" instead).
 	ReadBy []AvatarSpec
 	// Sent: the user's last message, sent and not read yet.
-	Sent    bool
+	Sent bool
+	// Pending shows as any sent message does; only a failure is marked.
 	Pending bool
+	Failed  bool
+	Error   string
 	Edited  bool
 	// Live is set on messages that arrive while the room is open: they
 	// pop in. History never animates.
@@ -195,8 +198,8 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 		// A whisper of an edge, so white reads on the light wallpaper.
 		box.Shadow(0, 1, 1, 0, ui.RGBA(40, 20, 90, 0.06))
 	}
-	if b.Pending {
-		box.Opacity(0.7)
+	if b.Failed {
+		box.Background(p.Danger) // the one state that is marked
 	}
 	box.Children(func() {
 		if len(b.Media) > 0 {
@@ -248,8 +251,12 @@ func bubbleMeta(c *ui.Context, b BubbleData) {
 	p := Of(c)
 	ui.Column(c).Gap(0).AlignItems(alignFor(!b.Out)).Shrink(0).Padding(0, 0, 2, 0).Children(func() {
 		switch {
-		case b.Pending:
-			ui.Text(c, "Sending").FontSize(SizeCaption - 1).TextColor(p.TextMuted)
+		case b.Failed:
+			why := "Not sent"
+			if b.Error != "" {
+				why += ": " + b.Error
+			}
+			ui.Text(c, why).FontSize(SizeCaption - 1).TextColor(p.Danger).MaxWidth(160)
 			return
 		case b.Out && b.Read:
 			ui.Text(c, "Read").FontSize(SizeCaption - 1).FontWeight(WeightMedium).TextColor(p.AccentStrong)

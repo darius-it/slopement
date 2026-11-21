@@ -81,6 +81,9 @@ type rawEvent struct {
 func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
 	for i := range r.events {
 		if r.events[i].ID == e.ID {
+			if e.Kind == model.EventUndecryptable && r.events[i].Kind != model.EventUndecryptable {
+				return // a lock tile never replaces what is already readable
+			}
 			e.Reactions = r.events[i].Reactions // what the room collected stays
 			r.events[i] = e
 			if i == len(r.events)-1 && e.Kind != model.EventSystem {
@@ -104,7 +107,9 @@ func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
 		if fromMe {
 			who = "You"
 		}
-		r.preview = who + ": " + previewText(e)
+		if !lockedForNow(e) { // a lock that may open in a second is not a preview
+			r.preview = who + ": " + previewText(e)
+		}
 		if !fromMe {
 			r.unread++
 			if e.Mentions {
@@ -132,11 +137,31 @@ func (r *room) settleLocal(local, real string) {
 	r.events[li].ID, r.events[li].Pending = real, false
 }
 
-// failLocal turns a message that did not send into a quiet line saying so.
+// failLocal marks a message that did not send: it stays where it is, with
+// the reason; nothing else about it changes.
 func (r *room) failLocal(local, why string) {
 	if i := r.indexOf(local); i >= 0 {
-		r.events[i].Kind, r.events[i].Body, r.events[i].Pending = model.EventSystem, why, false
+		r.events[i].Failed, r.events[i].Error, r.events[i].Pending = true, why, false
 	}
+}
+
+// adoptEcho is the sync's echo of a message the user sent from here,
+// found by its transaction ID: the local copy takes the server's ID and
+// stays as it is. Reports whether there was a local copy — the echo needs
+// no tile of its own (least of all an encrypted one that says it is
+// waiting for keys, for text the user just typed).
+func (r *room) adoptEcho(txn, real string) bool {
+	local := localPrefix + txn
+	li := r.indexOf(local)
+	if li < 0 {
+		return false
+	}
+	if r.indexOf(real) >= 0 {
+		r.removeAt(li)
+		return true
+	}
+	r.events[li].ID, r.events[li].Pending = real, false
+	return true
 }
 
 func (r *room) indexOf(id string) int {
@@ -278,5 +303,24 @@ func (r *room) timeline(me string) []model.Event {
 	for _, u := range users {
 		out[at[u]].ReadBy = append(out[at[u]].ReadBy, u)
 	}
-	return out
+	// A message that arrived a moment ago and cannot be read yet is not
+	// shown as locked: its key is usually on its way, and a lock tile that
+	// turns into the text a second later is a flicker. After the grace
+	// period it shows as what it is.
+	shown := out[:0]
+	for _, e := range out {
+		if !lockedForNow(e) {
+			shown = append(shown, e)
+		}
+	}
+	return shown
+}
+
+// unreadableGrace is how long a fresh message that cannot be read yet is
+// kept out of sight before it shows as waiting for its keys.
+const unreadableGrace = 20 * time.Second
+
+// lockedForNow reports an unreadable message still inside the grace period.
+func lockedForNow(e model.Event) bool {
+	return e.Kind == model.EventUndecryptable && time.Since(e.Time) < unreadableGrace
 }

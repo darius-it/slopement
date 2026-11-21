@@ -227,6 +227,9 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 	s.post(func() {
 		r := s.roomOf(evt.RoomID.String())
 		name := s.nameOf(sender)
+		if txn := evt.Unsigned.TransactionID; sender == s.me.ID && txn != "" {
+			r.adoptEcho(txn, e.ID) // the message the user sent: same place, server's ID
+		}
 		r.appendEvent(e, name, sender == s.me.ID)
 		// A decrypted event may be one that had waited for keys
 		// re-dispatched: its raw copy goes with its tile.
@@ -261,9 +264,27 @@ func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 		return // it decrypted and was dispatched as m.room.message
 	}
 	e := undecryptable(evt)
+	txn := evt.Unsigned.TransactionID
 	s.post(func() {
 		r := s.roomOf(evt.RoomID.String())
+		// The echo of what the user just sent from here: the text is
+		// already on screen; this tile would only say it is waiting for
+		// keys for words they typed a moment ago.
+		if evt.Sender.String() == s.me.ID && txn != "" && r.adoptEcho(txn, e.ID) {
+			return
+		}
+		// Already shown readable (a sync that repeats an event): nothing.
+		if i := r.indexOf(e.ID); i >= 0 && r.events[i].Kind != model.EventUndecryptable {
+			return
+		}
 		r.appendEvent(e, s.nameOf(evt.Sender.String()), false)
+		if age := time.Since(e.Time); age < unreadableGrace && s.update != nil {
+			// Hidden for now (Timeline): show it, as waiting, if its key
+			// has not come by then.
+			time.AfterFunc(unreadableGrace-age+200*time.Millisecond, func() {
+				s.update(s.changed)
+			})
+		}
 		if r.raw == nil {
 			r.raw = map[string]*rawEvent{}
 		}

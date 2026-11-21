@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,8 +309,79 @@ func TestLocalEcho(t *testing.T) {
 	r := &room{id: "!a"}
 	r.appendEvent(model.Event{ID: localPrefix + "2", Pending: true}, "You", true)
 	r.failLocal(localPrefix+"2", "Not sent: no")
-	if e := r.events[0]; e.Kind != model.EventSystem || e.Pending || e.Body != "Not sent: no" {
+	if e := r.events[0]; !e.Failed || e.Pending || e.Error != "Not sent: no" || e.Kind == model.EventSystem {
 		t.Fatalf("failed = %+v", e)
+	}
+}
+
+// What the user sends shows at once and never turns into a lock tile: the
+// server's encrypted echo of it, whichever comes first, takes the local
+// message's place without a flicker.
+func TestEchoNeverFlickers(t *testing.T) {
+	encrypted := func(idv string) *event.Event {
+		return &event.Event{ID: id.EventID(idv), RoomID: "!a", Sender: "@me:example.org", Type: event.EventEncrypted,
+			Timestamp: time.Now().UnixMilli(), Unsigned: event.Unsigned{TransactionID: "7"},
+			Content: event.Content{Parsed: &event.EncryptedEventContent{SessionID: "s", Algorithm: id.AlgorithmMegolmV1}}}
+	}
+	for _, echoFirst := range []bool{false, true} {
+		s, _ := testSynced()
+		s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{"!a": {}}}})
+		r := s.rooms["!a"]
+		r.appendEvent(model.Event{ID: localPrefix + "7", Sender: "@me:example.org", Body: "hello", Kind: model.EventText, Pending: true, Time: time.Now()}, "You", true)
+		if echoFirst {
+			s.onEncrypted(nil, encrypted("$real"))
+			r.settleLocal(localPrefix+"7", "$real")
+		} else {
+			r.settleLocal(localPrefix+"7", "$real")
+			s.onEncrypted(nil, encrypted("$real"))
+		}
+		if len(r.events) != 1 || r.events[0].ID != "$real" || r.events[0].Body != "hello" || r.events[0].Kind != model.EventText {
+			t.Fatalf("echoFirst=%v: events = %+v", echoFirst, r.events)
+		}
+		if s.encrypted != 0 || len(r.raw) != 0 {
+			t.Fatalf("echoFirst=%v: the echo was kept as waiting for keys", echoFirst)
+		}
+	}
+}
+
+// A lock tile never replaces a message that is already readable.
+func TestLockNeverReplacesText(t *testing.T) {
+	r := &room{id: "!a"}
+	r.appendEvent(model.Event{ID: "$1", Body: "text", Kind: model.EventText}, "kai", false)
+	r.appendEvent(model.Event{ID: "$1", Kind: model.EventUndecryptable}, "kai", false)
+	if len(r.events) != 1 || r.events[0].Body != "text" {
+		t.Fatalf("events = %+v", r.events)
+	}
+}
+
+// A message that arrived a moment ago and cannot be read yet is kept out
+// of sight (and out of the previews and the verify count); after the grace
+// period it shows as waiting.
+func TestFreshLockIsHidden(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{"!a": {}}}})
+	for _, tc := range []struct {
+		idv  string
+		age  time.Duration
+		show bool
+	}{{"$fresh", time.Second, false}, {"$old", time.Minute, true}} {
+		evt := &event.Event{ID: id.EventID(tc.idv), RoomID: "!a", Sender: "@kai:example.org", Type: event.EventEncrypted,
+			Timestamp: time.Now().Add(-tc.age).UnixMilli(),
+			Content:   event.Content{Parsed: &event.EncryptedEventContent{SessionID: "s", Algorithm: id.AlgorithmMegolmV1}}}
+		s.onEncrypted(nil, evt)
+		shown := false
+		for _, e := range s.Timeline("!a") {
+			shown = shown || e.ID == tc.idv
+		}
+		if shown != tc.show {
+			t.Fatalf("%s: shown = %v, want %v", tc.idv, shown, tc.show)
+		}
+	}
+	if got := s.stuck(); got != 1 {
+		t.Fatalf("stuck = %d: only the old one has waited long enough to count", got)
+	}
+	if p := s.rooms["!a"].preview; strings.Contains(p, "$fresh") || p == "" {
+		t.Fatalf("preview = %q", p)
 	}
 }
 

@@ -126,6 +126,10 @@ type Event struct {
 	Reactions []Reaction
 	Edited    bool
 	Pending   bool
+	// Failed: the user's message could not be sent; Error says why. Until
+	// then a message shows as sent — only a failure is ever marked.
+	Failed bool
+	Error  string
 	Poll      *Poll
 	// Mentions is set when it mentions the user.
 	Mentions bool

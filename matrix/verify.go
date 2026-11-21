@@ -55,8 +55,24 @@ func (v *VerifyDriver) State() model.VerifyState {
 	st := v.st
 	// Idle or Done: a stray request or a finished verification that did
 	// not bring the history must not hide the way to the Security Key.
-	st.Needed = (st.Phase == model.VerifyIdle || st.Phase == model.VerifyDone) && v.src.encrypted > 0
+	// Only what has waited past the grace period counts: a message that
+	// arrived a moment ago usually has its key coming.
+	st.Needed = (st.Phase == model.VerifyIdle || st.Phase == model.VerifyDone) && v.src.stuck() > 0
 	return st
+}
+
+// stuck is how many messages have been waiting for keys past the grace
+// period. UI thread.
+func (s *Source) stuck() int {
+	n := 0
+	for _, r := range s.rooms {
+		for _, raw := range r.raw {
+			if !lockedForNow(raw.tile) {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // set changes the state on the UI thread.
