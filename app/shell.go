@@ -197,7 +197,7 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 		ui.Spacer(c)
 		ui.Column(c).AlignItems(ui.Center).Gap(kit.S2).Children(func() {
 			// Settings toggles: a second click goes back.
-			set := kit.IconButton(c, kit.Ghost, kit.IconSettings, "Settings").AccessSelected(a.view == viewSettings)
+			set := kit.IconButtonSide(c, kit.Ghost, kit.IconSettings, "Settings").AccessSelected(a.view == viewSettings)
 			if a.view == viewSettings {
 				set.Background(p.AccentSubtle)
 			}
@@ -221,7 +221,8 @@ func (a *App) meButton(c *ui.Context, size float32) {
 	if me.Status.Set(a.now) {
 		tip = me.Status.Emoji + " " + me.Status.Text
 	}
-	b := ui.ButtonBase(c.Key("me")).Radius(kit.RadiusFull).Label("Set a status").Tooltip(tip)
+	b := ui.ButtonBase(c.Key("me")).Radius(kit.RadiusFull).Label("Set a status")
+	kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
 	b.Children(func() {
 		kit.Avatar(c, a.avatar(me, size))
 		if me.Status.Set(a.now) {

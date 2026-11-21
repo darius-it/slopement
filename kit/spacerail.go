@@ -37,7 +37,8 @@ func RailItem(c *ui.Context, d RailItemData, selected bool) ui.Element {
 		ui.Box(c).Width((RailWidth-size)/2 - 4)
 
 		b = ui.ButtonBase(c).Size(size, size).Radius(RadiusMd + 2).AlignItems(ui.Center).Justify(ui.Center).
-			Label(d.Name).AccessSelected(selected).Tooltip(d.Name)
+			Label(d.Name).AccessSelected(selected)
+		SideTooltip(c, b, d.Name) // to the right of the rail, not over the item above
 		Pressable(b)
 		b.Children(func() {
 			if d.Icon != nil {
@@ -96,7 +97,8 @@ func RailAdd(c *ui.Context, choice *RailAddAction) ui.Element {
 	var b ui.Element
 	ui.Row(c.Key("rail-add")).Width(RailWidth).Height(size).Justify(ui.Center).Children(func() {
 		b = ui.ButtonBase(c).Size(size, size).Radius(RadiusMd + 2).AlignItems(ui.Center).Justify(ui.Center).
-			Label("Add a space").Tooltip("Add a space")
+			Label("Add a space")
+		SideTooltip(c, b, "Add a space")
 		bg, fg, bd := ui.Transparent, p.TextMuted, p.BorderStrong
 		if b.Hovered() || b.FocusVisible() {
 			bg, fg, bd = p.AccentSubtle, p.AccentStrong, p.Accent.Alpha(0.5)

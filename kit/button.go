@@ -96,6 +96,11 @@ func Button(c *ui.Context, v Variant, label string, icon *ui.SVG) ui.Element {
 // IconButton is a square button showing an icon alone; label names it for
 // screen readers and its tooltip.
 func IconButton(c *ui.Context, v Variant, icon *ui.SVG, label string) ui.Element {
+	return iconButton(c, v, icon, label, true)
+}
+
+// iconButton is IconButton, with or without its own tooltip (above).
+func iconButton(c *ui.Context, v Variant, icon *ui.SVG, label string, tip bool) ui.Element {
 	p := Of(c)
 	b := ui.ButtonBase(c)
 	bg, fg, border := buttonColors(p, v, b.Hovered(), b.Pressed())
@@ -108,7 +113,7 @@ func IconButton(c *ui.Context, v Variant, icon *ui.SVG, label string) ui.Element
 	s := controlHeight(c)
 	b.Size(s, s).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).
 		Background(b.AnimateColor("bg", bg, Color)).Label(label)
-	if !Touch(c) {
+	if tip && !Touch(c) {
 		b.Tooltip(label)
 	}
 	if border.A > 0 {

@@ -398,6 +398,29 @@ func TypingLine(c *ui.Context, text string) {
 	})
 }
 
+// TypingOverlay is TypingLine floating on the bottom-left edge of the
+// timeline it is built in (its parent): over the messages' own bottom
+// margin, on a soft backing so it reads over text, taking no room — a
+// line that comes and goes in the flow moves every message above it.
+func TypingOverlay(c *ui.Context, text string) {
+	if text == "" {
+		return
+	}
+	p := Of(c)
+	ui.Row(c.Key("typing")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(S3).Top(-S1).PassThrough().
+		Height(20).PaddingX(S2).Gap(S2).AlignItems(ui.Center).Radius(RadiusFull).Background(p.Bg.Alpha(0.92)).Children(func() {
+		dots := ui.Row(c).Gap(3)
+		dots.Children(func() {
+			for i := 0; i < 3; i++ {
+				d := ui.Box(c).Size(4, 4).Radius(RadiusFull).Background(p.TextMuted)
+				phase := d.Loop("t", 1200*time.Millisecond, ui.Linear)
+				d.Opacity(0.35 + 0.65*pulse(phase, float32(i)/3))
+			}
+		})
+		ui.Text(c, text).FontSize(SizeCaption + 1).TextColor(p.TextMuted).SingleLine()
+	})
+}
+
 func pulse(t, off float32) float32 {
 	x := t - off
 	if x < 0 {

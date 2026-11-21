@@ -92,33 +92,36 @@ func (a *App) roomView(c *ui.Context, back bool) {
 		a.rs = a.receiptStateOf(r.ID)
 		ls := a.listState(r.ID)
 		ls.Key = func(i int) any { return rows[i].key }
-		// 24 under the last message before the composer, as Meetup's and
-		// Fresha's web chats leave (Mobbin); it scrolls with the messages.
-		ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.timelineRow(c, r, rows[i]) }).
-			Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).Children(func() {
-			if len(rows) == 0 {
-				emptyNote(c, "No messages yet. Say hi!")
-			}
-		})
-		if !ls.AtEnd() && len(rows) > 0 {
-			// 4 above the composer, so the pill doesn't touch it.
-			ui.Row(c).Justify(ui.Center).Padding(0, 0, kit.S1, 0).Children(func() {
-				if kit.Button(c, kit.Secondary, "Jump to latest", kit.IconArrowDown).Clicked() {
-					// A short way back glides; a long jump goes at once
-					// (mygo's reduced-motion setting also jumps at once).
-					if sc := a.scrollState(r.ID); sc.MaxY-sc.Y <= 1600 {
-						sc.ScrollTo(0, math.MaxFloat32, ui.Smooth)
-					} else {
-						ls.ScrollToEnd()
-					}
+		a.jumpStep(r.ID, rows, ls)
+		// The timeline with what floats over it: who is typing and Jump to
+		// latest sit on its bottom edge, in the 24 left under the last
+		// message, and take no room — a line that came and went would move
+		// every message.
+		ui.Column(c.Key("tlarea:"+r.ID)).Grow(1).Children(func() {
+			// 24 under the last message before the composer, as Meetup's and
+			// Fresha's web chats leave (Mobbin); it scrolls with the messages.
+			ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.timelineRow(c, r, rows[i]) }).
+				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).Children(func() {
+				if len(rows) == 0 {
+					emptyNote(c, "No messages yet. Say hi!")
 				}
 			})
-		}
+			if !ls.AtEnd() && len(rows) > 0 {
+				ui.Row(c.Key("jump")).Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-kit.S1).Children(func() {
+					if kit.Button(c, kit.Secondary, "Jump to latest", kit.IconArrowDown).Clicked() {
+						// The list knows where its end is, rows it has not
+						// measured yet included: aiming the scroll at a far
+						// offset instead overshoots and then snaps back.
+						ls.ScrollToEnd()
+					}
+				})
+			}
+			if len(r.Typing) > 0 {
+				kit.TypingOverlay(c, strings.Join(r.Typing, ", ")+" is typing…")
+			}
+		})
 		if a.encryptedWaiting(rows) {
 			a.verifyBanner(c)
-		}
-		if len(r.Typing) > 0 {
-			kit.TypingLine(c, strings.Join(r.Typing, ", ")+" is typing…")
 		}
 		a.composer(c, r)
 	})
