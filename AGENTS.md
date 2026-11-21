@@ -57,7 +57,9 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   (`c.Key`).
 
 ### Verification
-- `go build ./... && go vet ./... && CGO_ENABLED=0 go test ./...`
+- `go build -tags goolm ./... && go vet -tags goolm ./... && CGO_ENABLED=0 go test -tags goolm ./...`
+  (the `goolm` tag makes mautrix's crypto pure Go; without it, `matrix/`
+  pulls in libolm via cgo and the build fails — never build without it.)
 - `go tool mygo vet .` when available.
 - Visual check without a window: `SNAP_DIR=<scratch dir> go test -run TestPagesRender ./gallery/`
   writes a PNG of every gallery page (wide/phone × light/dark). Read them.
@@ -70,6 +72,11 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   directly.
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
+- `matrix/`: the Matrix layer (mautrix-go, `-tags goolm`): one `Account`
+  per login — its directory (`<config>/slopement/accounts/<sha256(user)>/`)
+  holds `state.db` and `crypto.db`, a session lock enforces one process per
+  account, and tokens/pickle keys live in the OS keychain via `mygo.Secrets`.
+  The sync loop and the `model.Source` implementation come next.
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: the component gallery and mock screens, built only from `kit`.
   It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.
@@ -98,6 +105,7 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `KLIPY_API_KEY` lives in `.env` (gitignored). Never commit keys or print them.
 
 ## Pending manual cleanup (needs user; do not bypass)
+- Delete `matrix/debug_lock_test.go` (an emptied one-off diagnostic).
 - Delete the leftover webview scaffold: `index.html`, `src/`, `vite.config.ts`,
   `tsconfig.json`, and the Vite/TS parts of `package.json` / `bun.lock`; then
   drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
