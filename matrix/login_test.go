@@ -260,6 +260,9 @@ func TestDial(t *testing.T) {
 	if cli.AccessToken != "oidc-token" || cli.UserID != s.UserID {
 		t.Fatalf("client token or user wrong: %q %q", cli.AccessToken, cli.UserID)
 	}
+	if cli.DeviceID != s.DeviceID {
+		t.Fatalf("device = %q, want %q (the crypto helper needs it)", cli.DeviceID, s.DeviceID)
+	}
 
 	// Without a token, signing in again is asked for — the stores are
 	// never wiped by Dial failing.

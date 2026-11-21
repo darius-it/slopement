@@ -8,6 +8,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"os"
 	"time"
@@ -89,14 +91,40 @@ func main() {
 		if lg != nil {
 			lg.SetUpdate(win.Update)
 			lg.OnSignedIn = func(s *matrix.Session) {
-				// A fresh app on the account: before sync it shows the
-				// signed-in user and the app's empty states.
-				a = app.New(matrix.NewSource(s), pick)
-				a.OpenGallery = openGallery
-				a.Attach(win)
-				a.MenuChanged = setMenu
-				signed = true
-				setMenu()
+				// The account's stores, the client and the sync loop are
+				// opened off the UI thread; the window then swaps to the
+				// app on the account, with the loop running.
+				go func() {
+					ctx := context.Background()
+					acc, err := matrix.Open(ctx, s.UserID, s.DeviceID)
+					if err != nil {
+						if errors.Is(err, matrix.ErrLocked) {
+							lg.Fail("This account is already open in another slopement window. Quit that one and sign in here again.")
+							return
+						}
+						lg.Fail("Opening the account failed: " + err.Error())
+						return
+					}
+					cli, err := matrix.Dial(ctx, s)
+					if err != nil {
+						lg.Fail("Reaching the server failed: " + err.Error())
+						return
+					}
+					src, err := matrix.NewSynced(ctx, acc, cli)
+					if err != nil {
+						lg.Fail("Preparing the sync failed: " + err.Error())
+						return
+					}
+					win.Update(func() {
+						a = app.New(src, pick)
+						a.OpenGallery = openGallery
+						a.Attach(win)
+						a.MenuChanged = setMenu
+						signed = true
+						setMenu()
+						src.Start(context.Background())
+					})
+				}()
 			}
 		} else {
 			a.OpenGallery = openGallery

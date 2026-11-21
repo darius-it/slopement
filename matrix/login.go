@@ -271,12 +271,15 @@ func oauthClient(ctx context.Context, cli *mautrix.Client, redirect string) (str
 func Dial(ctx context.Context, s *Session) (*mautrix.Client, error) {
 	tok, err := TokensOf(string(s.UserID), string(s.DeviceID))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading the saved login: %w", err)
 	}
 	cli, err := mautrix.NewClient(s.ServerURL, s.UserID, tok.Access)
 	if err != nil {
 		return nil, err
 	}
+	// NewClient takes no device ID; without it the crypto helper (rightly)
+	// refuses the client as not logged in.
+	cli.DeviceID = s.DeviceID
 	cli.SaveNewToken = func(ctx context.Context, refresh, access string, expiry time.Time) error {
 		return SaveTokens(string(s.UserID), string(s.DeviceID), Tokens{Access: access, Refresh: refresh, Expires: expiry})
 	}

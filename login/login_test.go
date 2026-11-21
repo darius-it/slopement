@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"slopement/kit"
 	"slopement/matrix"
 )
 
@@ -94,7 +95,57 @@ func TestSignInPassword(t *testing.T) {
 	}
 }
 
-// focusField clicks the text input named label.
+// TestContinueWithoutToken is the saved login whose keychain entry is
+// gone: the quiet line says to sign in again, and nothing else happens.
+func TestContinueWithoutToken(t *testing.T) {
+	l := New()
+	posted := make(chan func(), 16)
+	l.SetUpdate(func(f func()) { posted <- f })
+	// A session no tokens were ever saved for.
+	l.sessions = append(l.sessions, &matrix.Session{UserID: "@nobody:example.org", DeviceID: "X", ServerName: "example.org"})
+	l.st.Saved = append(l.st.Saved, kit.SavedLogin{User: "@nobody:example.org", Server: "example.org"})
+
+	tt := ui.NewTester(l.View, 800, 600)
+	tt.Frame()
+	if err := tt.Click("@nobody:example.org"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.After(5 * time.Second)
+	for done := false; !done; {
+		select {
+		case f := <-posted:
+			f()
+			tt.Frame()
+		case <-time.After(50 * time.Millisecond):
+			done = true
+		case <-deadline:
+			t.Fatal("the continue never came back")
+		}
+	}
+	if !tt.HasText("Sign in again — this login has no token.") {
+		t.Fatalf("err line = %q", l.st.Err)
+	}
+}
+
+// TestBusyIgnoresActions pins the one-sign-in-at-a-time guard: while a
+// sign-in is in flight, clicks start nothing.
+func TestBusyIgnoresActions(t *testing.T) {
+	l := New()
+	l.st.Saved = append(l.st.Saved, kit.SavedLogin{User: "@x:example.org", Server: "example.org"})
+	var posts int
+	l.SetUpdate(func(f func()) { posts++; f() })
+	l.st.Busy = true
+
+	tt := ui.NewTester(l.View, 800, 600)
+	tt.Frame()
+	if err := tt.Click("@x:example.org"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if posts != 0 {
+		t.Fatalf("%d sign-ins started while one was already in flight", posts)
+	}
+}
 func focusField(t *testing.T, tt *ui.Tester, label string) {
 	t.Helper()
 	for _, a := range tt.AccessAll() {

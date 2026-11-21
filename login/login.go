@@ -49,6 +49,11 @@ func New() *Login {
 // the UI thread comes back through it.
 func (l *Login) SetUpdate(update func(func())) { l.update = update }
 
+	// Fail shows what stopped a sign-in from booting, as its quiet line.
+func (l *Login) Fail(msg string) {
+	l.post(func() { l.st.Err = msg })
+}
+
 // View is the sign-in screen.
 func (l *Login) View(c *ui.Context) {
 	kit.Apply(c)
@@ -56,6 +61,9 @@ func (l *Login) View(c *ui.Context) {
 
 	var act kit.LoginAction
 	kit.Login(c, &l.st, &act)
+	if l.st.Busy {
+		return // one sign-in at a time: a second click races the first's
+	}
 	switch {
 	case act.Continue >= 0:
 		l.continueSession(act.Continue)
@@ -88,10 +96,17 @@ func (l *Login) continueSession(i int) {
 		l.post(func() {
 			l.st.Busy = false
 			if err != nil {
+				// A token that is gone means signing in again — the
+				// stores stay. A token that cannot be read at all is the
+				// keychain refusing: an ad-hoc dev build is a new app to
+				// macOS, so its signature never matches the one that
+				// saved the token. Signing in again is the answer either
+				// way, and the Apple Development certificate mygo
+				// suggests keeps it from happening twice.
 				if errors.Is(err, matrix.ErrNoToken) {
-					l.st.Err = "Sign in again — this login's token is gone."
+					l.st.Err = "Sign in again — this login has no token."
 				} else {
-					l.st.Err = "Could not reach " + s.ServerName + "."
+					l.st.Err = "The saved login could not be read — sign in again."
 				}
 				return
 			}

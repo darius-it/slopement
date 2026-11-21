@@ -84,7 +84,11 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   per login — its directory (`<config>/slopement/accounts/<sha256(user)>/`)
   holds `state.db` and `crypto.db`, a session lock enforces one process per
   account, and tokens/pickle keys live in the OS keychain via `mygo.Secrets`.
-  The sync loop and the `model.Source` implementation come next.
+  Login probes a server (MAS/OIDC first-class) and `NewSynced` runs the
+  classic `/v3/sync` loop into `model.Source`: rooms, timeline (capped at
+  300/room in memory), presence, typing, reactions, sending and read
+  markers, with mautrix's olm machine decrypting through goolm. Sliding
+  sync (MSC4186) replaces the loop behind the same constructor later.
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: the component gallery and mock screens, built only from `kit`.
   It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.
