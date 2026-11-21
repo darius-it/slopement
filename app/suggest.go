@@ -101,7 +101,7 @@ func emojiSuggestions(query string) []kit.SuggestItem {
 // sent.
 func (a *App) applySuggestion(room string, st *kit.ComposerState, it kit.SuggestItem) {
 	_, start := wordAtEnd(st.Text)
-	st.Text = st.Text[:start] + it.Insert + " "
+	st.Rewrote(st.Text[:start] + it.Insert + " ") // the user goes on typing, caret at the end
 	if it.ID != "" {
 		if a.mentions[room] == nil {
 			a.mentions[room] = map[string]string{}

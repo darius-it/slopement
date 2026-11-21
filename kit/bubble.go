@@ -436,7 +436,7 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 					}
 				})
 		}
-		ui.Row(c).Padding(S2, S2, S2, S2).Gap(S2).AlignItems(ui.End).Children(func() {
+		ui.Row(c.Key("composer-row")).Padding(S2, S2, S2, S2).Gap(S2).AlignItems(ui.End).Children(func() {
 			plusMenu(c, roundIcon(c, IconPlus, "Attach or create", ui.Transparent, p.Text), st)
 			pill := ui.Row(c).Grow(1).MinWidth(0).MinHeight(40).PaddingStart(S4).PaddingEnd(S1).Gap(S1).
 				Radius(20).Background(p.Raised).AlignItems(ui.End)
@@ -444,8 +444,12 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 				pill.Border(1, p.Border)
 			}
 			pill.Children(func() {
-				ta := ui.TextAreaBase(c, &st.Text).Grow(1).MinWidth(0).Lines(1, 6).Placeholder(placeholder).
+				ta := ui.TextAreaBase(c.Key(st.inputKey()), &st.Text).Grow(1).MinWidth(0).Lines(1, 6).Placeholder(placeholder).
 					PlaceholderColor(p.TextMuted).FontSize(SizeBodyTouch).LineHeight(1.35).MarginY(10).Label(placeholder)
+				if st.wantFocus {
+					st.wantFocus = false
+					ta.Focus()
+				}
 				ta.OnTextKey(func(k ui.TextKey) bool {
 					if suggestKey(st, k) {
 						return true

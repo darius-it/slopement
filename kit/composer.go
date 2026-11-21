@@ -27,7 +27,25 @@ type ComposerState struct {
 	sel        int
 	suggestOff string
 	wantPick   bool
+
+	// inputGen names the text field: it changes when the app rewrites the
+	// text under the caret (a suggestion taken), which makes the field a new
+	// one, caret at the end; wantFocus then gives the new field the focus.
+	inputGen  int
+	wantFocus bool
 }
+
+// Rewrote replaces the draft's text from the app (a suggestion taken) and
+// keeps the user typing: the field gets the new text with the caret at its
+// end, and the keyboard focus, so nothing has to be clicked again.
+func (st *ComposerState) Rewrote(text string) {
+	st.Text = text
+	st.inputGen++
+	st.wantFocus = true
+}
+
+// inputKey is the key of the text field.
+func (st *ComposerState) inputKey() string { return "composer-input-" + itoa(st.inputGen) }
 
 // SuggestionsOff says the user put the suggestions away for this text.
 func (st *ComposerState) SuggestionsOff() bool {
@@ -120,14 +138,21 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 			editBanner(c, st)
 			r.RemovedFile = fileTray(c, st)
 			r.Pick = suggestPopup(c, st)
-			ui.Row(c).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
+			// Keyed: the banner, the file chips and the suggestions come and
+			// go above, and the field must be the same field when they do —
+			// by position it would be a new one, and the focus would be gone.
+			ui.Row(c.Key("composer-row")).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
 				plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
-				ta := ui.TextAreaBase(c, &st.Text).Grow(1).MinWidth(0).Lines(1, 8).
+				ta := ui.TextAreaBase(c.Key(st.inputKey()), &st.Text).Grow(1).MinWidth(0).Lines(1, 8).
 					Placeholder(placeholder).PlaceholderColor(p.TextMuted).Label(placeholder).
 					FontSize(fieldSize(c)).LineHeight(1.4).MarginY(6)
+				if st.wantFocus {
+					st.wantFocus = false
+					ta.Focus()
+				}
 				ta.OnTextKey(func(k ui.TextKey) bool {
 					if suggestKey(st, k) {
-						return true // the suggestions took the key (Enter picks, not sends)
+						return true // the suggestions took the key
 					}
 					if pasteKey(k) {
 						st.wantPaste = true // and the field pastes its text, if any

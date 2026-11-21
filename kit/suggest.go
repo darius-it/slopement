@@ -27,12 +27,15 @@ func suggestPopup(c *ui.Context, st *ComposerState) (pick int) {
 	if st.sel >= len(st.Suggest) {
 		st.sel = len(st.Suggest) - 1
 	}
-	ui.Column(c.Key("suggest")).Attach(ui.AnchorTopLeft, ui.AnchorBottomLeft).Top(-S1).MinWidth(260).MaxWidth(420).
+	ui.Column(c.Key("suggest")).Role(ui.RoleListBox).Label("Suggestions").
+		Attach(ui.AnchorTopLeft, ui.AnchorBottomLeft).Top(-S1).MinWidth(260).MaxWidth(420).
 		Padding(S1).Gap(1).Radius(RadiusMd).Background(p.Raised).Border(1, p.Border).
 		Shadow(0, 4, 12, -4, p.Shadow).Children(func() {
 		for i, it := range st.Suggest {
-			b := ui.ButtonBase(c.Key("sg:" + it.Insert)).Height(rowHeightFor(c, 34)).PaddingX(S2).Gap(S2).Radius(RadiusSm).
-				AlignItems(ui.Center).Justify(ui.Start).Label(it.Label).AccessSelected(i == st.sel)
+			// Options, not buttons: they are not focusable, so pressing one
+			// never takes the keyboard focus off the field being typed in.
+			b := ui.Row(c.Key("sg:" + it.Insert)).Height(rowHeightFor(c, 34)).PaddingX(S2).Gap(S2).Radius(RadiusSm).
+				AlignItems(ui.Center).Role(ui.RoleOption).Label(it.Label).Checked(i == st.sel).Cursor(ui.CursorPointer)
 			switch {
 			case i == st.sel:
 				b.Background(p.AccentSubtle)
@@ -70,8 +73,9 @@ func rowHeightFor(c *ui.Context, h float32) float32 {
 }
 
 // suggestKey handles a key in the field while suggestions show: Up and Down
-// move the highlight, Enter and Tab take the highlighted one, Escape puts
-// them away until the text changes. It reports whether the key was used.
+// move the highlight, Tab takes the highlighted one, Escape puts them away
+// until the text changes. Enter is not taken: it sends, as always. It
+// reports whether the key was used.
 func suggestKey(st *ComposerState, k ui.TextKey) bool {
 	if len(st.Suggest) == 0 || k.Mods != 0 {
 		return false
@@ -83,7 +87,7 @@ func suggestKey(st *ComposerState, k ui.TextKey) bool {
 	case ui.KeyUp:
 		st.sel = (st.sel + len(st.Suggest) - 1) % len(st.Suggest)
 		return true
-	case ui.KeyEnter, ui.KeyTab:
+	case ui.KeyTab:
 		st.wantPick = true
 		return true
 	case ui.KeyEscape:

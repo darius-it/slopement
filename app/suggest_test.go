@@ -3,8 +3,11 @@ package app
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"slopement/model"
 )
 
 func TestWordAtEnd(t *testing.T) {
@@ -87,6 +90,58 @@ func TestApplySuggestionAndMentionLinks(t *testing.T) {
 	}
 }
 
+// The field keeps the keyboard focus while suggestions show: typing goes on,
+// Up and Down move the highlight, Tab takes the highlighted one (and not
+// Enter, which sends), and typing goes on after it — nothing in between asks
+// the user to click back into the field.
+func TestTypingAndKeysWhileSuggestionsShow(t *testing.T) {
+	a := testApp()
+	room, tl := longTimeline(a, 6)
+	// A second person who spoke, so there is something to arrow to.
+	tl = append(tl, model.Event{ID: "$avery", Room: room.ID, Sender: "@avery:example.com", Kind: model.EventText,
+		Body: "hi", Time: time.Now()})
+	a.src = timeline{a.src, tl}
+	a.open(room.ID)
+	st := a.draft(room.ID)
+
+	tt := ui.NewTester(a.View, 1100, 700)
+	settle(tt)
+	if err := tt.Click("Message " + room.Name); err != nil { // into the field
+		t.Fatal(err)
+	}
+	settle(tt)
+	tt.Type("hi @a")
+	settle(tt)
+	if got := a.suggestions(room.ID, st); len(got) < 2 {
+		t.Fatalf("need two suggestions to arrow between, have %+v (text %q)", got, st.Text)
+	}
+	tt.Type("v") // the popup is up: typing must still reach the field
+	settle(tt)
+	if st.Text != "hi @av" {
+		t.Fatalf("typing stopped when the suggestions appeared: %q", st.Text)
+	}
+
+	// With the narrowed list, Down and Up only move the highlight: the text is untouched.
+	tt.Key(0, ui.KeyBackspace) // back to "@a": both are listed again
+	settle(tt)
+	tt.Key(0, ui.KeyDown)
+	settle(tt)
+	if st.Text != "hi @a" {
+		t.Fatalf("Down changed the text: %q", st.Text)
+	}
+	tt.Key(0, ui.KeyTab)
+	settle(tt)
+	if !strings.HasPrefix(st.Text, "hi @") || !strings.HasSuffix(st.Text, " ") || st.Text == "hi @a" {
+		t.Fatalf("Tab did not take a suggestion: %q", st.Text)
+	}
+	second := st.Text
+	tt.Type("ok")
+	settle(tt)
+	if st.Text != second+"ok" {
+		t.Fatalf("typing after the pick was lost: %q (was %q)", st.Text, second)
+	}
+}
+
 // The popup shows over the composer, and pressing a line takes it.
 func TestSuggestionPopupRenders(t *testing.T) {
 	a := testApp()
@@ -109,6 +164,11 @@ func TestSuggestionPopupRenders(t *testing.T) {
 	settle(tt)
 	if st.Text != "@"+partner.Name+" " {
 		t.Fatalf("pressing the suggestion left %q", st.Text)
+	}
+	tt.Type("ok") // pressing a line must not have taken the focus off the field
+	settle(tt)
+	if st.Text != "@"+partner.Name+" ok" {
+		t.Fatalf("typing after pressing a suggestion: %q", st.Text)
 	}
 	if got := a.suggestions(room.ID, st); len(got) != 0 {
 		t.Fatalf("suggestions linger after a pick: %+v", got)
