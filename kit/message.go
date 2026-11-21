@@ -19,6 +19,11 @@ type Reaction struct {
 // Quote is the message a reply answers.
 type Quote struct {
 	Sender, SenderID, Body string
+	// Avatar is the sender's picture, shown small beside their name.
+	Avatar AvatarSpec
+	// ID is the event replied to: pressing the quote asks to go there
+	// (MessageAction.JumpTo).
+	ID string
 }
 
 // MessageData is one event of the timeline.
@@ -98,6 +103,8 @@ type MessageAction struct {
 	ProfileClosed bool
 	// ProfileAct is what the open card asked for.
 	ProfileAct ProfileAction
+	// JumpTo is the event whose quote was pressed: scroll to it.
+	JumpTo string
 }
 
 // senderName is a sender's name: in their color, a link to their card
@@ -196,7 +203,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 			}
 			if m.Reply != nil {
-				ReplyQuote(c, m.Reply, colors)
+				if ReplyQuote(c, m.Reply, colors).Clicked() {
+					a.JumpTo = m.Reply.ID
+				}
 			}
 			switch {
 			case m.Undecryptable:
@@ -312,12 +321,24 @@ func ReplyQuote(c *ui.Context, q *Quote, colors *UserColors) ui.Element {
 	}
 	b.Children(func() {
 		ui.Box(c).Width(2).Height(14).Radius(1).Background(p.BorderStrong).Shrink(0)
+		quoteAvatar(c, q, 16, colors)
 		ui.RichText(c,
 			ui.Span{Text: q.Sender, Color: colors.Color(p, q.SenderID), Weight: WeightMedium},
 			ui.Span{Text: "  " + q.Body, Color: b.AnimateColor("fg", fg, Color)},
 		).FontSize(SizeSmall).SingleLine().Shrink(1).MinWidth(0)
 	})
 	return b
+}
+
+// quoteAvatar is the small picture of who a reply quotes, by their name:
+// their profile picture, or their initials on their color.
+func quoteAvatar(c *ui.Context, q *Quote, size float32, colors *UserColors) {
+	av := q.Avatar
+	if av.Name == "" {
+		av.Name, av.ID = q.Sender, q.SenderID
+	}
+	av.Size, av.Presence, av.Trust, av.Colors = size, PresenceNone, TrustUnknown, colors
+	Avatar(c, av)
 }
 
 func toolButton(c *ui.Context, label string, content func(fg ui.Color)) ui.Element {

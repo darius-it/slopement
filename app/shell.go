@@ -181,7 +181,7 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 				kit.RailDivider(c) // favourites above the rest
 			}
 			unread, ment := a.communityCounts(cm)
-			item := kit.RailItem(c, kit.RailItemData{ID: cm.ID, Name: cm.Name, Unread: unread, Mention: ment},
+			item := kit.RailItem(c, kit.RailItemData{ID: cm.ID, Name: cm.Name, Unread: unread, Mention: ment, Avatar: kit.AvatarSpec{Image: a.avatarPic(cm.Avatar)}},
 				a.community == cm.ID && a.view != viewSettings)
 			kit.ContextMenu(c, item, func(m *ui.Menu) { a.communityMenu(cm, m) })
 			if item.Clicked() {

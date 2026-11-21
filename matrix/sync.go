@@ -91,6 +91,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.StateMember, s.onMember)
 	syncer.OnEventType(event.StateRoomName, s.onRoomName)
 	syncer.OnEventType(event.StateTopic, s.onTopic)
+	syncer.OnEventType(event.StateRoomAvatar, s.onRoomAvatar)
 	syncer.OnEventType(event.StateCanonicalAlias, s.onAlias)
 	syncer.OnEventType(event.StateEncryption, s.onEncryption)
 	syncer.OnEventType(event.StateCreate, s.onCreate)
@@ -336,6 +337,16 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 func (s *Source) onRoomName(ctx context.Context, evt *event.Event) {
 	name := evt.Content.AsRoomName().Name
 	s.post(func() { s.roomOf(evt.RoomID.String()).name = name })
+}
+
+// onRoomAvatar is the room's (or space's) picture, an mxc:// URL.
+func (s *Source) onRoomAvatar(ctx context.Context, evt *event.Event) {
+	c := evt.Content.AsRoomAvatar()
+	if c == nil {
+		return
+	}
+	url := string(c.URL)
+	s.post(func() { s.roomOf(evt.RoomID.String()).avatar = url })
 }
 
 func (s *Source) onTopic(ctx context.Context, evt *event.Event) {

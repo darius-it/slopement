@@ -163,7 +163,7 @@ func (a *App) communityHome(c *ui.Context, cm model.Community) {
 	p := kit.Of(c)
 	ui.Column(c).Gap(kit.S2).Padding(kit.S3).Children(func() {
 		ui.Row(c).Gap(kit.S3).AlignItems(ui.Center).Children(func() {
-			kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 48, Square: true})
+			kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 48, Square: true, Image: a.avatarPic(cm.Avatar)})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 				ui.Row(c).Gap(kit.S1).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, cm.Name).FontSize(kit.SizeLabel + 1).FontWeight(kit.WeightSemibold).SingleLine().Shrink(1)
@@ -327,7 +327,7 @@ func (a *App) communityCard(c *ui.Context, cm model.Community) {
 	}
 	unread, ment := a.communityCounts(cm)
 	b.Children(func() {
-		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 44, Square: true})
+		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 44, Square: true, Image: a.avatarPic(cm.Avatar)})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, cm.Name).FontSize(kit.SizeBody).FontWeight(kit.WeightSemibold).SingleLine()
 			ui.Text(c, strconv.Itoa(len(a.communityRoomIDs(cm, 0)))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
@@ -451,7 +451,7 @@ func (a *App) inboxCommunity(c *ui.Context, cm model.Community) {
 	}
 	unread, ment := a.communityCounts(cm)
 	b.Children(func() {
-		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 36, Square: true})
+		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 36, Square: true, Image: a.avatarPic(cm.Avatar)})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, cm.Name).FontSize(kit.SizeBody).FontWeight(kit.WeightSemibold).SingleLine()
 			ui.Text(c, strconv.Itoa(len(a.communityRoomIDs(cm, 0)))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()

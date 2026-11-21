@@ -226,13 +226,22 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 							qbg = ui.RGBA(0, 0, 0, 0.2)
 						}
 					}
-					ui.Row(c).Gap(S2).Padding(S15, S2).Radius(RadiusSm + 2).Background(qbg).Children(func() {
+					// A press goes to the message that was replied to.
+					qb := ui.ButtonBase(c.Key("reply")).Gap(S2).Padding(S15, S2).Radius(RadiusSm + 2).Background(qbg).
+						Justify(ui.Start).Label("Go to the message " + q.Sender + " wrote")
+					qb.Children(func() {
 						ui.Box(c).Width(2).Radius(1).Background(colors.Color(p, q.SenderID)).AlignSelf(ui.Stretch)
 						ui.Column(c).Gap(1).MinWidth(0).Children(func() {
-							ui.Text(c, q.Sender).FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(colors.Color(p, q.SenderID)).SingleLine()
+							ui.Row(c).Gap(S1).AlignItems(ui.Center).Children(func() {
+								quoteAvatar(c, q, 14, colors)
+								ui.Text(c, q.Sender).FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(colors.Color(p, q.SenderID)).SingleLine()
+							})
 							ui.Text(c, q.Body).FontSize(SizeSmall).TextColor(fg.Alpha(0.75)).MaxLines(2)
 						})
 					})
+					if qb.Clicked() {
+						a.JumpTo = q.ID
+					}
 				}
 				if hasText {
 					MessageBody(c, b.ID, b.Doc, rv, BodyStyle{Size: SizeBodyTouch - 0.5, Color: fg, OnAccent: b.Out})

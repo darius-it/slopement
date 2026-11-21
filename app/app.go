@@ -73,6 +73,9 @@ type App struct {
 	statePath        string
 	stateLast        string
 	statePending     bool
+	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
+	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)
+	flash            string       // the message just jumped to, highlighted a moment
 	rs               receiptState // the open room's, taken once a frame
 	receiptsApplied  bool         // the source was told the setting (receipts.go)
 	receiptsVal      bool
@@ -85,6 +88,12 @@ type App struct {
 	stills     map[string]ui.ImageSource
 	stillOrder []string
 	stillBusy  map[string]bool
+	// runUI runs a function on the UI thread (the window's Update; a test
+	// runs it at once): where work done off-thread comes back.
+	runUI       func(func())
+	avatars     map[string]*ui.Bitmap // profile pictures by mxc URL (media.go)
+	avatarOrder []string
+	avatarBusy  map[string]bool
 
 	// Overlays.
 	switcher     kit.SwitcherState
@@ -147,6 +156,9 @@ func New(src model.Source, pick *picker.Controller) *App {
 		roomMenu:  map[string]bool{},
 		stills:    map[string]ui.ImageSource{},
 		stillBusy: map[string]bool{},
+		readMarked: map[string]string{},
+		avatars:    map[string]*ui.Bitmap{},
+		avatarBusy: map[string]bool{},
 		call:      kit.NewCall(),
 		replyTo:   map[string]string{},
 		prefs:     defaultPrefs(),
@@ -167,10 +179,14 @@ func New(src model.Source, pick *picker.Controller) *App {
 // background work comes back through it.
 func (a *App) Attach(w *mygo.Window) {
 	a.win = w
+	a.runUI = w.Update
 	a.src.SetUpdate(w.Update)
 	if a.pick != nil {
 		a.pick.SetUpdate(w.Update)
 	}
+	// Coming back to the window is a frame: the room open there is read
+	// (readStep), whatever arrived while the user was away.
+	w.OnFocus(func() { w.Update(func() {}) })
 }
 
 // open opens a room: it becomes the open room, is marked read, and leads

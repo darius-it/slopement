@@ -158,6 +158,9 @@ type Media struct {
 	Length  time.Duration // video and audio
 	Spoiler bool
 	Secret  string // the source's own key material for an encrypted attachment; opaque
+	// Square, when set, asks for a thumbnail of that many pixels a side
+	// (cropped) rather than the whole file: a profile picture.
+	Square int
 }
 
 // MediaLoader is what a Source may offer: the bytes of an attachment

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -30,10 +32,15 @@ func (s *Source) LoadMedia(m model.Media, done func([]byte, error)) {
 			done(nil, fmt.Errorf("media address: %w", err))
 			return
 		}
-		data, err := cli.DownloadBytes(ctx, uri)
-		if err != nil {
-			done(nil, fmt.Errorf("downloading: %w", err))
-			return
+		var data []byte
+		if m.Square > 0 {
+			data = thumbnailBytes(ctx, cli, uri, m.Square) // nil: the server would not; take the whole file
+		}
+		if data == nil {
+			if data, err = cli.DownloadBytes(ctx, uri); err != nil {
+				done(nil, fmt.Errorf("downloading: %w", err))
+				return
+			}
 		}
 		if m.Secret != "" {
 			var info event.EncryptedFileInfo
@@ -48,6 +55,21 @@ func (s *Source) LoadMedia(m model.Media, done func([]byte, error)) {
 		}
 		done(data, nil)
 	}()
+}
+
+// thumbnailBytes is a square, cropped thumbnail from the media repo, or
+// nil when it cannot be had.
+func thumbnailBytes(ctx context.Context, cli *mautrix.Client, uri id.ContentURI, side int) []byte {
+	resp, err := cli.DownloadThumbnail(ctx, uri, side, side, mautrix.DownloadThumbnailExtra{Method: "crop"})
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil || len(b) == 0 {
+		return nil
+	}
+	return b
 }
 
 var _ model.MediaLoader = (*Source)(nil)

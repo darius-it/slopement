@@ -38,7 +38,8 @@ func status(s model.Status) kit.Status {
 }
 
 func (a *App) avatar(p model.Person, size float32) kit.AvatarSpec {
-	return kit.AvatarSpec{Name: p.Name, ID: p.ID, Size: size, Presence: presence(p.Presence), Colors: &a.colors}
+	return kit.AvatarSpec{Name: p.Name, ID: p.ID, Size: size, Presence: presence(p.Presence), Colors: &a.colors,
+		Image: a.avatarPic(p.Avatar)}
 }
 
 func (a *App) kitPerson(p model.Person) kit.Person {
@@ -102,12 +103,16 @@ func (a *App) row(r model.Room) kit.RoomRowData {
 	case model.KindDM:
 		if p, ok := a.src.Person(r.Partner); ok {
 			d.Avatar.ID, d.Avatar.Presence = p.ID, presence(p.Presence)
+			d.Avatar.Image = a.avatarPic(p.Avatar)
 			if p.Status.Set(a.now) {
 				d.Status = status(p.Status)
 			}
 		}
 	case model.KindGroup:
 		d.Avatar.Square = true
+	}
+	if r.Kind != model.KindDM {
+		d.Avatar.Image = a.avatarPic(r.Avatar)
 	}
 	if len(r.Typing) > 0 {
 		d.Typing = r.Typing[0] + " is typing…"
@@ -228,7 +233,7 @@ func (a *App) quote(room, id string) *kit.Quote {
 	for _, ev := range a.src.Timeline(room) {
 		if ev.ID == id {
 			p, _ := a.src.Person(ev.Sender)
-			return &kit.Quote{Sender: p.Name, SenderID: p.ID, Body: format.Plain(a.doc(ev))}
+			return &kit.Quote{Sender: p.Name, SenderID: p.ID, Body: format.Plain(a.doc(ev)), ID: id, Avatar: a.avatar(p, 16)}
 		}
 	}
 	return nil

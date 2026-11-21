@@ -27,7 +27,10 @@ import (
 // the sync starts from nothing, as a first login does.
 
 // cacheVersion is bumped when the shape of what is stored changes.
-const cacheVersion = "1"
+//
+// 2: rooms carry their avatar (m.room.avatar), which a resumed sync would
+// never send again for rooms cached without it.
+const cacheVersion = "2"
 
 // Cache is the room cache of one account.
 type Cache struct {

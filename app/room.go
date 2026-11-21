@@ -1,7 +1,6 @@
 package app
 
 import (
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -93,6 +92,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 		ls := a.listState(r.ID)
 		ls.Key = func(i int) any { return rows[i].key }
 		a.jumpStep(r.ID, rows, ls)
+		a.readStep(r, rows, ls)
 		// The timeline with what floats over it: who is typing and Jump to
 		// latest sit on its bottom edge, in the 24 left under the last
 		// message, and take no room — a line that came and went would move
@@ -263,7 +263,7 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	sender, _ := a.src.Person(ev.Sender)
 	me := ev.Sender == a.src.Me().ID
 	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), First: tr.first,
-		Highlight: ev.Mentions, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
+		Highlight: ev.Mentions || ev.ID == a.flash, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
 		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals,
 		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),
 		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
@@ -297,6 +297,8 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		a.toast = "Message actions (copy, pin, edit, delete) come with the Matrix layer"
 	case act.OpenMedia >= 0:
 		a.viewerItems, a.viewerAt, a.viewer = media, act.OpenMedia, true
+	case act.JumpTo != "":
+		a.jumpTo(room, act.JumpTo)
 	case act.PlayVideo:
 		a.toast = "Inline YouTube playback comes later"
 	case act.Vote >= 0:
@@ -447,47 +449,60 @@ func (a *App) phoneRoom(c *ui.Context) {
 		a.rs = a.receiptStateOf(r.ID)
 		ls := a.listState(r.ID)
 		ls.Key = func(i int) any { return rows[i].key }
-		me := a.src.Me().ID
-		ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) {
-			tr := rows[i]
-			if tr.ev == nil {
-				kit.DatePill(c, tr.day)
-				return
+		a.jumpStep(r.ID, rows, ls)
+		a.readStep(r, rows, ls)
+		// The messages with the typing bubble floating on their bottom
+		// edge: it takes no room, so nothing above it moves when it comes
+		// and goes.
+		ui.Column(c.Key("ptlarea:"+r.ID)).Grow(1).Children(func() {
+			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.bubbleRow(c, r, rows, i) }).
+				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
+			if len(r.Typing) > 0 && r.Kind == model.KindDM {
+				pp, _ := a.src.Person(r.Partner)
+				ui.Column(c.Key("ptyping")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(kit.S3).Top(-kit.S1).PassThrough().
+					Children(func() { kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors) })
 			}
-			ev := *tr.ev
-			if ev.Kind == model.EventSystem {
-				kit.SystemEvent(c, ev.Body)
-				return
-			}
-			sender, _ := a.src.Person(ev.Sender)
-			last := i == len(rows)-1 || rows[i+1].ev == nil || rows[i+1].first
-			b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
-				Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
-				First: tr.first, Last: last, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300}
-			if a.prefs.receipts {
-				b.Read = b.Out && ev.ID == a.rs.readID // your last message that was read
-				b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
-				if r.Kind != model.KindDM { // a DM's "Read" says it all
-					b.ReadBy = a.readers(ev)
-				}
-			}
-			if ev.Kind != model.EventUndecryptable {
-				b.Doc, b.Media, _ = a.content(ev)
-			}
-			if ev.Poll != nil {
-				b.Poll = a.pollData(ev.ID, *ev.Poll, b.Out)
-			}
-			if !b.Out {
-				b.Profile, b.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
-			}
-			ui.Column(c.Key(ev.ID)).Children(func() {
-				a.messageAct(r.ID, ev, b.Media, kit.Bubble(c, b, &a.colors, a.reveals))
-			})
-		}).Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
-		if len(r.Typing) > 0 && r.Kind == model.KindDM {
-			pp, _ := a.src.Person(r.Partner)
-			kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors)
-		}
+		})
 		a.composer(c, r)
+	})
+}
+
+// bubbleRow is row i of a phone's timeline: a date, a system line, or a
+// message bubble.
+func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
+	me := a.src.Me().ID
+	tr := rows[i]
+	if tr.ev == nil {
+		kit.DatePill(c, tr.day)
+		return
+	}
+	ev := *tr.ev
+	if ev.Kind == model.EventSystem {
+		kit.SystemEvent(c, ev.Body)
+		return
+	}
+	sender, _ := a.src.Person(ev.Sender)
+	last := i == len(rows)-1 || rows[i+1].ev == nil || rows[i+1].first
+	b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
+		Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
+		First: tr.first, Last: last, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300}
+	if a.prefs.receipts {
+		b.Read = b.Out && ev.ID == a.rs.readID // your last message that was read
+		b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
+		if r.Kind != model.KindDM { // a DM's "Read" says it all
+			b.ReadBy = a.readers(ev)
+		}
+	}
+	if ev.Kind != model.EventUndecryptable {
+		b.Doc, b.Media, _ = a.content(ev)
+	}
+	if ev.Poll != nil {
+		b.Poll = a.pollData(ev.ID, *ev.Poll, b.Out)
+	}
+	if !b.Out {
+		b.Profile, b.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
+	}
+	ui.Column(c.Key(ev.ID)).Children(func() {
+		a.messageAct(r.ID, ev, b.Media, kit.Bubble(c, b, &a.colors, a.reveals))
 	})
 }
