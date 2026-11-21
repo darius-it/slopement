@@ -1,6 +1,9 @@
 package kit
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+	rich "github.com/egoist/mygo/ui/richtext"
+)
 
 // ComposerState is the composer of one room: its draft and what it
 // replies to. Keep one per room so drafts survive switching rooms.
@@ -28,11 +31,13 @@ type ComposerState struct {
 	suggestOff string
 	wantPick   bool
 
-	// inputGen names the text field: it changes when the app rewrites the
-	// text under the caret (a suggestion taken), which makes the field a new
-	// one, caret at the end; wantFocus then gives the new field the focus.
-	inputGen  int
+	// The field is an editor over doc (composerinput.go): synced is the text
+	// doc held when Text last matched it, to tell a change from outside;
+	// wantFocus gives the field the keyboard focus on the next build.
+	doc       *rich.Document
+	synced    string
 	wantFocus bool
+	fieldH    float32 // the field's height last frame
 
 	// OnPick, set by the app, takes a suggestion at once when Tab picks it,
 	// in the key's own handling — so the frame that follows the key already
@@ -40,18 +45,6 @@ type ComposerState struct {
 	// event to be drawn.)
 	OnPick func(SuggestItem)
 }
-
-// Rewrote replaces the draft's text from the app (a suggestion taken) and
-// keeps the user typing: the field gets the new text with the caret at its
-// end, and the keyboard focus, so nothing has to be clicked again.
-func (st *ComposerState) Rewrote(text string) {
-	st.Text = text
-	st.inputGen++
-	st.wantFocus = true
-}
-
-// inputKey is the key of the text field.
-func (st *ComposerState) inputKey() string { return "composer-input-" + itoa(st.inputGen) }
 
 // SuggestionsOff says the user put the suggestions away for this text.
 func (st *ComposerState) SuggestionsOff() bool {
@@ -149,35 +142,7 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 			// by position it would be a new one, and the focus would be gone.
 			ui.Row(c.Key("composer-row")).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
 				plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
-				ta := ui.TextAreaBase(c.Key(st.inputKey()), &st.Text).Grow(1).MinWidth(0).Lines(1, 8).
-					Placeholder(placeholder).PlaceholderColor(p.TextMuted).Label(placeholder).
-					FontSize(fieldSize(c)).LineHeight(1.4).MarginY(6)
-				if st.wantFocus {
-					st.wantFocus = false
-					ta.Focus()
-				}
-				ta.OnTextKey(func(k ui.TextKey) bool {
-					if suggestKey(st, k) {
-						return true // the suggestions took the key
-					}
-					if pasteKey(k) {
-						st.wantPaste = true // and the field pastes its text, if any
-						return false
-					}
-					if k.Key == ui.KeyEnter && k.Mods == 0 && !touch {
-						st.send = true
-						return true
-					}
-					if k.Key == ui.KeyEscape && st.Editing != "" {
-						st.Editing, st.Text = "", "" // changed your mind: the old message stays as it was
-						return true
-					}
-					if k.Key == ui.KeyEscape && st.Reply != nil {
-						st.Reply = nil
-						return true
-					}
-					return false
-				})
+				composerField(c.Key("composer-input"), st, placeholder, fieldSize(c), 8, touch).MarginY(6)
 				r.EmojiButton = IconButton(c, Ghost, IconSmile, "Emoji")
 				r.Emoji = r.EmojiButton.Clicked()
 				r.GIFButton = IconButton(c, Ghost, IconGIF, "GIFs and stickers")

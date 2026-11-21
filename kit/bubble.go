@@ -444,26 +444,7 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 				pill.Border(1, p.Border)
 			}
 			pill.Children(func() {
-				ta := ui.TextAreaBase(c.Key(st.inputKey()), &st.Text).Grow(1).MinWidth(0).Lines(1, 6).Placeholder(placeholder).
-					PlaceholderColor(p.TextMuted).FontSize(SizeBodyTouch).LineHeight(1.35).MarginY(10).Label(placeholder)
-				if st.wantFocus {
-					st.wantFocus = false
-					ta.Focus()
-				}
-				ta.OnTextKey(func(k ui.TextKey) bool {
-					if suggestKey(st, k) {
-						return true
-					}
-					if pasteKey(k) {
-						st.wantPaste = true
-						return false
-					}
-					if k.Key == ui.KeyEnter && k.Mods == 0 && !Touch(c) {
-						st.send = true
-						return true
-					}
-					return false
-				})
+				composerField(c.Key("composer-input"), st, placeholder, SizeBodyTouch, 6, Touch(c)).MarginY(10)
 				r.EmojiButton = roundIcon(c, IconSmile, "Emoji, GIFs and stickers", ui.Transparent, p.TextMuted)
 				r.GIFButton = r.EmojiButton
 				r.Emoji, r.Unified = r.EmojiButton.Clicked(), true

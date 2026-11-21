@@ -203,7 +203,10 @@ func inline(s string) []*Node {
 		if c == '[' {
 			if label, href, n, ok := link(s[i:]); ok {
 				flush()
-				out = append(out, &Node{Kind: Link, Href: href, Children: inline(label)})
+				// What a link's label says is its text: an "@name" in it is
+				// not a mention of its own — "[@Kai](https://matrix.to/#/@kai:x)"
+				// is one link, not a link around another.
+				out = append(out, &Node{Kind: Link, Href: href, Children: flattenMentions(inline(label))})
 				i += n
 				continue
 			}
@@ -239,6 +242,19 @@ func inline(s string) []*Node {
 	}
 	flush()
 	return out
+}
+
+// flattenMentions turns mention nodes among nodes (and in their children)
+// into the text they show.
+func flattenMentions(nodes []*Node) []*Node {
+	for i, n := range nodes {
+		if n.Kind == Mention {
+			nodes[i] = &Node{Kind: Text, Text: n.Text}
+		} else if len(n.Children) > 0 {
+			n.Children = flattenMentions(n.Children)
+		}
+	}
+	return nodes
 }
 
 // mention returns the length of an @mention at s's start: @ and a name of

@@ -13,6 +13,8 @@
 // line, and only # to ### are headings.
 package format
 
+import "strings"
+
 // Kind is the kind of a node.
 type Kind uint8
 
@@ -52,6 +54,14 @@ type Node struct {
 	Ordered  bool   // List
 	Start    int    // List, when Ordered
 	Children []*Node
+}
+
+// RealMention reports a mention of an address that can exist: a matrix.to
+// link to a user with their server ("@kai:example.org"). A bare "@name"
+// (what is typed) is only text until it is chosen from the suggestions.
+func (n *Node) RealMention() bool {
+	rest, ok := strings.CutPrefix(n.Href, "https://matrix.to/#/@")
+	return n.Kind == Mention && ok && strings.Contains(rest, ":")
 }
 
 // IsBlock reports whether n is a block.

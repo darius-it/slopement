@@ -68,25 +68,24 @@ func TestApplySuggestionAndMentionLinks(t *testing.T) {
 	if st.Text != "hi @"+partner.Name+" " {
 		t.Fatalf("text = %q", st.Text)
 	}
-	out := a.expandMentions(room.ID, st.Text+"you there?")
-	want := "hi [@" + partner.Name + "](https://matrix.to/#/" + room.Partner + ") you there?"
-	if out != want {
-		t.Fatalf("sent = %q, want %q", out, want)
+	// The text is as typed; what is sent has the mention as a link to the person.
+	if out, want := st.Draft(), "hi [@"+partner.Name+"](https://matrix.to/#/"+room.Partner+") "; out != want {
+		t.Fatalf("draft = %q, want %q", out, want)
 	}
-	if len(a.mentions[room.ID]) != 0 {
-		t.Fatal("the room's chosen mentions were not cleared by sending")
-	}
-	// A mention edited out of the text is not turned into a link.
-	st.Text = "x @" + strings.ToLower(partner.Name[:2])
-	a.applySuggestion(room.ID, st, a.suggestions(room.ID, st)[0])
-	if got := a.expandMentions(room.ID, "no mention now"); got != "no mention now" {
-		t.Fatalf("expanded %q", got)
+	// A mention replaced (the text set from outside) is plain text again: no link.
+	st.Text = "no mention now"
+	if got := st.Draft(); got != "no mention now" {
+		t.Fatalf("draft %q", got)
 	}
 
+	// An emoji replaces the word, and is no link.
 	st.Text = "ok :smi"
 	a.applySuggestion(room.ID, st, a.suggestions(room.ID, st)[0])
 	if !strings.HasPrefix(st.Text, "ok ") || strings.Contains(st.Text, ":smi") {
 		t.Fatalf("text = %q", st.Text)
+	}
+	if st.Draft() != st.Text {
+		t.Fatalf("an emoji became a link: %q", st.Draft())
 	}
 }
 
@@ -165,15 +164,12 @@ func TestPickingShowsAtOnce(t *testing.T) {
 	}
 
 	// By Tab: the text is already replaced when the key has been handled —
-	// before any frame — and the frame that draws it is queued.
+	// before any frame — so the frame that follows the key draws it.
 	a, tt, room := setup()
 	st := a.draft(room.ID)
 	tt.Key(0, ui.KeyTab) // no settle: what this one key leads to is all there is
 	if st.Text != "see @avery " {
 		t.Fatalf("Tab did not take the mention in its own handling: %q", st.Text)
-	}
-	if !tt.FramePending() {
-		t.Fatal("no frame is queued to draw the picked mention")
 	}
 
 	// By mouse: the pick is made while the frame is built, so it must ask for

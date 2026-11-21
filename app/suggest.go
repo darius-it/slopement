@@ -3,6 +3,7 @@ package app
 import (
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"slopement/kit"
 	"slopement/model"
@@ -96,34 +97,11 @@ func emojiSuggestions(query string) []kit.SuggestItem {
 	return out
 }
 
-// applySuggestion takes a suggestion: it replaces the word being typed. A
-// mention is remembered, to become a link to the person when the message is
-// sent.
+// applySuggestion takes a suggestion: it replaces the word being typed, with
+// the caret after it, the user going on typing. A mention is marked with the
+// person it is of — the field draws it in a frame, and the draft sends it as
+// a link to them (kit.ComposerState.Draft).
 func (a *App) applySuggestion(room string, st *kit.ComposerState, it kit.SuggestItem) {
 	_, start := wordAtEnd(st.Text)
-	st.Rewrote(st.Text[:start] + it.Insert + " ") // the user goes on typing, caret at the end
-	if it.ID != "" {
-		if a.mentions[room] == nil {
-			a.mentions[room] = map[string]string{}
-		}
-		a.mentions[room][it.Insert] = it.ID
-	}
-}
-
-// expandMentions turns the mentions chosen in a draft into links to the
-// people (https://matrix.to/#/@who), which the sender makes into pills and
-// notifications; the ones that were edited away are left as they are. The
-// room's remembered mentions are cleared.
-func (a *App) expandMentions(room, text string) string {
-	chosen := a.mentions[room]
-	delete(a.mentions, room)
-	inserts := make([]string, 0, len(chosen))
-	for ins := range chosen {
-		inserts = append(inserts, ins)
-	}
-	sort.Slice(inserts, func(i, j int) bool { return len(inserts[i]) > len(inserts[j]) }) // "@Alex Rivera" before "@Alex"
-	for _, ins := range inserts {
-		text = strings.ReplaceAll(text, ins, "["+ins+"](https://matrix.to/#/"+chosen[ins]+")")
-	}
-	return text
+	st.Complete(utf8.RuneCountInString(st.Text[:start]), it)
 }

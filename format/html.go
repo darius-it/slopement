@@ -27,7 +27,7 @@ func HTML(n *Node) string {
 func NeedsHTML(n *Node) bool {
 	if n.Kind == Doc && len(n.Children) == 1 && n.Children[0].Kind == Paragraph {
 		for _, ch := range n.Children[0].Children {
-			if ch.Kind != Text {
+			if ch.Kind != Text && !(ch.Kind == Mention && !ch.RealMention()) { // a bare @name is plain text
 				return true
 			}
 		}
@@ -98,9 +98,15 @@ func writeHTML(b *strings.Builder, n *Node) {
 	case Link:
 		wrap(`<a href="`+html.EscapeString(n.Href)+`">`, "</a>")
 	case Mention:
-		// Matrix's mention: a matrix.to link to the user (the Matrix layer
-		// fills the MXID in place of a bare name), the name its text.
-		b.WriteString(`<a href="` + html.EscapeString(n.Href) + `">` + html.EscapeString(n.Text) + "</a>")
+		// Matrix's mention: a matrix.to link to the user, the name its text.
+		// Only for a user that exists — one written with their server
+		// (@kai:example.org). A bare @name is not an address: a link to it
+		// would be a pill for no one, so it goes as the text it is.
+		if n.RealMention() {
+			b.WriteString(`<a href="` + html.EscapeString(n.Href) + `">` + html.EscapeString(n.Text) + "</a>")
+		} else {
+			b.WriteString(html.EscapeString(n.Text))
+		}
 	case Break:
 		b.WriteString("<br>")
 	default:

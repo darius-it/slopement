@@ -436,7 +436,7 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 			reply = "" // the files took the reply; the words follow as their own message
 		}
 		if hasWords(st.Text) {
-			a.src.Send(r.ID, a.expandMentions(r.ID, st.Text), reply)
+			a.src.Send(r.ID, st.Draft(), reply) // with the mentions chosen as links to their people
 		}
 		st.Text, st.Reply = "", nil
 		delete(a.replyTo, r.ID)

@@ -943,7 +943,7 @@ func mentionedUsers(n *format.Node) []id.UserID {
 	seen := map[id.UserID]bool{}
 	var walk func(*format.Node)
 	walk = func(n *format.Node) {
-		if n.Kind == format.Link {
+		if n.Kind == format.Link || n.RealMention() {
 			if who, ok := strings.CutPrefix(n.Href, "https://matrix.to/#/@"); ok && who != "" {
 				uid := id.UserID("@" + strings.SplitN(who, "?", 2)[0])
 				if !seen[uid] {

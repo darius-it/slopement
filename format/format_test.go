@@ -49,7 +49,8 @@ func TestMarkdownToHTML(t *testing.T) {
 
 func TestMentions(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
-		{"@Robin can you check", `<a href="https://matrix.to/#/@Robin">@Robin</a> can you check`},
+		// A bare @name is no address: it goes as the text it is, not as a pill for no one.
+		{"@Robin can you check", `@Robin can you check`},
 		{"hi @mira:matrix.org.", `hi <a href="https://matrix.to/#/@mira:matrix.org">@mira:matrix.org</a>.`},
 		{"mail me at a@b.com", "mail me at a@b.com"},
 		{"just @ alone", "just @ alone"},
@@ -61,6 +62,34 @@ func TestMentions(t *testing.T) {
 	back := ParseHTML(`<a href="https://matrix.to/#/@jun:kde.org">Jun</a> hello`)
 	if m := back.Children[0].Children[0]; m.Kind != Mention || m.Text != "@Jun" {
 		t.Fatalf("received mention = %+v", m)
+	}
+}
+
+// A mention chosen from the suggestions is a link to the person with their
+// label: one link, not a link around another (which Element shows as two
+// pills, one for a user that does not exist).
+func TestChosenMentionIsOneLink(t *testing.T) {
+	const real = `<a href="https://matrix.to/#/@kf:kaifireborn.com">@KaiFireborn</a>`
+	for _, tc := range []struct{ in, want string }{
+		{"hi [@KaiFireborn](https://matrix.to/#/@kf:kaifireborn.com) test", "hi " + real + " test"},
+		{"😂😂 [@KaiFireborn](https://matrix.to/#/@kf:kaifireborn.com) [@KaiFireborn](https://matrix.to/#/@kf:kaifireborn.com) test",
+			"😂😂 " + real + " " + real + " test"},
+		// Typed by hand, with the server: a mention. Without it: text.
+		{"@kf:kaifireborn.com and @KaiFireborn", `<a href="https://matrix.to/#/@kf:kaifireborn.com">@kf:kaifireborn.com</a> and @KaiFireborn`},
+	} {
+		got := HTML(Parse(tc.in))
+		if got != tc.want && got != "<p>"+tc.want+"</p>" {
+			t.Errorf("HTML(%q)\n got %s\nwant %s", tc.in, got, tc.want)
+		}
+		if strings.Count(got, "<a ") != strings.Count(got, "</a>") || strings.Contains(got, "<a href=\"https://matrix.to/#/@KaiFireborn\"") {
+			t.Errorf("nested or bogus anchors in %s", got)
+		}
+	}
+	if Plain(Parse("hi [@KaiFireborn](https://matrix.to/#/@kf:kaifireborn.com)")) != "hi @KaiFireborn" {
+		t.Error("the plain text of a mention is its label")
+	}
+	if NeedsHTML(Parse("just @Robin here")) {
+		t.Error("a bare @name needs no formatted body")
 	}
 }
 

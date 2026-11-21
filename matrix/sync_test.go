@@ -388,6 +388,37 @@ func TestEditsNeverShowTwice(t *testing.T) {
 	}
 }
 
+// What was sent for a mention chosen from the suggestions, as Element
+// receives it: one link to the person, one entry in m.mentions, the label as
+// the plain text — and no second, nested link to a user that does not exist.
+func TestChosenMentionAsSent(t *testing.T) {
+	c := contentOf("😂😂 [@KaiFireborn](https://matrix.to/#/@kf:kaifireborn.com) test")
+	if c.Body != "😂😂 @KaiFireborn test" {
+		t.Fatalf("body = %q", c.Body)
+	}
+	const want = `😂😂 <a href="https://matrix.to/#/@kf:kaifireborn.com">@KaiFireborn</a> test`
+	if c.FormattedBody != want && c.FormattedBody != "<p>"+want+"</p>" {
+		t.Fatalf("formatted body = %q", c.FormattedBody)
+	}
+	if strings.Count(c.FormattedBody, "<a ") != 1 || strings.Contains(c.FormattedBody, "#/@KaiFireborn") {
+		t.Fatalf("a second (bogus) link in %q", c.FormattedBody)
+	}
+	if c.Mentions == nil || len(c.Mentions.UserIDs) != 1 || c.Mentions.UserIDs[0] != "@kf:kaifireborn.com" {
+		t.Fatalf("mentions = %+v", c.Mentions)
+	}
+
+	// Typed by hand without a server: only text, and nobody is notified of a name.
+	typed := contentOf("hey @KaiFireborn")
+	if typed.FormattedBody != "" || typed.Mentions != nil || typed.Body != "hey @KaiFireborn" {
+		t.Fatalf("a bare @name: %+v", typed)
+	}
+	// With the server, by hand: a mention.
+	hand := contentOf("hey @kf:kaifireborn.com")
+	if hand.Mentions == nil || hand.Mentions.UserIDs[0] != "@kf:kaifireborn.com" {
+		t.Fatalf("a typed address: %+v", hand.Mentions)
+	}
+}
+
 // A GIF sent as a file is a GIF: it carries its type, and the app plays it.
 func TestGIFAttachmentKind(t *testing.T) {
 	file := func(mime string, msg event.MessageType) *event.Event {

@@ -74,7 +74,6 @@ type App struct {
 	stateLast        string
 	statePending     bool
 	files            map[string][]model.File // per room, waiting in the composer (files.go)
-	mentions         map[string]map[string]string // per room, the mentions chosen in the draft: text → who (suggest.go)
 	previews         map[string]*previewState // link previews by URL (previews.go)
 	noPreview        map[string]bool          // messages whose preview the user dismissed
 	msgSheet         kit.SheetState          // phones: a message's menu (actions.go)
@@ -170,7 +169,6 @@ func New(src model.Source, pick *picker.Controller) *App {
 		files:      map[string][]model.File{},
 		pinAt:      map[string]int{},
 		previews:   map[string]*previewState{},
-		mentions:   map[string]map[string]string{},
 		noPreview:  map[string]bool{},
 		gifs:       map[string]*ui.VideoPlayer{},
 		gifBusy:    map[string]bool{},
@@ -197,6 +195,7 @@ func New(src model.Source, pick *picker.Controller) *App {
 func (a *App) Attach(w *mygo.Window) {
 	a.win = w
 	a.runUI = w.Update
+	kit.ClipboardText = mygo.Clipboard.ReadText // the composer pastes plain text itself
 	a.src.SetUpdate(w.Update)
 	if a.pick != nil {
 		a.pick.SetUpdate(w.Update)
