@@ -33,6 +33,12 @@ type ComposerState struct {
 	// one, caret at the end; wantFocus then gives the new field the focus.
 	inputGen  int
 	wantFocus bool
+
+	// OnPick, set by the app, takes a suggestion at once when Tab picks it,
+	// in the key's own handling — so the frame that follows the key already
+	// shows it. (Taken after the build instead, it would wait for the next
+	// event to be drawn.)
+	OnPick func(SuggestItem)
 }
 
 // Rewrote replaces the draft's text from the app (a suggestion taken) and

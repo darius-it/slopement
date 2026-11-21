@@ -144,5 +144,6 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
   `mygo.config.ts`.
 - Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).
+- Delete `app/zz_probe_test.go` (an emptied one-off diagnostic).
 - Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
   edit itself is already in `matrix/sync_test.go`).

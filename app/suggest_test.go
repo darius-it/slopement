@@ -142,6 +142,54 @@ func TestTypingAndKeysWhileSuggestionsShow(t *testing.T) {
 	}
 }
 
+// Taking a suggestion shows at once: the frame the key (or click) leads to
+// already holds the new text, and no further frame is left waiting for the
+// next event to draw it (that wait was the second-long stutter after Tab).
+func TestPickingShowsAtOnce(t *testing.T) {
+	setup := func() (*App, *ui.Tester, model.Room) {
+		a := testApp()
+		room, tl := longTimeline(a, 6)
+		tl = append(tl, model.Event{ID: "$avery", Room: room.ID, Sender: "@avery:example.com", Kind: model.EventText,
+			Body: "hi", Time: time.Now()})
+		a.src = timeline{a.src, tl}
+		a.open(room.ID)
+		tt := ui.NewTester(a.View, 1100, 700)
+		settle(tt)
+		if err := tt.Click("Message " + room.Name); err != nil {
+			t.Fatal(err)
+		}
+		settle(tt)
+		tt.Type("see @av")
+		settle(tt)
+		return a, tt, room
+	}
+
+	// By Tab: the text is already replaced when the key has been handled —
+	// before any frame — and the frame that draws it is queued.
+	a, tt, room := setup()
+	st := a.draft(room.ID)
+	tt.Key(0, ui.KeyTab) // no settle: what this one key leads to is all there is
+	if st.Text != "see @avery " {
+		t.Fatalf("Tab did not take the mention in its own handling: %q", st.Text)
+	}
+	if !tt.FramePending() {
+		t.Fatal("no frame is queued to draw the picked mention")
+	}
+
+	// By mouse: the pick is made while the frame is built, so it must ask for
+	// the next frame itself, or the change waits for the next event.
+	a2, tt2, room2 := setup()
+	if err := tt2.Click("@avery:example.com"); err != nil { // the popup's address line
+		t.Fatal(err)
+	}
+	if a2.draft(room2.ID).Text != "see @avery " {
+		t.Fatalf("the click did not take the mention: %q", a2.draft(room2.ID).Text)
+	}
+	if !tt2.FramePending() {
+		t.Fatal("the pick by click left no frame queued: it would draw only at the next event")
+	}
+}
+
 // The popup shows over the composer, and pressing a line takes it.
 func TestSuggestionPopupRenders(t *testing.T) {
 	a := testApp()

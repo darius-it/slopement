@@ -88,7 +88,12 @@ func suggestKey(st *ComposerState, k ui.TextKey) bool {
 		st.sel = (st.sel + len(st.Suggest) - 1) % len(st.Suggest)
 		return true
 	case ui.KeyTab:
-		st.wantPick = true
+		if st.OnPick != nil && st.sel < len(st.Suggest) {
+			st.OnPick(st.Suggest[st.sel])
+			st.Suggest, st.sel = nil, 0
+		} else {
+			st.wantPick = true
+		}
 		return true
 	case ui.KeyEscape:
 		st.suggestOff = st.Text

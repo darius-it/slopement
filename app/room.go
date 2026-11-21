@@ -362,6 +362,7 @@ func (a *App) composer(c *ui.Context, r model.Room) {
 		place = "Message #" + r.Name
 	}
 	st.Suggest = a.suggestions(r.ID, st)
+	st.OnPick = func(it kit.SuggestItem) { a.applySuggestion(r.ID, st, it) }
 	var res kit.ComposerResult
 	if kit.Compact(c) {
 		res = kit.PhoneComposer(c.Key("composer:"+r.ID), st, "Message", &a.colors)
@@ -388,7 +389,11 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 	}
 	if res.Pick >= 0 && res.Pick < len(st.Suggest) {
 		a.applySuggestion(r.ID, st, st.Suggest[res.Pick])
-		return // taking a suggestion is not sending
+		c.Invalidate() // changed after the build: draw it now, not at the next event
+		return         // taking a suggestion is not sending
+	}
+	if res.Send || res.Paste || res.RemovedFile >= 0 || res.Attach {
+		defer c.Invalidate() // these change the draft after the build, too
 	}
 	if res.Paste {
 		a.pasteStep(r.ID)
