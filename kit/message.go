@@ -2,8 +2,11 @@ package kit
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"slopement/format"
 )
 
 // Reaction is a reaction key on a message with its count.
@@ -43,6 +46,28 @@ type MessageData struct {
 	// Image, with ImageW/H, is an image message's thumbnail.
 	Image          *ui.Bitmap
 	ImageW, ImageH float32
+	// Doc is the formatted body (package format); when set it is shown
+	// in place of Body.
+	Doc *format.Node
+	// Media, File and Embed are attachments and a link's preview.
+	Media []MediaSpec
+	File  *FileSpec
+	Embed *LinkCard
+	// YouTube is a YouTube link's card, in place of Embed.
+	YouTube *YouTubeSpec
+	// Reveals keeps the message's spoilers open once clicked.
+	Reveals Reveals
+	// Poll is a poll message (m.poll.start), shown as its card.
+	Poll *PollData
+	// Profile is the sender's card: set, their name and avatar open it
+	// (MessageAction.Profile); ProfileOpen shows it, by the name.
+	Profile     *ProfileSpec
+	ProfileOpen bool
+}
+
+// YouTubeSpec is a YouTube link's card.
+type YouTubeSpec struct {
+	ID, Title, Channel, Duration, Thumb string
 }
 
 // MessageAction is what the user did to a message.
@@ -51,6 +76,51 @@ type MessageAction struct {
 	OpenEmoji bool // the reaction picker asked for
 	Reply  bool
 	More   bool
+	// OpenMedia is the attachment clicked, or -1.
+	OpenMedia int
+	// PlayVideo is set when an embedded video's play was pressed.
+	PlayVideo bool
+	// Vote is the poll answer toggled, or -1; EndPoll ends it.
+	Vote    int
+	EndPoll bool
+	// Profile is set when the sender's avatar or name was clicked;
+	// ProfileClosed when their open card was dismissed.
+	Profile       bool
+	ProfileClosed bool
+	// ProfileAct is what the open card asked for.
+	ProfileAct ProfileAction
+}
+
+// senderName is a sender's name: in their color, a link to their card
+// when there is one (underlined on hover, as links are).
+func senderName(c *ui.Context, m MessageData, colors *UserColors, size float32) ui.Element {
+	p := Of(c)
+	n := ui.Text(c.Key("sender"), m.Sender).FontSize(size).FontWeight(WeightSemibold).
+		TextColor(colors.Color(p, m.SenderID)).SingleLine().Shrink(1)
+	if m.Profile != nil {
+		n.Cursor(ui.CursorPointer).Label("Show " + m.Sender + "'s profile")
+		if n.Hovered() {
+			n.Underline()
+		}
+	}
+	return n
+}
+
+// profilePopover shows a sender's card under anchor while open.
+func profilePopover(c *ui.Context, anchor ui.Element, m MessageData, colors *UserColors, a *MessageAction) {
+	if m.Profile == nil || !m.ProfileOpen {
+		return
+	}
+	p := Of(c)
+	open := true
+	ui.PopoverBase(c, anchor, &open, func(panel ui.Element) {
+		panel.Margin(6, 0, 0, 0).Padding(S4).Radius(RadiusLg).Background(p.Raised).Border(1, p.Border).
+			Shadow(0, 12, 32, -6, p.Shadow).Transition(PopIn())
+		a.ProfileAct = ProfileCard(c, *m.Profile, colors, time.Now())
+	})
+	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify {
+		a.ProfileClosed = true
+	}
 }
 
 // QuickReactions are offered in the hover toolbar.
@@ -64,11 +134,12 @@ const MessageGroupGap = S3
 // the others while hovered, and a toolbar of actions while hovered.
 func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction) {
 	p := Of(c)
+	a.OpenMedia, a.Vote = -1, -1
 	row := ui.Row(c.Key(m.ID))
 	hov := row.Hovered() || row.FocusWithin()
 	bg := ui.Transparent
 	if m.Highlight {
-		bg = p.AccentSubtle.Alpha(0.6)
+		bg = p.AccentSubtle.Alpha(0.45)
 	}
 	if hov {
 		bg = p.Hover.Over(bg.Over(p.Bg))
@@ -92,7 +163,13 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					av.Name, av.ID = m.Sender, m.SenderID
 				}
 				av.Colors = colors
-				Avatar(c, av)
+				pic := Avatar(c, av)
+				if m.Profile != nil {
+					pic.Cursor(ui.CursorPointer)
+					if pic.Clicked() {
+						a.Profile = true
+					}
+				}
 			} else if hov {
 				ui.Text(c, m.Time).FontSize(SizeCaption - 1).FontFeatures("tnum").TextColor(p.TextFaint).
 					SingleLine().MarginY(3)
@@ -101,8 +178,11 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(S05).Children(func() {
 			if m.First {
 				ui.Row(c).Gap(S2).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, m.Sender).FontSize(SizeBody).FontWeight(WeightSemibold).
-						TextColor(colors.Color(p, m.SenderID)).SingleLine().Shrink(1)
+					name := senderName(c, m, colors, SizeBody)
+					if m.Profile != nil && name.Clicked() {
+						a.Profile = true
+					}
+					profilePopover(c, name, m, colors, &a)
 					ui.Text(c, m.Time).FontSize(SizeCaption).FontFeatures("tnum").TextColor(p.TextMuted).SingleLine()
 					if m.Unverified {
 						ui.Icon(c, IconShieldX).Size(12, 12).TextColor(p.Warning).Tooltip("Sent from an unverified device")
@@ -110,14 +190,7 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 			}
 			if m.Reply != nil {
-				q := m.Reply
-				ui.Row(c).Gap(S2).Padding(S1, S2).Radius(RadiusSm).Background(p.BgInset).
-					BorderWidth(0, 0, 0, 2).BorderColor(colors.Color(p, q.SenderID)).MaxWidth(520).Children(func() {
-					ui.Column(c).Gap(1).MinWidth(0).Children(func() {
-						ui.Text(c, q.Sender).FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(colors.Color(p, q.SenderID)).SingleLine()
-						ui.Text(c, q.Body).FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
-					})
-				})
+				ReplyQuote(c, m.Reply, colors)
 			}
 			switch {
 			case m.Undecryptable:
@@ -131,16 +204,40 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				if m.Pending {
 					fg = p.TextMuted
 				}
-				if m.Body != "" {
-					spans := []ui.Span{{Text: m.Body, Color: fg}}
-					if m.Edited {
-						spans = append(spans, ui.Span{Text: "  (edited)", Color: p.TextFaint, Size: SizeCaption})
-					}
-					ui.RichText(c, spans...).FontSize(SizeBody).LineHeight(1.45).Selectable()
+				if m.Doc != nil {
+					MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg})
+				} else if m.Body != "" {
+					ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45).Selectable()
+				}
+				if m.Edited {
+					ui.Text(c, "(edited)").FontSize(SizeCaption).TextColor(p.TextFaint)
 				}
 				if m.Image != nil {
 					w, h := fitBox(m.ImageW, m.ImageH, 360, 280)
 					ui.Image(c, m.Image).Size(w, h).Fit(ui.Cover).Radius(RadiusMd).MarginY(S1).Label("Image")
+				}
+				if len(m.Media) > 0 {
+					if i := MediaGrid(c, m.Media, 400, m.Reveals); i >= 0 {
+						a.OpenMedia = i
+					}
+				}
+				if m.File != nil {
+					FileCard(c, *m.File)
+				}
+				if m.Poll != nil {
+					pd := *m.Poll
+					if pd.Colors == nil {
+						pd.Colors = colors
+					}
+					pa := PollCard(c, pd, time.Now(), 420)
+					a.Vote, a.EndPoll = pa.Vote, pa.End
+				}
+				if y := m.YouTube; y != nil {
+					if YouTubeCard(c, *y, 420) {
+						a.PlayVideo = true
+					}
+				} else if m.Embed != nil {
+					LinkPreview(c, *m.Embed, 420)
 				}
 			}
 			if len(m.Reactions) > 0 {
@@ -178,6 +275,27 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 		}
 	})
 	return a
+}
+
+// ReplyQuote is the line a reply shows above its text: a thin neutral bar,
+// the quoted sender, and the start of what they said, on one quiet line.
+// It is a button: clicking it jumps to the quoted message.
+func ReplyQuote(c *ui.Context, q *Quote, colors *UserColors) ui.Element {
+	p := Of(c)
+	b := ui.ButtonBase(c.Key("reply")).Gap(S2).AlignItems(ui.Center).Justify(ui.Start).MaxWidth(560).
+		AlignSelf(ui.Start).PaddingY(1).Label("Reply to " + q.Sender)
+	fg := p.TextMuted
+	if b.Hovered() {
+		fg = p.Text
+	}
+	b.Children(func() {
+		ui.Box(c).Width(2).Height(14).Radius(1).Background(p.BorderStrong).Shrink(0)
+		ui.RichText(c,
+			ui.Span{Text: q.Sender, Color: colors.Color(p, q.SenderID), Weight: WeightMedium},
+			ui.Span{Text: "  " + q.Body, Color: b.AnimateColor("fg", fg, Color)},
+		).FontSize(SizeSmall).SingleLine().Shrink(1).MinWidth(0)
+	})
+	return b
 }
 
 func toolButton(c *ui.Context, label string, content func(fg ui.Color)) ui.Element {
@@ -249,7 +367,7 @@ func TypingLine(c *ui.Context, text string) {
 		dots.Children(func() {
 			for i := 0; i < 3; i++ {
 				d := ui.Box(c).Size(4, 4).Radius(RadiusFull).Background(p.TextMuted)
-				phase := d.Loop("t", 1200_000_000, nil)
+				phase := d.Loop("t", 1200*time.Millisecond, ui.Linear)
 				o := 0.35 + 0.65*pulse(phase, float32(i)/3)
 				d.Opacity(o)
 			}

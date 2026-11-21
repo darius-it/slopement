@@ -250,8 +250,8 @@ func hint(c *ui.Context, keys, label string) {
 
 func paletteRow(c *ui.Context, it *SwitcherItem, selected, moved bool, colors *UserColors) ui.Element {
 	p := Of(c)
-	b := ui.ButtonBase(c.Key(it.ID)).Height(44).PaddingX(S2).Gap(S3).Radius(RadiusSm).AlignItems(ui.Center).
-		Label(it.Name).Selected(selected)
+	b := ui.ButtonBase(c.Key(it.ID)).Height(44).PaddingX(S2).Gap(S3).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Start).
+		Label(it.Name).AccessSelected(selected)
 	switch {
 	case selected:
 		b.Background(p.AccentSubtle)

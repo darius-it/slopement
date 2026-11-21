@@ -2,11 +2,16 @@ package gallery
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"slopement/format"
 	"slopement/kit"
+	"slopement/klipy"
+	"slopement/picker"
 )
 
 func hexOf(col ui.Color) string {
@@ -177,7 +182,7 @@ func (a *App) motionPage(c *ui.Context) {
 	a.specimen(c, "Try it", "", true, func() {
 		ui.Row(c).Gap(kit.S2).Wrap().Children(func() {
 			kit.Button(c, kit.Primary, "Press me", nil)
-			more := kit.Button(c, kit.Secondary, "Menu from trigger", kit.IconChevronD)
+			more := kit.Button(c, kit.Secondary, "Drawn menu (phones)", kit.IconChevronD)
 			more.PopoverMenuButton(func(m *ui.Menu) {
 				m.Item("Mark as read")
 				m.Item("Copy link")
@@ -188,7 +193,7 @@ func (a *App) motionPage(c *ui.Context) {
 				a.sheet.Open = true
 			}
 			if kit.Button(c, kit.Secondary, "Open dialog", nil).Clicked() {
-				a.dialog = true
+				a.dialog.Open = true
 			}
 		})
 		a.overlays(c)
@@ -205,18 +210,13 @@ func (a *App) overlays(c *ui.Context) {
 			a.sheet.Open = false
 		}
 	})
-	kit.Dialog(c, &a.dialog, "Leave design-crit?", 400, func() {
-		ui.Text(c, "You can rejoin later if the room is public. Its history stays on the server.").FontSize(kit.SizeBody).TextColor(p.TextMuted)
-		ui.Row(c).Gap(kit.S2).Justify(ui.End).Children(func() {
-			if kit.Button(c, kit.Secondary, "Cancel", nil).Clicked() {
-				a.dialog = false
-			}
-			if kit.Button(c, kit.Danger, "Leave", nil).Clicked() {
-				a.dialog = false
-				a.did = "Left room"
-			}
-		})
-	})
+	if done, ok := kit.Confirm(c, &a.dialog, kit.ConfirmSpec{
+		Title:   "Leave design-crit?",
+		Body:    "You can rejoin later if the room is public. Its history stays on the server.",
+		Confirm: "Leave", Danger: true,
+	}); done {
+		a.did = map[bool]string{true: "Left room", false: "Stayed"}[ok]
+	}
 }
 
 func (a *App) buttonsPage(c *ui.Context) {
@@ -304,8 +304,8 @@ func (a *App) avatarsPage(c *ui.Context) {
 			kit.Count(c, 12000, true)
 			kit.Dot(c, false)
 			kit.Dot(c, true)
-			kit.Pill(c, "Encrypted")
 			kit.Pill(c, "Admin")
+			kit.Pill(c, "Not encrypted")
 		})
 	})
 }
@@ -330,36 +330,129 @@ func (a *App) timelinePage(c *ui.Context) {
 }
 
 func (a *App) composerPage(c *ui.Context) {
-	a.specimen(c, "Composer", "Enter sends, Shift+Enter breaks the line. Send shows once there's text. The GIF button opens the picker (a sheet on phones).", true, func() {
+	a.specimen(c, "Composer & live picker", "Enter sends, Shift+Enter breaks the line; Markdown formats. The GIF button opens the picker on GIFs (favorites ★ first, trending, then KLIPY's categories), the smiley on emoji (recently used first). Stickers sit between. Live from KLIPY with the key in .env; favorites and recents persist.", true, func() {
 		a.composerBox(c)
+		ui.Column(c).Gap(kit.S1).Children(func() {
+			for _, m := range a.sent {
+				m.Media = a.live(m.Media)
+				kit.Message(c.Key("cp:"+m.ID), m, &a.colors)
+			}
+		})
 	})
 }
 
-// composerBox is the composer with its picker, shared by the pages.
+// composerBox is the desktop composer with its picker, shared by the
+// pages. Sent messages are formatted and land in the timeline.
 func (a *App) composerBox(c *ui.Context) {
 	r := kit.Composer(c.Key("composer"), &a.composer, "Message #design-crit", &a.colors)
-	if r.GIF || r.Emoji {
-		a.picker.Open = !a.picker.Open
-		if r.Emoji {
-			a.picker.Tab = 0
-		} else {
-			a.picker.Tab = 1
-		}
+	a.openPicker(r)
+	if r.Poll {
+		a.pollSheet.Open = true
 	}
 	anchor := r.GIFButton
-	if a.picker.Tab == 0 && r.EmojiButton.Valid() {
+	if a.picker.Tab == kit.TabEmoji && r.EmojiButton.Valid() {
 		anchor = r.EmojiButton
 	}
-	if pr := kit.Picker(c, anchor, &a.picker, gifs); pr.Emoji != "" {
-		a.composer.Text += pr.Emoji
-	} else if pr.GIF != nil {
-		a.did = "Send " + pr.GIF.Label
+	if ch := a.runPicker(c, anchor); ch.Emoji != "" {
+		a.composer.Text += ch.Emoji
+	} else if ch.Item != nil {
+		a.sendItem(*ch.Item)
 	}
 	if r.Send {
+		doc := format.Parse(a.composer.Text)
 		a.sent = append(a.sent, kit.MessageData{ID: "s" + strconv.Itoa(len(a.sent)), Sender: "You", SenderID: "@me:matrix.org",
-			Time: a.now.Format("15:04"), Body: a.composer.Text, Reply: a.composer.Reply, First: len(a.sent) == 0})
+			Time: a.now.Format("15:04"), Doc: doc, Reply: a.composer.Reply, First: len(a.sent) == 0, Reveals: a.reveals})
+		a.sentBubbles = append(a.sentBubbles, kit.BubbleData{ID: "sb" + strconv.Itoa(len(a.sentBubbles)), Out: true, Live: true,
+			Time: a.now.Format("15:04"), Doc: doc, Reply: a.composer.Reply, First: true, Last: true})
 		a.composer.Text, a.composer.Reply = "", nil
 	}
+}
+
+// live fills sent GIFs' animations as they finish loading.
+func (a *App) live(ms []kit.MediaSpec) []kit.MediaSpec {
+	for i := range ms {
+		if u, ok := a.gifURLs[ms[i].ID]; ok && ms[i].Player == nil {
+			ms[i].Player = a.pick.Animation(u)
+		}
+	}
+	return ms
+}
+
+// openPicker opens the picker on the tab of the button pressed.
+func (a *App) openPicker(r kit.ComposerResult) {
+	switch {
+	case r.Emoji && r.Unified:
+		// The phone's one button: the picker opens where it was left.
+		a.picker.Open = !a.picker.Open
+	case r.GIF:
+		a.picker.Open = !a.picker.Open || a.picker.Tab != kit.TabGIFs
+		a.picker.Tab = kit.TabGIFs
+	case r.Emoji:
+		a.picker.Open = !a.picker.Open || a.picker.Tab != kit.TabEmoji
+		a.picker.Tab = kit.TabEmoji
+	}
+}
+
+// runPicker builds the picker, from KLIPY through the controller.
+func (a *App) runPicker(c *ui.Context, anchor ui.Element) picker.Chosen {
+	m := a.pick.Model(&a.picker)
+	r := kit.Picker(c, anchor, &a.picker, m)
+	if r.ImportDiscord {
+		a.importDiscord(c)
+	}
+	return a.pick.Handle(&a.picker, r)
+}
+
+// importDiscord asks for a discord-gif-exporter JSON file and adds its
+// GIFs to the favorites. The file dialog is the system's: it runs off the
+// view, and the result comes back through the window.
+func (a *App) importDiscord(c *ui.Context) {
+	if a.win == nil {
+		return // no window (tests)
+	}
+	svc, win := c.Services(), a.win
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Import favorite GIFs from Discord",
+			Message: "Choose the discord-favorite-gifs.json file from discord-gif-exporter.", ButtonLabel: "Import",
+			Filters: []mygo.FileFilter{{Name: "Discord GIF export", Extensions: []string{"json"}}}})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		data, err := os.ReadFile(paths[0])
+		win.Update(func() {
+			var n int
+			if err == nil {
+				n, err = a.pick.ImportDiscordFavorites(data)
+			}
+			switch {
+			case err != nil:
+				a.did = "Import failed: " + err.Error()
+			case n == 0:
+				a.did = "No new GIFs to import"
+			default:
+				a.did = "Imported " + strconv.Itoa(n) + " GIFs from Discord"
+			}
+			a.toast = a.did
+			svc.Invalidate()
+		})
+	}()
+}
+
+// sendItem "sends" a GIF or sticker: it lands in both timelines.
+func (a *App) sendItem(it klipy.Item) {
+	m := kit.MediaSpec{ID: "sent:" + it.ID, Kind: kit.MediaGIF, URL: it.Still.URL, W: float32(it.Full.Width), H: float32(it.Full.Height), Label: it.Title}
+	a.gifURLs[m.ID] = it.Full.URL
+	n := strconv.Itoa(len(a.sent))
+	a.sent = append(a.sent, kit.MessageData{ID: "s" + n, Sender: "You", SenderID: "@me:matrix.org",
+		Time: a.now.Format("15:04"), Media: []kit.MediaSpec{m}, First: true})
+	b := kit.BubbleData{ID: "sb" + n, Out: true, Live: true, Time: a.now.Format("15:04"), First: true, Last: true}
+	if it.Kind == klipy.Stickers {
+		b.Sticker = &m
+	} else {
+		b.Media = []kit.MediaSpec{m}
+	}
+	a.sentBubbles = append(a.sentBubbles, b)
+	a.did = "Sent " + it.Title
 }
 
 func (a *App) menusPage(c *ui.Context) {
@@ -367,13 +460,12 @@ func (a *App) menusPage(c *ui.Context) {
 		st := a.roomStates["!r1"]
 		ui.Row(c).Gap(kit.S2).Children(func() {
 			b := kit.Button(c, kit.Secondary, "design-crit", kit.IconMore)
-			b.PopoverMenuButton(func(m *ui.Menu) { a.applyRoom("!r1", kit.RoomMenu(m, *st, a.now)) },
-				ui.PopoverMenuButtonOptions{Panel: kit.MenuStyle(c).Panel})
+			kit.MenuButton(c, b, func(m *ui.Menu) { a.applyRoom("!r1", kit.RoomMenu(m, *st, a.now)) })
 			if kit.Button(c, kit.Secondary, "Mute sheet (phone)", kit.IconBellOff).Clicked() {
 				a.sheet.Open = true
 			}
 			if kit.Button(c, kit.Secondary, "Confirm dialog", nil).Clicked() {
-				a.dialog = true
+				a.dialog.Open = true
 			}
 		})
 		p := kit.Of(c)
@@ -401,22 +493,18 @@ func (a *App) switcherPage(c *ui.Context) {
 }
 
 func (a *App) verifyPage(c *ui.Context) {
-	a.specimen(c, "Verify this device", "", false, func() {
-		ui.Column(c).MaxWidth(420).Children(func() {
-			if ch := kit.VerifyStart(c); ch != kit.VerifyNone {
-				a.did = []string{"", "Verify with device", "Verify with key", "Reset"}[ch]
-			}
-		})
+	a.specimenFit(c, "Verify this device", "", func() {
+		if ch := kit.VerifyStart(c); ch != kit.VerifyNone {
+			a.did = []string{"", "Verify with device", "Verify with key", "Reset"}[ch]
+		}
 	})
-	a.specimen(c, "Compare emoji", "", false, func() {
-		ui.Column(c).MaxWidth(420).Children(func() {
-			switch kit.VerifyEmoji(c, "Alex's phone", sas) {
-			case kit.VerifyMatch:
-				a.did = "Verified"
-			case kit.VerifyMismatch:
-				a.did = "Cancelled: emoji didn't match"
-			}
-		})
+	a.specimenFit(c, "Compare emoji", "The seven emoji stay on one row: their order is what the user compares. On phones they wrap.", func() {
+		switch kit.VerifyEmoji(c, "Alex's phone", sas) {
+		case kit.VerifyMatch:
+			a.did = "Verified"
+		case kit.VerifyMismatch:
+			a.did = "Cancelled: emoji didn't match"
+		}
 	})
 }
 

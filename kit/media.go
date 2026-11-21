@@ -1,0 +1,361 @@
+package kit
+
+import (
+	"strconv"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/netimage"
+)
+
+// MediaKind is the kind of an attachment.
+type MediaKind int
+
+const (
+	MediaImage MediaKind = iota
+	MediaGIF
+	MediaVideo
+)
+
+// MediaSpec is an image, GIF or video to preview.
+type MediaSpec struct {
+	ID   string
+	Kind MediaKind
+	// The picture: Player animates (GIFs, playing video), Still shows a
+	// decoded thumbnail, URL loads one from the web (link embeds). None
+	// shows the placeholder, in the item's own tint.
+	Player *ui.VideoPlayer
+	Still  ui.ImageSource
+	URL    string
+	// W and H are the media's size: the preview keeps its aspect ratio
+	// from the start, so the timeline never jumps as it loads.
+	W, H     float32
+	Duration string // videos: "0:42"
+	Spoiler  bool
+	// Progress is an upload's progress, 0 to 1; negative when done.
+	Progress float32
+	Label    string // for screen readers: the file's name or the caption
+}
+
+// fit returns w×h scaled into maxW×maxH, keeping the aspect ratio, never
+// smaller than a usable tile.
+func fit(w, h, maxW, maxH float32) (float32, float32) {
+	if w <= 0 || h <= 0 {
+		w, h = 4, 3
+	}
+	s := min(maxW/w, maxH/h)
+	if s > 1 && w*s > maxW {
+		s = maxW / w
+	}
+	rw, rh := w*s, h*s
+	if rw < 96 {
+		rw = 96
+	}
+	if rh < 72 {
+		rh = 72
+	}
+	return rw, rh
+}
+
+// MediaPreview shows an attachment in the timeline: fitted into maxW×maxH
+// at its own aspect ratio, rounded, with a play button and duration on
+// videos, a GIF badge, a blur over spoilers until clicked, and a ring while
+// it uploads. Clicked opens the viewer (or reveals a spoiler first).
+func MediaPreview(c *ui.Context, m MediaSpec, maxW, maxH float32, rv Reveals) ui.Element {
+	w, h := fit(m.W, m.H, maxW, maxH)
+	return mediaTile(c, m, w, h, RadiusMd, rv)
+}
+
+func mediaTile(c *ui.Context, m MediaSpec, w, h, radius float32, rv Reveals) ui.Element {
+	p := Of(c)
+	hidden := m.Spoiler && !(rv != nil && rv["media:"+m.ID])
+	b := ui.ButtonBase(c.Key("media:"+m.ID)).Size(w, h).Radius(radius).Clip().Background(p.BgInset).Label(m.Label)
+	b.Children(func() {
+		var pic ui.Element
+		switch {
+		case m.Player != nil:
+			pic = ui.Video(c, m.Player).Fill().Fit(ui.Cover)
+		case m.Still != nil:
+			pic = ui.Image(c, m.Still).Fill().Fit(ui.Cover)
+		case m.URL != "":
+			pic = netimage.Image(c, m.URL, netimage.Options{MaxSide: int(max(w, h) * 2)}).Fill().Fit(ui.Cover)
+		default:
+			pic = ui.Box(c).Fill().Background(p.Users[HashIndex(m.ID)].Alpha(0.14).Over(p.BgInset))
+		}
+		if hidden {
+			// The picture itself blurs (the spoiler shows its colors, not
+			// its content), and clears smoothly once revealed.
+			pic.Blur(b.AnimateWith("blur", 12, DurBase, EaseOut))
+		} else if m.Spoiler {
+			pic.Blur(b.AnimateWith("blur", 0, DurBase, EaseOut))
+		}
+		if hidden {
+			ui.Column(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Background(p.Bg.Alpha(0.25)).
+				AlignItems(ui.Center).Justify(ui.Center).Gap(S1).PassThrough().Children(func() {
+				ui.Icon(c, IconEye).Size(20, 20).TextColor(p.Text)
+				ui.Text(c, "Spoiler").FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(p.Text)
+			})
+		}
+		overlay := ui.RGBA(10, 8, 20, 0.55)
+		white := ui.Hex("#FFFFFF")
+		switch {
+		case m.Kind == MediaVideo && !hidden:
+			ui.Box(c).Size(48, 48).Radius(RadiusFull).Background(overlay).Attach(ui.AnchorCenter, ui.AnchorCenter).
+				AlignItems(ui.Center).Justify(ui.Center).PassThrough().Children(func() {
+				ui.Icon(c, IconPlay).Size(20, 20).TextColor(white).Translate(1.5, 0)
+			})
+			if m.Duration != "" {
+				pillText(c, m.Duration, 20, SizeCaption, WeightMedium, white, overlay).
+					Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(S2).Top(-S2)
+			}
+		case m.Kind == MediaGIF && !hidden:
+			pillText(c, "GIF", 18, SizeCaption-1, WeightSemibold, white, overlay).
+				Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(S15).Top(-S15)
+		}
+		if m.Progress >= 0 && m.Progress < 1 {
+			ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Background(ui.RGBA(10, 8, 20, 0.3)).PassThrough()
+			progressRing(c, m.Progress, white)
+		}
+	})
+	if b.Clicked() && hidden && rv != nil {
+		rv["media:"+m.ID] = true
+		// The picture's veil dissolves into dust across it as the blur
+		// clears.
+		startDust(c, b, "media:"+m.ID, "reveal", dustBurst{x: w / 2, y: h / 2, w: w * 0.9, h: h * 0.9, n: 90,
+			grains: ui.Hex("#FFFFFF")})
+	}
+	playDust(b, "media:"+m.ID)
+	return b
+}
+
+// progressRing is an upload's progress around a center dot.
+func progressRing(c *ui.Context, v float32, col ui.Color) {
+	ring := ui.Box(c).Size(40, 40).Attach(ui.AnchorCenter, ui.AnchorCenter).PassThrough()
+	shown := ring.AnimateWith("p", v, DurBase, EaseOut)
+	ring.Draw(func(pt *ui.Painter, r ui.Rect) {
+		var bg, fg ui.Path
+		cx, cy, rad := r.X+r.W/2, r.Y+r.H/2, r.W/2-3
+		bg.Circle(cx, cy, rad)
+		pt.StrokePath(&bg, 3, col.Alpha(0.3))
+		fg.Circle(cx, cy, rad).Cap(ui.RoundCap).Trim(0, max(shown, 0.01))
+		pt.StrokePath(&fg, 3, col)
+	})
+}
+
+// MediaGrid shows several attachments sent together: one fills the
+// width, two side by side, three as one large and two small, four or more
+// as a 2×2 grid whose last tile says how many more. It returns the index
+// clicked, or -1.
+func MediaGrid(c *ui.Context, items []MediaSpec, width float32, rv Reveals) int {
+	clicked := -1
+	if len(items) == 0 {
+		return clicked
+	}
+	if len(items) == 1 {
+		if MediaPreview(c, items[0], width, width*0.8, rv).Clicked() {
+			clicked = 0
+		}
+		return clicked
+	}
+	const gap = 3
+	half := (width - gap) / 2
+	tile := func(i int, w, h float32) {
+		e := mediaTile(c, items[i], w, h, 4, rv)
+		if e.Clicked() {
+			clicked = i
+		}
+	}
+	ui.Column(c.Key("grid")).Gap(gap).Radius(RadiusMd).Clip().Width(width).Children(func() {
+		switch len(items) {
+		case 2:
+			ui.Row(c).Gap(gap).Children(func() { tile(0, half, half); tile(1, half, half) })
+		case 3:
+			ui.Row(c).Gap(gap).Children(func() {
+				tile(0, half, half)
+				ui.Column(c).Gap(gap).Children(func() { tile(1, half, (half-gap)/2); tile(2, half, (half-gap)/2) })
+			})
+		default:
+			for r := 0; r < 2; r++ {
+				ui.Row(c.Key(r)).Gap(gap).Children(func() {
+					for col := 0; col < 2; col++ {
+						i := r*2 + col
+						if i == 3 && len(items) > 4 {
+							ui.Box(c.Key("more")).Size(half, half*0.75).Children(func() {
+								tile(3, half, half*0.75)
+								ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Background(ui.RGBA(10, 8, 20, 0.5)).
+									AlignItems(ui.Center).Justify(ui.Center).PassThrough().Children(func() {
+									ui.Text(c, "+"+strconv.Itoa(len(items)-3)).FontSize(SizeHeading).FontWeight(WeightSemibold).
+										TextColor(ui.Hex("#FFFFFF"))
+								})
+							})
+							continue
+						}
+						tile(i, half, half*0.75)
+					}
+				})
+			}
+		}
+	})
+	return clicked
+}
+
+// FileSpec is a file attachment.
+type FileSpec struct {
+	Name, Size string
+	Progress   float32 // upload, 0 to 1; negative when done
+}
+
+// FileCard shows a file to download. Clicked downloads it.
+func FileCard(c *ui.Context, f FileSpec) ui.Element {
+	p := Of(c)
+	b := ui.ButtonBase(c.Key("file:"+f.Name)).Gap(S3).Padding(S2, S3, S2, S2).Radius(RadiusMd).
+		Background(p.Raised).Border(1, p.Border).AlignItems(ui.Center).MaxWidth(360).Label("Download " + f.Name)
+	if b.Hovered() {
+		b.Border(1, p.BorderStrong)
+	}
+	b.Children(func() {
+		ui.Box(c).Size(40, 40).Radius(RadiusSm+2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
+			Children(func() { ui.Icon(c, IconFile).Size(20, 20).TextColor(p.AccentStrong) })
+		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			ui.Text(c, f.Name).FontSize(SizeBody).FontWeight(WeightMedium).TruncateMiddle()
+			ui.Text(c, f.Size).FontSize(SizeSmall).TextColor(p.TextMuted)
+		})
+		ui.Icon(c, IconDownload).Size(18, 18).TextColor(p.TextMuted)
+	})
+	return b
+}
+
+// LinkCard is a link's preview from OpenGraph: a neutral edge, the site,
+// the title as a link, two lines of description, and a thumbnail at the
+// side (small pictures) or below (large ones). Dismissed reports the ×.
+type LinkCard struct {
+	URL, Site, Title, Description string
+	Image                         MediaSpec // URL or Still; zero for none
+}
+
+// Embeds carry no colored mark: the site's name over the title says where
+// a card is from (chosen over a brand-colored rule, 2026-11-21). Their
+// corners are tighter than chat media's, so a card reads as a quoted
+// document rather than a bubble.
+const (
+	embedRadius = RadiusSm + 2 // the card
+	embedMedia  = RadiusSm     // the picture inside it
+)
+
+// embedHeader is a card's site, title (a link) and subtitle.
+func embedHeader(c *ui.Context, site, title, url, sub string, subLines int) {
+	p := Of(c)
+	ui.Column(c).Gap(2).MinWidth(0).Children(func() {
+		if site != "" {
+			ui.Text(c, site).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted).SingleLine()
+		}
+		if url != "" {
+			ui.Link(c, title, url).FontSize(SizeBody).FontWeight(WeightSemibold).TextColor(p.AccentStrong).MaxLines(2)
+		} else {
+			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightSemibold).TextColor(p.AccentStrong).MaxLines(2)
+		}
+		if sub != "" {
+			ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextMuted).MaxLines(subLines)
+		}
+	})
+}
+
+// LinkPreview shows a LinkCard; it reports whether its × was pressed.
+func LinkPreview(c *ui.Context, l LinkCard, width float32) (dismiss bool) {
+	p := Of(c)
+	hasPic := l.Image.URL != "" || l.Image.Still != nil
+	large := hasPic && l.Image.W >= 400
+	card := ui.Column(c.Key("link:"+l.URL)).Width(width).MaxWidthPercent(100).Radius(embedRadius).Background(p.BgInset).
+		Padding(S3).Gap(S2)
+	hov := card.Hovered()
+	card.Children(func() {
+		ui.Row(c).Gap(S3).AlignItems(ui.Start).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				embedHeader(c, l.Site, l.Title, l.URL, l.Description, 3)
+			})
+			if hasPic && !large {
+				mediaTile(c, l.Image, 64, 64, embedMedia, nil)
+			}
+		})
+		if large {
+			w := width - S6
+			mediaTile(c, l.Image, w, min(w*l.Image.H/max(l.Image.W, 1), 240), embedMedia, nil)
+		}
+		if hov {
+			x := ui.ButtonBase(c).Size(20, 20).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
+				Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(S1).Left(-S1).Background(p.Raised).Label("Remove preview")
+			x.Children(func() { ui.Icon(c, IconX).Size(12, 12).TextColor(p.TextMuted) })
+			dismiss = x.Clicked()
+		}
+	})
+	return dismiss
+}
+
+// YouTubeCard is a YouTube link: the site, title and channel, then the
+// thumbnail at 16:9 with a play button and the duration. It reports a
+// press of play.
+func YouTubeCard(c *ui.Context, y YouTubeSpec, width float32) (play bool) {
+	p := Of(c)
+	ui.Column(c.Key("yt:"+y.ID)).Width(width).MaxWidthPercent(100).Gap(S2).Padding(S3).Radius(embedRadius).
+		Background(p.BgInset).Children(func() {
+		embedHeader(c, "YouTube", y.Title, "", y.Channel, 1)
+		w := width - S6
+		m := MediaSpec{ID: y.ID, Kind: MediaVideo, URL: y.Thumb, W: 16, H: 9, Duration: y.Duration, Label: "Play " + y.Title}
+		if mediaTile(c, m, w, w*9/16, embedMedia, nil).Clicked() {
+			play = true
+		}
+	})
+	return play
+}
+
+// MediaViewer shows attachments full screen over a dark backdrop: the
+// picture fitted, arrows (and keys) between items, a counter, download
+// and close. *index is the item shown.
+func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
+	if len(items) == 0 {
+		return
+	}
+	*index = min(max(*index, 0), len(items)-1)
+	white := ui.Hex("#FFFFFF")
+	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(8, 6, 14, 0.94)).Transition(ui.ElementTransition{Duration: DurBase, ExitDuration: DurExit, Enter: &ui.Motion{}, Exit: &ui.Motion{}})
+		w, h := c.Size()
+		panel.Size(w, h).Transition(FadeIn()).Label("Media viewer")
+		m := items[*index]
+		ui.Row(c).Height(52).PaddingX(S3).Gap(S2).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine()
+			ui.Text(c, strconv.Itoa(*index+1)+" / "+strconv.Itoa(len(items))).FontSize(SizeSmall).FontFeatures("tnum").TextColor(white.Alpha(0.7))
+			for _, a := range []struct {
+				icon  *ui.SVG
+				label string
+			}{{IconDownload, "Download"}, {IconX, "Close"}} {
+				b := ui.ButtonBase(c.Key(a.label)).Size(36, 36).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label(a.label)
+				if b.Hovered() {
+					b.Background(white.Alpha(0.12))
+				}
+				b.Children(func() { ui.Icon(c, a.icon).Size(18, 18).TextColor(white) })
+				if b.Clicked() && a.label == "Close" {
+					*open = false
+				}
+			}
+		})
+		ui.Row(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4).Children(func() {
+			mw, mh := fit(m.W, m.H, w-S8*2, h-140)
+			ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Clip().Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}}).Children(func() {
+				switch {
+				case m.Player != nil:
+					ui.Video(c, m.Player).Fill().Fit(ui.Contain)
+				case m.Still != nil:
+					ui.Image(c, m.Still).Fill().Fit(ui.Contain)
+				case m.URL != "":
+					netimage.Image(c, m.URL).Fill().Fit(ui.Contain)
+				}
+			})
+		})
+		if c.Shortcut(0, ui.KeyRight) && *index < len(items)-1 {
+			*index++
+		}
+		if c.Shortcut(0, ui.KeyLeft) && *index > 0 {
+			*index--
+		}
+	})
+}

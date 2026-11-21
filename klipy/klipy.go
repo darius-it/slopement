@@ -1,15 +1,14 @@
-// Package klipy is a small client of KLIPY (klipy.com), the GIF, sticker,
-// clip and meme provider of the composer's picker.
+// Package klipy is a small client of KLIPY (klipy.com), the GIF and sticker
+// provider of the composer's picker, on KLIPY's native API:
 //
-// KLIPY serves Tenor's v2 API at api.klipy.com (its migration guide: swap
-// the base URL and the key), which this client speaks for GIFs and
-// stickers. Clips, memes and AI emoji have only KLIPY's own API, whose
-// parameters must be checked against real responses with a key before
-// they are wired up (see TODO below); until then they report
-// ErrUnsupported and the picker shows its placeholders.
+//	GET https://api.klipy.com/api/v1/{key}/{gifs|stickers}/{trending|search|categories}
 //
-// The key comes from Config.Key or the KLIPY_API_KEY environment variable.
-// Test keys (100 calls an hour) come from https://partner.klipy.com/api-keys.
+// verified against live responses (2026-11-21): items are in data.data,
+// paging in data.has_next, each item's renditions in file.{hd,md,sm,xs}.
+// {gif,webp,jpg,mp4,webm,png}, and items whose type is not the kind's
+// (ads) are skipped.
+//
+// The key comes from Config.Key or KLIPY_API_KEY (.env in development).
 package klipy
 
 import (
@@ -30,26 +29,34 @@ type Kind int
 const (
 	GIFs Kind = iota
 	Stickers
-	Clips
-	Memes
 )
 
-// ErrNoKey is returned while no API key is configured.
-var ErrNoKey = errors.New("klipy: no API key (set KLIPY_API_KEY)")
+func (k Kind) path() string {
+	if k == Stickers {
+		return "stickers"
+	}
+	return "gifs"
+}
 
-// ErrUnsupported is returned for kinds not wired up yet.
-var ErrUnsupported = errors.New("klipy: kind not supported yet")
+func (k Kind) itemType() string {
+	if k == Stickers {
+		return "sticker"
+	}
+	return "gif"
+}
+
+// ErrNoKey is returned while no API key is configured.
+var ErrNoKey = errors.New("klipy: no API key (set KLIPY_API_KEY in .env)")
 
 // Config configures a Client.
 type Config struct {
 	// Key is the API key; empty reads KLIPY_API_KEY.
 	Key string
-	// ClientKey names the app to KLIPY, as Tenor's client_key.
-	ClientKey string
+	// CustomerID identifies the user to KLIPY for recents and ranking,
+	// anonymously: a random ID kept per install, never the MXID.
+	CustomerID string
 	// Locale, as "en_US"; empty is KLIPY's default.
 	Locale string
-	// ContentFilter is "off", "low", "medium" or "high"; empty is medium.
-	ContentFilter string
 	// BaseURL overrides https://api.klipy.com, for tests.
 	BaseURL string
 	// HTTP overrides the HTTP client.
@@ -68,12 +75,6 @@ func New(cfg Config) *Client {
 	if cfg.Key == "" {
 		cfg.Key = os.Getenv("KLIPY_API_KEY")
 	}
-	if cfg.ClientKey == "" {
-		cfg.ClientKey = "slopement"
-	}
-	if cfg.ContentFilter == "" {
-		cfg.ContentFilter = "medium"
-	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.klipy.com"
 	}
@@ -89,62 +90,74 @@ func (c *Client) HasKey() bool { return c.cfg.Key != "" }
 
 // Rendition is one file of an item.
 type Rendition struct {
-	URL    string
-	Width  int
-	Height int
-	Size   int
+	URL           string `json:"url"`
+	Width, Height int
+	Size          int `json:"size"`
+}
+
+type rendition struct {
+	URL    string `json:"url"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Size   int    `json:"size"`
 }
 
 // Item is a GIF or sticker.
 type Item struct {
 	ID    string
+	Slug  string
 	Title string
-	// Preview is small, for the grid (tinygif / tinywebp / nanogif).
-	Preview Rendition
-	// Full is what is sent (gif, or webp for stickers).
+	Kind  Kind
+	// Thumb is the smallest animated rendition, for the picker's grid
+	// (xs gif, about 90 px).
+	Thumb Rendition
+	// Still is a still frame of Thumb's size (xs jpg, or png for stickers).
+	Still Rendition
+	// Full is what is sent: md gif (or webp for stickers, which keep
+	// their transparency).
 	Full Rendition
-	// MP4 is a light animated preview where offered.
-	MP4 Rendition
+	// BlurPreview is KLIPY's tiny placeholder, if any (a data URL).
+	BlurPreview string
 }
 
-// Page is a page of results; Next continues it, empty at the end.
+// Page is a page of results.
 type Page struct {
-	Items []Item
-	Next  string
+	Items   []Item
+	Page    int
+	HasNext bool
 }
 
 // Category is a search term with a picture, as "lol".
 type Category struct {
-	Name, Search string
-	Image        string
+	Name, Query string
+	// Preview is an animated GIF of the category.
+	Preview string
 }
 
-type tenorMedia struct {
-	URL  string `json:"url"`
-	Dims []int  `json:"dims"`
-	Size int    `json:"size"`
+type apiItem struct {
+	ID          json.Number                      `json:"id"`
+	Slug        string                           `json:"slug"`
+	Title       string                           `json:"title"`
+	Type        string                           `json:"type"`
+	BlurPreview string                           `json:"blur_preview"`
+	File        map[string]map[string]rendition `json:"file"`
 }
 
-type tenorResult struct {
-	ID           string                `json:"id"`
-	Title        string                `json:"title"`
-	Description  string                `json:"content_description"`
-	MediaFormats map[string]tenorMedia `json:"media_formats"`
+type apiPage struct {
+	Result bool `json:"result"`
+	Data   struct {
+		Data        []apiItem `json:"data"`
+		CurrentPage int       `json:"current_page"`
+		HasNext     bool      `json:"has_next"`
+	} `json:"data"`
 }
 
-type tenorPage struct {
-	Results []tenorResult `json:"results"`
-	Next    string        `json:"next"`
-}
-
-func rendition(m map[string]tenorMedia, keys ...string) Rendition {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v.URL != "" {
-			r := Rendition{URL: v.URL, Size: v.Size}
-			if len(v.Dims) == 2 {
-				r.Width, r.Height = v.Dims[0], v.Dims[1]
+func pick(f map[string]map[string]rendition, sizes []string, formats ...string) Rendition {
+	for _, s := range sizes {
+		for _, fm := range formats {
+			if r, ok := f[s][fm]; ok && r.URL != "" {
+				return Rendition{URL: r.URL, Width: r.Width, Height: r.Height, Size: r.Size}
 			}
-			return r
 		}
 	}
 	return Rendition{}
@@ -154,18 +167,23 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	if c.cfg.Key == "" {
 		return ErrNoKey
 	}
-	q.Set("key", c.cfg.Key)
-	q.Set("client_key", c.cfg.ClientKey)
+	if c.cfg.CustomerID != "" {
+		q.Set("customer_id", c.cfg.CustomerID)
+	}
 	if c.cfg.Locale != "" {
 		q.Set("locale", c.cfg.Locale)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+path+"?"+q.Encode(), nil)
+	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(c.cfg.Key) + path
+	if len(q) > 0 {
+		u += "?" + q.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return redact(err, c.cfg.Key)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -174,89 +192,78 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	return json.NewDecoder(res.Body).Decode(out)
 }
 
-func (c *Client) page(ctx context.Context, path string, kind Kind, q url.Values, limit int, pos string) (Page, error) {
-	switch kind {
-	case GIFs:
-		q.Set("media_filter", "tinygif,nanogif,gif,tinymp4")
-	case Stickers:
-		q.Set("searchfilter", "sticker")
-		q.Set("media_filter", "tinywebp_transparent,webp_transparent,tinygif_transparent,gif_transparent")
-	default:
-		// TODO(klipy): clips and memes use KLIPY's own API
-		// (/clips-api, /memes-api in docs.klipy.com); verify params and
-		// response fields against a real response before wiring up.
-		return Page{}, ErrUnsupported
+// redact keeps the key out of errors, which may be logged.
+func redact(err error, key string) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return fmt.Errorf("klipy: %s: %w", ue.Op, ue.Err)
 	}
-	q.Set("contentfilter", c.cfg.ContentFilter)
-	if limit <= 0 {
-		limit = 24
+	return err
+}
+
+func (c *Client) page(ctx context.Context, kind Kind, endpoint string, q url.Values, page, perPage int) (Page, error) {
+	if page < 1 {
+		page = 1
 	}
-	q.Set("limit", strconv.Itoa(limit))
-	if pos != "" {
-		q.Set("pos", pos)
+	if perPage <= 0 {
+		perPage = 24
 	}
-	var tp tenorPage
-	if err := c.get(ctx, path, q, &tp); err != nil {
+	q.Set("page", strconv.Itoa(page))
+	q.Set("per_page", strconv.Itoa(perPage))
+	var ap apiPage
+	if err := c.get(ctx, "/"+kind.path()+"/"+endpoint, q, &ap); err != nil {
 		return Page{}, err
 	}
-	p := Page{Next: tp.Next, Items: make([]Item, 0, len(tp.Results))}
-	for _, r := range tp.Results {
-		it := Item{ID: r.ID, Title: r.Title}
-		if it.Title == "" {
-			it.Title = r.Description
+	p := Page{Page: ap.Data.CurrentPage, HasNext: ap.Data.HasNext, Items: make([]Item, 0, len(ap.Data.Data))}
+	for _, a := range ap.Data.Data {
+		if a.Type != "" && a.Type != kind.itemType() {
+			continue // ads and other kinds
 		}
+		it := Item{ID: a.ID.String(), Slug: a.Slug, Title: a.Title, Kind: kind, BlurPreview: a.BlurPreview}
+		small := []string{"xs", "sm", "md"}
+		it.Thumb = pick(a.File, small, "gif")
 		if kind == Stickers {
-			it.Preview = rendition(r.MediaFormats, "tinywebp_transparent", "tinygif_transparent", "webp_transparent")
-			it.Full = rendition(r.MediaFormats, "webp_transparent", "gif_transparent")
+			it.Still = pick(a.File, small, "png", "webp")
+			it.Full = pick(a.File, []string{"md", "sm", "hd"}, "webp", "gif", "png")
 		} else {
-			it.Preview = rendition(r.MediaFormats, "tinygif", "nanogif", "gif")
-			it.Full = rendition(r.MediaFormats, "gif", "tinygif")
-			it.MP4 = rendition(r.MediaFormats, "tinymp4")
+			it.Still = pick(a.File, small, "jpg")
+			it.Full = pick(a.File, []string{"md", "sm", "hd"}, "gif")
 		}
-		if it.Full.URL == "" {
-			continue // nothing sendable
+		if it.Full.URL == "" || it.Thumb.URL == "" {
+			continue
 		}
 		p.Items = append(p.Items, it)
 	}
 	return p, nil
 }
 
-// Trending returns the featured items of kind.
-func (c *Client) Trending(ctx context.Context, kind Kind, limit int, pos string) (Page, error) {
-	return c.page(ctx, "/v2/featured", kind, url.Values{}, limit, pos)
+// Trending returns the trending items of kind.
+func (c *Client) Trending(ctx context.Context, kind Kind, page, perPage int) (Page, error) {
+	return c.page(ctx, kind, "trending", url.Values{}, page, perPage)
 }
 
 // Search returns the items of kind matching query.
-func (c *Client) Search(ctx context.Context, kind Kind, query string, limit int, pos string) (Page, error) {
-	return c.page(ctx, "/v2/search", kind, url.Values{"q": {query}}, limit, pos)
+func (c *Client) Search(ctx context.Context, kind Kind, query string, page, perPage int) (Page, error) {
+	return c.page(ctx, kind, "search", url.Values{"q": {query}}, page, perPage)
 }
 
-// Categories returns the categories of GIFs, as tiles of the picker.
-func (c *Client) Categories(ctx context.Context) ([]Category, error) {
+// Categories returns the categories of kind, as the picker's tiles.
+func (c *Client) Categories(ctx context.Context, kind Kind) ([]Category, error) {
 	var out struct {
-		Tags []struct {
-			Name   string `json:"name"`
-			Search string `json:"searchterm"`
-			Image  string `json:"image"`
-		} `json:"tags"`
+		Data struct {
+			Categories []struct {
+				Category   string `json:"category"`
+				Query      string `json:"query"`
+				PreviewURL string `json:"preview_url"`
+			} `json:"categories"`
+		} `json:"data"`
 	}
-	if err := c.get(ctx, "/v2/categories", url.Values{"type": {"featured"}}, &out); err != nil {
+	if err := c.get(ctx, "/"+kind.path()+"/categories", url.Values{}, &out); err != nil {
 		return nil, err
 	}
-	cats := make([]Category, 0, len(out.Tags))
-	for _, t := range out.Tags {
-		cats = append(cats, Category{Name: t.Name, Search: t.Search, Image: t.Image})
+	cats := make([]Category, 0, len(out.Data.Categories))
+	for _, t := range out.Data.Categories {
+		cats = append(cats, Category{Name: t.Category, Query: t.Query, Preview: t.PreviewURL})
 	}
 	return cats, nil
-}
-
-// RegisterShare tells KLIPY an item was sent, which its terms ask for and
-// which improves its results. Errors can be ignored.
-func (c *Client) RegisterShare(ctx context.Context, id, query string) error {
-	var out json.RawMessage
-	q := url.Values{"id": {id}}
-	if query != "" {
-		q.Set("q", query)
-	}
-	return c.get(ctx, "/v2/registershare", q, &out)
 }

@@ -17,13 +17,20 @@ const (
 	VerifyMismatch
 )
 
-// SASGrid shows the emoji to compare: seven cards, four then three,
-// wrapping on narrow widths, each emoji with its name under it.
+const (
+	sasCell     = 72
+	sasRowWidth = 7*sasCell + 6*S2 // the seven emoji in one row
+	// VerifyStartWidth is VerifyStart's width.
+	VerifyStartWidth = 400
+)
+
+// SASGrid shows the emoji to compare: seven cards in a row, wrapping on
+// narrow widths (phones), each emoji with its name under it.
 func SASGrid(c *ui.Context, emoji []SASEmoji) {
 	p := Of(c)
 	ui.Row(c).Wrap().Gap(S2).Justify(ui.Center).Children(func() {
 		for i, e := range emoji {
-			ui.Column(c.Key(i)).Width(72).Padding(S3, S1).Gap(S1).Radius(RadiusMd).Background(p.BgInset).
+			ui.Column(c.Key(i)).Width(sasCell).Padding(S3, S1).Gap(S1).Radius(RadiusMd).Background(p.BgInset).
 				AlignItems(ui.Center).Label(e.Name).Children(func() {
 				ui.Text(c, e.Emoji).FontSize(32).LineHeight(1.1)
 				ui.Text(c, e.Name).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted).
@@ -38,7 +45,9 @@ func SASGrid(c *ui.Context, emoji []SASEmoji) {
 // choice isn't the one under the thumb by habit.
 func VerifyEmoji(c *ui.Context, other string, emoji []SASEmoji) (res VerifyResult) {
 	p := Of(c)
-	ui.Column(c).Gap(S4).AlignItems(ui.Stretch).Children(func() {
+	// As wide as the seven emoji on one row, so they never wrap 5 + 2:
+	// the order is what the user compares.
+	ui.Column(c).Width(sasRowWidth).MaxWidthPercent(100).Gap(S4).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Gap(S1).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, IconShield).Size(28, 28).TextColor(p.Accent)
 			ui.Text(c, "Compare emoji").FontSize(SizeTitle).FontWeight(WeightSemibold).TextAlign(ui.Center)
@@ -72,7 +81,7 @@ const (
 // emoji), or with the Security Key or Phrase; resetting is a quiet link.
 func VerifyStart(c *ui.Context) (ch VerifyChoice) {
 	p := Of(c)
-	ui.Column(c).Gap(S4).AlignItems(ui.Stretch).Children(func() {
+	ui.Column(c).Width(VerifyStartWidth).MaxWidthPercent(100).Gap(S4).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Gap(S1).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, IconShield).Size(28, 28).TextColor(p.Accent)
 			ui.Text(c, "Verify this device").FontSize(SizeTitle).FontWeight(WeightSemibold)

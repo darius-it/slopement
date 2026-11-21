@@ -14,6 +14,19 @@ func CountText(n int) string {
 	return strconv.Itoa(n)
 }
 
+// pillText centers a short line of text in a pill of height h: a row that
+// centers its child, and a line box as tall as the font, so the glyphs sit
+// on the pill's middle rather than on a taller line's.
+func pillText(c *ui.Context, text string, h, size float32, weight int, fg, bg ui.Color) ui.Element {
+	box := ui.Row(c).Height(h).MinWidth(h).PaddingX(h/3).Radius(RadiusFull).Background(bg).
+		AlignItems(ui.Center).Justify(ui.Center).Shrink(0)
+	box.Children(func() {
+		ui.Text(c, text).FontSize(size).FontWeight(weight).FontFeatures("tnum").TextColor(fg).
+			FixedLineHeight(size + 1).SingleLine()
+	})
+	return box
+}
+
 // Count is an unread badge: neutral for unread messages, the accent for
 // mentions (highlights). Nothing is built for 0.
 func Count(c *ui.Context, n int, mention bool) {
@@ -21,13 +34,12 @@ func Count(c *ui.Context, n int, mention bool) {
 		return
 	}
 	p := Of(c)
-	bg, fg := p.Text.Alpha(0.10).Over(p.BgSubtle), p.Text
+	// Translucent, so it reads on any row: plain, hovered or selected.
+	bg, fg := p.Text.Alpha(0.09), p.TextMuted
 	if mention {
 		bg, fg = p.Accent, p.OnAccent
 	}
-	ui.Text(c, CountText(n)).FontSize(SizeCaption).FontWeight(WeightSemibold).FontFeatures("tnum").
-		TextColor(fg).Background(bg).Radius(RadiusFull).Height(18).MinWidth(18).Padding(0, 6).
-		TextAlign(ui.Center).SingleLine().Shrink(0).Label(CountText(n) + " unread")
+	pillText(c, CountText(n), 18, SizeCaption, WeightSemibold, fg, bg).Label(CountText(n) + " unread")
 }
 
 // Dot is an unread dot without a count.
@@ -40,9 +52,8 @@ func Dot(c *ui.Context, mention bool) ui.Element {
 	return ui.Box(c).Size(8, 8).Radius(RadiusFull).Background(col).Shrink(0)
 }
 
-// Pill is a small neutral label, as "Encrypted" or "Admin".
+// Pill is a small neutral label, as "Admin".
 func Pill(c *ui.Context, text string) ui.Element {
 	p := Of(c)
-	return ui.Text(c, text).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted).
-		Padding(1, 6).Radius(RadiusFull).Background(p.BgInset).SingleLine()
+	return pillText(c, text, 20, SizeCaption, WeightMedium, p.TextMuted, p.BgInset)
 }

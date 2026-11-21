@@ -1,0 +1,61 @@
+package picker
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+// An export as discord-gif-exporter writes it: Tenor MP4s, a Giphy MP4, a
+// plain GIF, and a video with no GIF.
+const discordExport = `{
+  "https://tenor.com/view/cat-typing-gif-12345": {"format": 2, "src": "//media.tenor.com/Xy9AbCdEAAPo/cat-typing.mp4", "width": 498, "height": 280, "order": 1},
+  "https://giphy.com/gifs/dog-happy-3o7TKSjR": {"format": 2, "src": "https://media2.giphy.com/media/3o7TKSjR/giphy.mp4", "width": 480, "height": 360, "order": 2},
+  "https://example.com/party.gif": {"format": 1, "src": "https://example.com/party.gif", "width": 200, "height": 200, "order": 3},
+  "https://cdn.discordapp.com/attachments/1/2/clip.mp4": {"format": 2, "src": "https://media.discordapp.net/attachments/1/2/clip.mp4", "width": 640, "height": 360, "order": 4}
+}`
+
+func TestParseDiscordFavorites(t *testing.T) {
+	items, err := parseDiscordFavorites([]byte(discordExport))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("%d items, want 3 (the video without a GIF skipped)", len(items))
+	}
+	// Newest first (the highest order).
+	want := []string{
+		"https://example.com/party.gif",
+		"https://media2.giphy.com/media/3o7TKSjR/giphy.gif",
+		"https://media.tenor.com/Xy9AbCdEAAAC/cat-typing.gif",
+	}
+	for i, w := range want {
+		if items[i].Full.URL != w {
+			t.Errorf("item %d = %s, want %s", i, items[i].Full.URL, w)
+		}
+	}
+	if items[2].Title != "cat typing gif" || items[2].Full.Width != 498 {
+		t.Errorf("tenor item = %+v", items[2])
+	}
+	if _, err := parseDiscordFavorites([]byte(`[1,2]`)); err != ErrNotDiscordExport {
+		t.Error("a non-export was accepted")
+	}
+}
+
+func TestImportDiscordFavorites(t *testing.T) {
+	c := New(nil)
+	c.path = filepath.Join(t.TempDir(), "picker.json")
+	n, err := c.ImportDiscordFavorites([]byte(discordExport))
+	if err != nil || n != 3 {
+		t.Fatalf("imported %d, %v", n, err)
+	}
+	// Again: nothing new.
+	if n, _ := c.ImportDiscordFavorites([]byte(discordExport)); n != 0 {
+		t.Fatalf("re-import added %d", n)
+	}
+	again := New(nil)
+	again.path = c.path
+	again.load()
+	if len(again.saved.Favorites) != 3 {
+		t.Fatal("not saved")
+	}
+}

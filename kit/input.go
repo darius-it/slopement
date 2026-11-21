@@ -104,8 +104,7 @@ func SearchButton(c *ui.Context, label, hint string) ui.Element {
 // Kbd shows a keyboard shortcut, as "⌘K".
 func Kbd(c *ui.Context, keys string) ui.Element {
 	p := Of(c)
-	return ui.Text(c, keys).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted).
-		Padding(1, 5).Radius(4).Border(1, p.Border).Background(p.Bg).SingleLine()
+	return pillText(c, keys, 20, SizeCaption, WeightMedium, p.TextMuted, p.Bg).PaddingX(5).Radius(5).Border(1, p.Border)
 }
 
 // CmdK is the label of the quick switcher's shortcut on this platform.

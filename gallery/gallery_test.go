@@ -6,9 +6,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"slopement/picker"
 )
+
+// testApp is the gallery with a picker that has no KLIPY key: no network.
+func testApp() *App {
+	return NewWith(picker.New(nil))
+}
 
 func allPages() []string {
 	var out []string
@@ -29,7 +37,7 @@ func TestPagesRender(t *testing.T) {
 	}{{"wide", 1440, 1000}, {"phone", 390, 844}} {
 		for _, dark := range []bool{false, true} {
 			for _, page := range allPages() {
-				a := New()
+				a := testApp()
 				a.page = page
 				a.themeMode = 1 // the system's: the tester's appearance
 				tt := ui.NewTesterWith(a.View, size.w, size.h, ui.TesterOptions{Dark: dark})
@@ -49,6 +57,74 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
+// TestConfirm opens the leave confirmation, desktop and phone, and
+// cancels it with Escape.
+func TestConfirm(t *testing.T) {
+	snap := os.Getenv("SNAP_DIR")
+	for _, size := range []struct {
+		name string
+		w, h int
+	}{{"wide", 1100, 700}, {"phone", 390, 844}} {
+		for _, dark := range []bool{false, true} {
+			a := testApp()
+			a.page, a.themeMode = "Menus & sheets", 1
+			a.dialog.Open = true
+			tt := ui.NewTesterWith(a.View, size.w, size.h, ui.TesterOptions{Dark: dark})
+			tt.Frame()
+			tt.Advance(time.Second)
+			tt.Frame()
+			if !tt.HasText("Leave design-crit?") {
+				t.Fatalf("%s: the confirmation is not showing", size.name)
+			}
+			if snap != "" {
+				mode := map[bool]string{false: "light", true: "dark"}[dark]
+				writePNG(t, filepath.Join(snap, "confirm-"+size.name+"-"+mode+".png"), tt)
+			}
+			tt.Key(0, ui.KeyEscape)
+			tt.Frame()
+			tt.Frame()
+			if a.dialog.Open || a.did != "Stayed" {
+				t.Fatalf("%s: after Escape open=%v did=%q", size.name, a.dialog.Open, a.did)
+			}
+		}
+	}
+}
+
+// TestTallPages renders long pages whole, for review (SNAP_DIR).
+func TestTallPages(t *testing.T) {
+	snap := os.Getenv("SNAP_DIR")
+	if snap == "" {
+		t.Skip("SNAP_DIR not set")
+	}
+	for _, dark := range []bool{false, true} {
+		a := testApp()
+		a.page, a.themeMode = "Media & embeds", 1
+		tt := ui.NewTesterWith(a.View, 1440, 2300, ui.TesterOptions{Dark: dark})
+		tt.Frame()
+		tt.Advance(time.Second)
+		tt.Frame()
+		mode := map[bool]string{false: "light", true: "dark"}[dark]
+		writePNG(t, filepath.Join(snap, "tall-media-"+mode+".png"), tt)
+	}
+	// Polls and the Desktop, animations settled.
+	for _, pg := range []string{"Polls", "Desktop", "Phone", "Status & profile", "Navigation: overview", "A · Chats & Communities", "B · Chats on the rail", "C · One inbox"} {
+		a := testApp()
+		a.page, a.themeMode = pg, 1
+		tt := ui.NewTesterWith(a.View, 1440, 1500, ui.TesterOptions{})
+		tt.Frame()
+		tt.Advance(time.Second)
+		tt.Frame()
+		name := strings.NewReplacer(" ", "-", "&", "and", "·", "", ":", "").Replace(strings.ToLower(pg))
+		writePNG(t, filepath.Join(snap, "settled-"+name+".png"), tt)
+	}
+	// Verification in "Both", light beside dark.
+	a := testApp()
+	a.page, a.themeMode = "Verification", 0
+	tt := ui.NewTesterWith(a.View, 1600, 1100, ui.TesterOptions{Dark: true})
+	tt.Frame()
+	writePNG(t, filepath.Join(snap, "verify-both.png"), tt)
+}
+
 func writePNG(t *testing.T, path string, tt *ui.Tester) {
 	f, err := os.Create(path)
 	if err != nil {
@@ -64,7 +140,7 @@ func writePNG(t *testing.T, path string, tt *ui.Tester) {
 // TestSwitcherKeyboard opens the quick switcher with Cmd+K, types, and
 // opens the best match with Enter.
 func TestSwitcherKeyboard(t *testing.T) {
-	a := New()
+	a := testApp()
 	tt := ui.NewTester(a.View, 1280, 900)
 	tt.Frame()
 	tt.Key(ui.Cmd, ui.KeyK)
@@ -87,7 +163,7 @@ func TestSwitcherKeyboard(t *testing.T) {
 
 // TestMuteFromMenu mutes a room for two hours from its menu.
 func TestMuteFromMenu(t *testing.T) {
-	a := New()
+	a := testApp()
 	a.page = "Menus & sheets"
 	a.themeMode = 1
 	tt := ui.NewTester(a.View, 1280, 900)

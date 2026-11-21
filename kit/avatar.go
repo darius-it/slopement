@@ -53,8 +53,8 @@ func Initials(name string) string {
 	var out []rune
 	for _, f := range fields {
 		r, _ := utf8.DecodeRuneInString(f)
-		if r == utf8.RuneError {
-			continue
+		if r == utf8.RuneError || !(unicode.IsLetter(r) || unicode.IsDigit(r)) {
+			continue // emoji and symbols make poor initials
 		}
 		out = append(out, unicode.ToUpper(r))
 		if len(out) == 2 {
@@ -64,10 +64,7 @@ func Initials(name string) string {
 	if len(out) == 0 {
 		return "?"
 	}
-	if len(fields) > 1 && len(out) == 2 {
-		return string(out)
-	}
-	return string(out[:1])
+	return string(out)
 }
 
 func avatarRadius(a AvatarSpec) float32 {

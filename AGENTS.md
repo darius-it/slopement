@@ -59,13 +59,39 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 ### Verification
 - `go build ./... && go vet ./... && CGO_ENABLED=0 go test ./...`
 - `go tool mygo vet .` when available.
-- Visual check: `go run . ` (gallery window) / `bun run dev`.
+- Visual check without a window: `SNAP_DIR=<scratch dir> go test -run TestPagesRender ./gallery/`
+  writes a PNG of every gallery page (wide/phone × light/dark). Read them.
+- Live: `go run .` opens the gallery window.
 
 ## Layout
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: a component gallery window and mock screens built only from `kit`.
+- `klipy/`: the KLIPY client (native API: GIFs, stickers, categories).
+  `KLIPY_LIVE=1 go test ./klipy/` hits the real API with the key from `.env`.
+- `picker/`: the picker's controller (KLIPY fetches, favorites, recents,
+  animated thumbnails with an LRU). Background work reaches the UI only
+  through `SetUpdate(win.Update)`.
+- `format/`: Discord-flavoured Markdown ↔ tree ↔ Matrix HTML, plus the
+  sanitizer. Pure Go, table-tested.
+- `embeds/`: classifies links (YouTube, Imgur, direct media, generic).
+- Live picker screenshots: `KLIPY_LIVE=1 SNAP_DIR=… go test -run LivePicker ./gallery/`.
+- `internal/dotenv/`: loads `.env` (gitignored; template `.env.example`).
+- `platform/`: native window chrome (hidden title bar, vibrancy/Mica), the
+  system menu bar (`MenuBar(Actions, win.Update)`), GTK styling. Use
+  `kit.ContextMenu` / `kit.MenuButton` (drawn kit menus everywhere; only
+  the menu bar and file dialogs are native) rather than raw `PopoverMenu`, and `c.TitleBar()` + `DragWindow` in any toolbar or
+  sidebar that touches the window's top edge.
+- `docs/`: `requirements.md`, `design-language.md`, `landscape.md` (other
+  Matrix clients), `calls-research.md` (Jitsi vs Element Call), `ideas.md`
+  (far-future ideas, e.g. activities in calls).
 - `main.go`: the app entry (currently opens the gallery).
+
+## Secrets
+- `KLIPY_API_KEY` lives in `.env` (gitignored). Never commit keys or print them.
 
 ## Pending manual cleanup (needs user; do not bypass)
 - Delete the leftover webview scaffold: `index.html`, `src/`, `vite.config.ts`,
-  `tsconfig.json`, and the Vite/TS parts of `package.json` / `bun.lock`.
+  `tsconfig.json`, and the Vite/TS parts of `package.json` / `bun.lock`; then
+  drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
+  `mygo.config.ts`.
+- Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).

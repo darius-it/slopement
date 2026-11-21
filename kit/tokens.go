@@ -48,6 +48,17 @@ type Palette struct {
 
 	// Users are the username colors, lightness-balanced for this Bg.
 	Users [8]ui.Color
+
+	// The phone chat (bubbles): a soft lavender wallpaper, incoming
+	// bubbles on the raised surface, outgoing ones in a light purple with
+	// dark text, as KakaoTalk's and LINE's, in the accent's hue.
+	Wallpaper   ui.Color
+	BubbleIn    ui.Color
+	BubbleOut   ui.Color
+	OnBubbleOut ui.Color
+	// LinkOnBubble is a link's color in an outgoing bubble: links are
+	// colored, not underlined, so it must stand apart from OnBubbleOut.
+	LinkOnBubble ui.Color
 }
 
 // userHues are the hues of the username palette, in degrees, spread so
@@ -97,6 +108,13 @@ var Light = Palette{
 	Shadow: ui.RGBA(16, 14, 32, 0.10),
 
 	Users: users(0.52, 0.13),
+
+	Wallpaper:   ui.Oklch(0.955, 0.018, accentHue).SRGB(),
+	BubbleIn:    ui.Hex("#FFFFFF"),
+	BubbleOut:   ui.Oklch(0.86, 0.075, accentHue).SRGB(),
+	OnBubbleOut: ui.Oklch(0.24, 0.05, accentHue).SRGB(),
+
+	LinkOnBubble: ui.Oklch(0.42, 0.19, accentHue).SRGB(),
 }
 
 // DarkPalette is the dark appearance.
@@ -132,6 +150,13 @@ var DarkPalette = Palette{
 	Shadow: ui.RGBA(0, 0, 0, 0.4),
 
 	Users: users(0.78, 0.11),
+
+	Wallpaper:   ui.Oklch(0.16, 0.014, accentHue).SRGB(),
+	BubbleIn:    ui.Oklch(0.245, 0.012, accentHue).SRGB(),
+	BubbleOut:   ui.Oklch(0.40, 0.10, accentHue).SRGB(),
+	OnBubbleOut: ui.Oklch(0.97, 0.015, accentHue).SRGB(),
+
+	LinkOnBubble: ui.Oklch(0.86, 0.1, accentHue).SRGB(),
 }
 
 // Of returns the palette of the theme the context builds with.
@@ -248,7 +273,17 @@ func Theme(dark bool) *ui.Theme {
 }
 
 // Apply themes the window with the kit, following the system's
-// appearance: call it first in the root view.
+// appearance: call it first in the root view. Every popup menu MyGo builds
+// (text inputs' editing menus, tables', ContextMenu's) is drawn in the
+// window in the kit's look, not the system's.
 func Apply(c *ui.Context) {
 	c.SetTheme(Theme(c.Theme().Dark))
+	c.SetMenuPresentation(ui.PopoverMenus)
+}
+
+// ApplyTheme is Apply with a theme chosen by the app (a forced light or
+// dark).
+func ApplyTheme(c *ui.Context, dark bool) {
+	c.SetTheme(Theme(dark))
+	c.SetMenuPresentation(ui.PopoverMenus)
 }

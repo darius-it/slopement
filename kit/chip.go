@@ -1,28 +1,34 @@
 package kit
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Chip is a filter chip: a pill that is selected or not. It returns the
 // button; Clicked reports a press.
 func Chip(c *ui.Context, label string, selected bool) ui.Element {
 	p := Of(c)
 	b := ui.ButtonBase(c)
-	bg, fg, border := ui.Transparent, p.TextMuted, p.Border
+	// No outlines: unselected chips are text until hovered, the selected
+	// one is tinted.
+	bg, fg := ui.Transparent, p.TextMuted
 	switch {
 	case selected:
-		bg, fg, border = p.AccentSubtle, p.AccentStrong, p.AccentSubtle
+		bg, fg = p.AccentSubtle, p.AccentStrong
 	case b.Pressed():
 		bg, fg = p.Pressed, p.Text
 	case b.Hovered():
 		bg, fg = p.Hover, p.Text
 	}
-	h := float32(28)
+	h := float32(26)
 	if Touch(c) {
 		h = 34
 	}
-	b.Height(h).PaddingX(S3).Radius(RadiusFull).AlignItems(ui.Center).Shrink(0).
-		Background(b.AnimateColor("bg", bg, Color)).Border(1, b.AnimateColor("bd", border, Color)).
-		Label(label).Selected(selected)
+	b.Height(h).PaddingX(S2 + 2).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).
+		Background(b.AnimateColor("bg", bg, Color)).
+		Label(label).AccessSelected(selected)
 	b.Children(func() {
 		ui.Text(c, label).FontSize(SizeSmall).FontWeight(WeightMedium).
 			TextColor(b.AnimateColor("fg", fg, Color)).SingleLine()
@@ -50,25 +56,49 @@ func TokenChip(c *ui.Context, key, value string) (removed bool) {
 	return removed
 }
 
-// Tabs is a segmented control, as Emoji / GIFs / Stickers. Clicking
-// changes *selected.
+// tabSlide moves the tabs' indicator: it travels on screen, so a spring
+// without bounce, about 280 ms, which keeps its velocity when clicked
+// again on the way (Emil Kowalski: movement is interruptible, no
+// overshoot in UI chrome).
+var tabSlide = ui.SpringOptions{Duration: 280 * time.Millisecond}
+
+const tabPad = 2
+
+// Tabs is a segmented control, as GIFs / Stickers / Emoji. One tinted
+// indicator slides under the labels to the chosen one; the labels'
+// colors cross-fade as it arrives. Clicking changes *selected.
 func Tabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	p := Of(c)
-	s := ui.SegmentedBase(c, selected, len(labels))
-	s.Track.Padding(2).Gap(2).Radius(RadiusSm+2).Background(p.BgInset).Children(func() {
+	n := len(labels)
+	s := ui.SegmentedBase(c, selected, n)
+	track := s.Track.Padding(tabPad).Radius(RadiusSm + 2).Background(p.BgInset)
+	trackW := track.Bounds().W // the last layout's width, to size the indicator
+	track.Children(func() {
+		// The indicator, first so it is under the labels. Each segment is
+		// an equal share of the track, so the indicator is one share wide
+		// and moves by its own width per step.
+		ind := ui.Box(c.Key("indicator")).Absolute().Top(tabPad).Bottom(tabPad).Left(0).
+			Radius(RadiusSm).Background(p.AccentSubtle).PassThrough()
+		if trackW > 0 {
+			ind.Width((trackW - 2*tabPad) / float32(n))
+		} else {
+			ind.WidthPercent(100 / float32(n))
+		}
+		at := ind.Spring("x", float32(*selected), tabSlide)
+		ind.TranslatePercent(at*100, 0)
 		for i, l := range labels {
-			seg := s.Segment(i).Grow(1).Height(28).PaddingX(S3).Radius(RadiusSm).
-				AlignItems(ui.Center).Justify(ui.Center)
-			bg, fg := ui.Transparent, p.TextMuted
-			if i == *selected {
-				bg, fg = p.Raised, p.Text
-				seg.Shadow(0, 1, 2, 0, p.Shadow)
-			} else if seg.Hovered() {
+			seg := s.Segment(i).Grow(1).Basis(0).Height(28).PaddingX(S3).Radius(RadiusSm).
+				AlignItems(ui.Center).Justify(ui.Center).ZIndex(1) // over the indicator
+			fg := p.TextMuted
+			switch {
+			case i == *selected:
+				fg = p.AccentStrong
+			case seg.Hovered():
 				fg = p.Text
 			}
-			seg.Background(seg.AnimateColor("bg", bg, Color))
 			seg.Children(func() {
-				ui.Text(c, l).FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(fg).SingleLine()
+				ui.Text(c, l).FontSize(SizeSmall).FontWeight(WeightMedium).
+					TextColor(seg.AnimateColor("fg", fg, ui.Animation{Duration: DurFast, Ease: EaseOut})).SingleLine()
 			})
 		}
 	})

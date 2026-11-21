@@ -62,5 +62,16 @@ func TestContrast(t *testing.T) {
 		check("Danger on Bg", p.Danger, p.Bg, 4.5)
 		check("TextFaint on BgInset (decorative only)", p.TextFaint, p.BgInset, 2.5)
 		check("Text on BgInset", p.Text, p.BgInset, 7)
+		// The phone chat.
+		check("Text on BubbleIn", p.Text, p.BubbleIn, 7)
+		check("OnBubbleOut on BubbleOut", p.OnBubbleOut, p.BubbleOut, 7)
+		check("LinkOnBubble on BubbleOut", p.LinkOnBubble, p.BubbleOut, 4.5)
+		check("AccentStrong links on Bg", p.AccentStrong, p.Bg, 4.5)
+		check("TextMuted on Wallpaper (times)", p.TextMuted, p.Wallpaper, 4.5)
+		check("AccentStrong on Wallpaper (read)", p.AccentStrong, p.Wallpaper, 4.5)
+		check("BubbleIn stands off Wallpaper", p.BubbleIn, p.Wallpaper, 1.05)
+		for i, u := range p.Users {
+			check("User color "+string(rune('0'+i))+" on BubbleIn", u, p.BubbleIn, 4.5)
+		}
 	}
 }

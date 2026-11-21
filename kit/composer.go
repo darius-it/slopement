@@ -8,6 +8,30 @@ type ComposerState struct {
 	Text  string
 	Reply *Quote
 	send  bool
+	// What the + menu chose, picked up by the next build.
+	wantAttach, wantPoll bool
+}
+
+// plusMenu makes the composer's + a menu: a file, or a poll.
+func plusMenu(c *ui.Context, plus ui.Element, st *ComposerState) {
+	MenuButton(c, plus, func(m *ui.Menu) {
+		if m.Item("Upload a file").Icon(MenuIcon(IconPaperclip)).Chosen() {
+			st.wantAttach = true
+		}
+		if m.Item("Create poll").Icon(MenuIcon(IconPoll)).Chosen() {
+			st.wantPoll = true
+		}
+	})
+}
+
+// takePlus moves what the + menu chose into the result.
+func (st *ComposerState) takePlus(r *ComposerResult) {
+	if st.wantAttach {
+		r.Attach, st.wantAttach = true, false
+	}
+	if st.wantPoll {
+		r.Poll, st.wantPoll = true, false
+	}
 }
 
 // ComposerResult is what the composer asked for in this build. The
@@ -15,10 +39,14 @@ type ComposerState struct {
 type ComposerResult struct {
 	Send       bool
 	Attach     bool
+	Poll       bool // the + menu's Create poll
 	Emoji      bool
 	GIF        bool
 	GIFButton  ui.Element
 	EmojiButton ui.Element
+	// Unified is set by composers with one button for emoji, GIFs and
+	// stickers (the phone's): it opens the picker where it was left.
+	Unified bool
 }
 
 // Composer is the message field: a reply banner when replying, an attach
@@ -51,9 +79,7 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 					})
 			}
 			ui.Row(c).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
-				if IconButton(c, Ghost, IconPlus, "Attach a file").Clicked() {
-					r.Attach = true
-				}
+				plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
 				ta := ui.TextAreaBase(c, &st.Text).Grow(1).MinWidth(0).Lines(1, 8).
 					Placeholder(placeholder).PlaceholderColor(p.TextMuted).Label(placeholder).
 					FontSize(fieldSize(c)).LineHeight(1.4).MarginY(6)
@@ -103,6 +129,7 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 			r.Send = true
 		}
 	}
+	st.takePlus(&r)
 	return r
 }
 
