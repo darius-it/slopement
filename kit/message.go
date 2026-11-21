@@ -43,6 +43,12 @@ type MessageData struct {
 	Pending bool
 	// Undecryptable shows the "unable to decrypt" state.
 	Undecryptable bool
+	// ReadBy are the people who have read up to this message, shown small
+	// at the end of its row; empty (the default) shows nothing.
+	ReadBy []AvatarSpec
+	// Sent shows the hollow check of the user's last message, sent and not
+	// read yet.
+	Sent bool
 	// Image, with ImageW/H, is an image message's thumbnail.
 	Image          *ui.Bitmap
 	ImageW, ImageH float32
@@ -247,6 +253,15 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 			}
 		})
+		// Who has read up to here, at the row's end, level with its last line.
+		if len(m.ReadBy) > 0 || m.Sent {
+			ui.Box(c).Shrink(0).AlignSelf(ui.End).Padding(0, 0, 2, 0).Children(func() {
+				ReadStack(c, m.ReadBy)
+				if m.Sent {
+					ui.Icon(c, IconCircleCheck).Size(15, 15).TextColor(p.TextFaint).Label("Sent").Tooltip("Sent")
+				}
+			})
+		}
 		// The hover toolbar.
 		if hov {
 			ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(-12).Left(-S4).

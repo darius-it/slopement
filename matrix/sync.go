@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"maunium.net/go/mautrix"
@@ -438,24 +439,59 @@ func (s *Source) onTyping(ctx context.Context, evt *event.Event) {
 	})
 }
 
-// onReceipt is a read marker; ours alone counts, clearing the room.
+// onReceipt is a read marker: the user's own clears the room, and
+// everyone else's public one says how far they have read.
 func (s *Source) onReceipt(ctx context.Context, evt *event.Event) {
 	receipts := evt.Content.AsReceipt()
 	if receipts == nil {
 		return
 	}
-	for _, byType := range *receipts {
-		if users, ok := byType[event.ReceiptTypeRead]; ok {
-			if _, me := users[id.UserID(s.me.ID)]; me {
-				s.post(func() {
-					if r, ok := s.rooms[evt.RoomID.String()]; ok {
-						r.unread, r.mentions = 0, 0
-						s.markDirty(r.id)
-					}
-				})
+	type mark struct {
+		user string
+		at   readMark
+	}
+	var others []mark
+	mine := false
+	for eventID, byType := range *receipts {
+		for typ, users := range byType {
+			for user, rr := range users {
+				if rr.ThreadID != "" && rr.ThreadID != event.ReadReceiptThreadMain {
+					continue // a thread's own marker: the room's timeline is the main one
+				}
+				switch {
+				case user.String() == s.me.ID:
+					// The user's own, public or private (from here or
+					// another device): the room is read.
+					mine = mine || typ == event.ReceiptTypeRead || typ == event.ReceiptTypeReadPrivate
+				case typ == event.ReceiptTypeRead: // others' private ones never reach us
+					others = append(others, mark{user.String(), readMark{Event: eventID.String(), TS: rr.Timestamp.UnixMilli()}})
+				}
 			}
 		}
 	}
+	if !mine && len(others) == 0 {
+		return
+	}
+	room := evt.RoomID.String()
+	s.post(func() {
+		r, ok := s.rooms[room]
+		if !ok {
+			return
+		}
+		if mine {
+			r.unread, r.mentions = 0, 0
+		}
+		for _, m := range others {
+			if old, had := r.reads[m.user]; had && old.TS > m.at.TS {
+				continue // an older receipt arriving late
+			}
+			if r.reads == nil {
+				r.reads = map[string]readMark{}
+			}
+			r.reads[m.user] = m.at
+		}
+		s.markDirty(room)
+	})
 }
 
 // onPresence is who is around, the user included.
@@ -666,16 +702,42 @@ func (s *Source) MarkRead(room string) {
 		return
 	}
 	r, ok := s.rooms[room]
-	if !ok || len(r.events) == 0 {
+	if !ok {
 		return
 	}
-	last := r.events[len(r.events)-1].ID
+	last := ""
+	for i := len(r.events) - 1; i >= 0; i-- {
+		if !strings.HasPrefix(r.events[i].ID, localPrefix) { // not one still being sent
+			last = r.events[i].ID
+			break
+		}
+	}
+	if last == "" {
+		return
+	}
 	r.unread, r.mentions = 0, 0
 	s.markDirty(room)
+	receipt := event.ReceiptTypeReadPrivate // nobody sees it, unless the user chose so
+	if s.publicReceipts {
+		receipt = event.ReceiptTypeRead
+	}
 	go func() {
-		_ = s.cli.MarkRead(context.Background(), id.RoomID(room), id.EventID(last))
+		// One request: the user's own place (what the unread counts and
+		// their other devices follow), and the receipt of the chosen
+		// kind.
+		_ = s.cli.SetReadMarkers(context.Background(), id.RoomID(room), map[string]id.EventID{
+			"m.fully_read":  id.EventID(last),
+			string(receipt): id.EventID(last),
+		})
 	}()
 }
+
+// SetPublicReceipts chooses whether the read receipts the user sends are
+// seen by others (off by default: private receipts keep the unread counts
+// right on their devices and show nothing to anyone).
+func (s *Source) SetPublicReceipts(public bool) { s.publicReceipts = public }
+
+var _ model.ReceiptPrivacy = (*Source)(nil)
 
 // contentOf is a Markdown message as Matrix sends it: the plain body and
 // the formatted one when the Markdown means anything.

@@ -38,7 +38,7 @@ type uiState struct {
 // prefsState is settingsPrefs with its fields exported, for JSON.
 type prefsState struct {
 	NotifyDesktop, NotifySound, NotifyMentions, NotifyKeywords bool
-	ReadReceipts, Typing, PreviewsE2EE, PreviewsDirect         bool
+	Receipts, Typing, PreviewsE2EE, PreviewsDirect             bool
 	GifAutoplay, AnimatedAvatars, HideJoins                    bool
 	LinkPreviews, VideoPreviews, GifPreviews                   bool
 	MyColor                                                    int
@@ -47,14 +47,14 @@ type prefsState struct {
 
 func (p settingsPrefs) state() prefsState {
 	return prefsState{p.notifyDesktop, p.notifySound, p.notifyMentions, p.notifyKeywords,
-		p.readReceipts, p.typing, p.previewsE2EE, p.previewsDirect,
+		p.receipts, p.typing, p.previewsE2EE, p.previewsDirect,
 		p.gifAutoplay, p.animatedAvatars, p.hideJoins,
 		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.glass}
 }
 
 func (p prefsState) prefs() settingsPrefs {
 	return settingsPrefs{p.NotifyDesktop, p.NotifySound, p.NotifyMentions, p.NotifyKeywords,
-		p.ReadReceipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
+		p.Receipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
 		p.GifAutoplay, p.AnimatedAvatars, p.HideJoins,
 		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.Glass}
 }

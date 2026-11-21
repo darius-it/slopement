@@ -266,4 +266,4 @@ type tokenStore struct {
 }
 
 func (t *tokenStore) LoadNextBatch(context.Context, id.UserID) (string, error) { return t.token, nil }
-func (t *tokenStore) SaveNextBatch(context.Context, id.UserID, string) error  { return nil }
+func (t *tokenStore) SaveNextBatch(context.Context, id.UserID, string) error   { return nil }

@@ -37,8 +37,13 @@ type BubbleData struct {
 	// First and Last place it in a run of one sender's messages.
 	First, Last bool
 	Read        bool // outgoing: read by the other side
-	Pending     bool
-	Edited      bool
+	// ReadBy are the people who have read up to this message, in a room
+	// with more than one other (a DM says "Read" instead).
+	ReadBy []AvatarSpec
+	// Sent: the user's last message, sent and not read yet.
+	Sent    bool
+	Pending bool
+	Edited  bool
 	// Live is set on messages that arrive while the room is open: they
 	// pop in. History never animates.
 	Live bool
@@ -248,7 +253,10 @@ func bubbleMeta(c *ui.Context, b BubbleData) {
 			return
 		case b.Out && b.Read:
 			ui.Text(c, "Read").FontSize(SizeCaption - 1).FontWeight(WeightMedium).TextColor(p.AccentStrong)
+		case b.Out && b.Sent:
+			ui.Text(c, "Sent").FontSize(SizeCaption - 1).TextColor(p.TextMuted)
 		}
+		ReadStack(c, b.ReadBy)
 		if b.Last || len(b.Media) > 0 {
 			t := b.Time
 			if b.Edited {

@@ -117,7 +117,25 @@ func (s *Source) Person(id string) (model.Person, bool) {
 	return *p, true
 }
 
-func (s *Source) Timeline(room string) []model.Event { return s.timeline[room] }
+// Timeline is the room's events; in a DM the partner has read up to the
+// user's last message that is not pending, so read indicators have
+// something to show.
+func (s *Source) Timeline(room string) []model.Event {
+	tl := s.timeline[room]
+	r, ok := s.rooms[room]
+	if !ok || r.Kind != model.KindDM || r.Partner == "" {
+		return tl
+	}
+	out := make([]model.Event, len(tl))
+	copy(out, tl)
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i].Sender == s.me.ID && !out[i].Pending {
+			out[i].ReadBy = []string{r.Partner}
+			break
+		}
+	}
+	return out
+}
 func (s *Source) Sessions() []model.Session          { return s.sessions }
 
 // ---- Acting ----------------------------------------------------------------

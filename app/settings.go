@@ -26,7 +26,7 @@ var settingsPages = []struct {
 // the Matrix layer).
 type settingsPrefs struct {
 	notifyDesktop, notifySound, notifyMentions, notifyKeywords bool
-	readReceipts, typing, previewsE2EE, previewsDirect         bool
+	receipts, typing, previewsE2EE, previewsDirect             bool
 	gifAutoplay, animatedAvatars, hideJoins                    bool
 	linkPreviews, videoPreviews, gifPreviews                   bool
 	myColor                                                    int
@@ -34,7 +34,7 @@ type settingsPrefs struct {
 }
 
 func defaultPrefs() settingsPrefs {
-	return settingsPrefs{notifyDesktop: true, notifySound: true, notifyMentions: true, readReceipts: true, typing: true,
+	return settingsPrefs{notifyDesktop: true, notifySound: true, notifyMentions: true, typing: true,
 		gifAutoplay: true, linkPreviews: true, videoPreviews: true, gifPreviews: true, myColor: -1, glass: glassTinted}
 }
 
@@ -183,7 +183,7 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 	case "Privacy":
 		group(c, "Activity", "", func() {
-			switchRow(c, "Send read receipts", "Others see what you've read", &a.prefs.readReceipts)
+			switchRow(c, "Read receipts", "Show who has read your messages, and let others see what you've read. Off: nothing is shown, and your receipts stay private.", &a.prefs.receipts)
 			switchRow(c, "Send typing notifications", "", &a.prefs.typing)
 		})
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {

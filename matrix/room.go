@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -47,6 +48,16 @@ type room struct {
 	raw       map[string]*rawEvent         // event ID → still encrypted
 	children  []spaceChild
 	parent    string // a m.space.parent claim, canonical ones alone
+	// reads is where each other person's public read receipt is: the
+	// event and when (the receipt's time, for an event this room does not
+	// hold).
+	reads map[string]readMark
+}
+
+// readMark is one person's place in a room.
+type readMark struct {
+	Event string
+	TS    int64
 }
 
 // spaceChild is one room of a space, in the space's own order.
@@ -229,6 +240,43 @@ func (r *room) timeline(me string) []model.Event {
 	for i, e := range r.events {
 		e.Reactions = r.reactionList(e.ID, me)
 		out[i] = e
+	}
+	// Each person's marker lands on the event it names — or, when the
+	// room does not show that event (a reaction, a state change), on the
+	// last shown event before the receipt's time.
+	//
+	// Sending is reading: whoever wrote a message has read up to it, so a
+	// person is at least on their own latest message — whether or not
+	// their client sent a receipt for it, and whichever is further on.
+	at := map[string]int{}
+	for u, mark := range r.reads {
+		i := r.indexOf(mark.Event)
+		if i < 0 {
+			for j := len(r.events) - 1; j >= 0; j-- {
+				if r.events[j].Time.UnixMilli() <= mark.TS {
+					i = j
+					break
+				}
+			}
+		}
+		if i >= 0 {
+			at[u] = i
+		}
+	}
+	for i, e := range r.events {
+		if e.Kind != model.EventSystem && e.Sender != me && e.Sender != "" && !e.Pending {
+			if prev, ok := at[e.Sender]; !ok || i > prev {
+				at[e.Sender] = i
+			}
+		}
+	}
+	users := make([]string, 0, len(at))
+	for u := range at {
+		users = append(users, u)
+	}
+	sort.Strings(users)
+	for _, u := range users {
+		out[at[u]].ReadBy = append(out[at[u]].ReadBy, u)
 	}
 	return out
 }

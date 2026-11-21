@@ -73,6 +73,9 @@ type App struct {
 	statePath        string
 	stateLast        string
 	statePending     bool
+	rs               receiptState // the open room's, taken once a frame
+	receiptsApplied  bool         // the source was told the setting (receipts.go)
+	receiptsVal      bool
 	restoreRoom      string
 	restoreCommunity string
 	restorePushed    bool
@@ -128,25 +131,25 @@ type App struct {
 // picker, as in tests).
 func New(src model.Source, pick *picker.Controller) *App {
 	a := &App{
-		src:      src,
-		pick:     pick,
-		verifier: src.Verify(),
-		now:      time.Now(),
-		nav:      kit.DefaultNavLayout(),
-		sidebar:  true,
-		settings: "Account",
-		expanded: map[string]bool{},
-		drafts:   map[string]*kit.ComposerState{},
-		lists:    map[string]*ui.ListState{},
-		scrolls:  map[string]*ui.ScrollState{},
-		reveals:  kit.Reveals{},
-		docs:     map[string]parsed{},
-		roomMenu: map[string]bool{},
+		src:       src,
+		pick:      pick,
+		verifier:  src.Verify(),
+		now:       time.Now(),
+		nav:       kit.DefaultNavLayout(),
+		sidebar:   true,
+		settings:  "Account",
+		expanded:  map[string]bool{},
+		drafts:    map[string]*kit.ComposerState{},
+		lists:     map[string]*ui.ListState{},
+		scrolls:   map[string]*ui.ScrollState{},
+		reveals:   kit.Reveals{},
+		docs:      map[string]parsed{},
+		roomMenu:  map[string]bool{},
 		stills:    map[string]ui.ImageSource{},
 		stillBusy: map[string]bool{},
-		call:    kit.NewCall(),
-		replyTo:  map[string]string{},
-		prefs:    defaultPrefs(),
+		call:      kit.NewCall(),
+		replyTo:   map[string]string{},
+		prefs:     defaultPrefs(),
 	}
 	a.pollDraft = kit.NewPollDraft()
 	a.menuNav = a.nav
@@ -192,6 +195,7 @@ func (a *App) open(id string) {
 // View is the window's content.
 func (a *App) View(c *ui.Context) {
 	a.now = time.Now()
+	a.receiptsSync()
 	switch a.theme {
 	case 1:
 		kit.ApplyTheme(c, false)

@@ -35,6 +35,7 @@ type roomRecord struct {
 	Raw       map[string]rawRecord
 	Children  []childRecord
 	Parent    string
+	Reads     map[string]readMark
 }
 
 type rawRecord struct {
@@ -51,7 +52,7 @@ func (r *room) record() roomRecord {
 		Unread: r.unread, Mentions: r.mentions,
 		Favourite: r.favourite, LowPriority: r.lowPriority, Muted: r.muted,
 		Last: r.last, Preview: r.preview, Parent: r.parent,
-		Reactions: r.reactions,
+		Reactions: r.reactions, Reads: r.reads,
 	}
 	for _, e := range r.events {
 		if strings.HasPrefix(e.ID, localPrefix) {
@@ -80,7 +81,7 @@ func (rec roomRecord) room() *room {
 		unread: rec.Unread, mentions: rec.Mentions,
 		favourite: rec.Favourite, lowPriority: rec.LowPriority, muted: rec.Muted,
 		last: rec.Last, preview: rec.Preview, parent: rec.Parent,
-		events: rec.Events, reactions: rec.Reactions,
+		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads,
 	}
 	for id, raw := range rec.Raw {
 		var evt event.Event

@@ -57,6 +57,9 @@ type Source struct {
 	// server refuses then means the cache is dropped and the sync starts
 	// over).
 	resumed bool
+
+	// publicReceipts: the read receipts sent are public (SetPublicReceipts).
+	publicReceipts bool
 }
 
 // NewSource is the app's view of a signed-in account, before any sync.

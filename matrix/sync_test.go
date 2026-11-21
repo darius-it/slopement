@@ -1,7 +1,9 @@
 package matrix
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -114,6 +116,82 @@ func TestOnReceiptMine(t *testing.T) {
 	m, _ := s.Room("!a")
 	if m.Unread != 0 || m.Mentions != 0 {
 		t.Fatalf("after my receipt: %+v", m)
+	}
+}
+
+// Others' public receipts say how far they have read: on the event they
+// name, or — for one the room does not show — on the last shown event
+// before the receipt's time. Their private ones never arrive; the user's
+// own private one clears the room too.
+func TestOnReceiptOthers(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{
+		"!a": {UnreadNotifications: &mautrix.UnreadNotificationCounts{NotificationCount: 4}},
+	}}})
+	r := s.rooms["!a"]
+	t0 := time.UnixMilli(1_000_000)
+	for i, idv := range []string{"$1", "$2", "$3"} {
+		r.appendEvent(model.Event{ID: idv, Sender: "@me:example.org", Body: idv, Kind: model.EventText,
+			Time: t0.Add(time.Duration(i) * time.Minute)}, "You", true)
+	}
+
+	receipt := func(target id.EventID, typ event.ReceiptType, user string, at time.Time) *event.Event {
+		c := event.ReceiptEventContent{}
+		c.Set(target, typ, id.UserID(user), event.ReadReceipt{Timestamp: at})
+		return &event.Event{RoomID: "!a", Type: event.EphemeralEventReceipt, Content: event.Content{Parsed: &c}}
+	}
+	s.onReceipt(nil, receipt("$2", event.ReceiptTypeRead, "@kai:example.org", t0.Add(time.Minute)))
+	// A reaction's event ID the room has no tile for, read at the time of $3.
+	s.onReceipt(nil, receipt("$unshown", event.ReceiptTypeRead, "@ada:example.org", t0.Add(2*time.Minute+time.Second)))
+	// Another's private receipt, and an older one arriving late: no effect.
+	s.onReceipt(nil, receipt("$3", event.ReceiptTypeReadPrivate, "@zed:example.org", t0.Add(2*time.Minute)))
+	s.onReceipt(nil, receipt("$1", event.ReceiptTypeRead, "@kai:example.org", t0))
+	// The user's own private receipt.
+	s.onReceipt(nil, receipt("$3", event.ReceiptTypeReadPrivate, "@me:example.org", t0))
+
+	tl := s.Timeline("!a")
+	if got := tl[1].ReadBy; len(got) != 1 || got[0] != "@kai:example.org" {
+		t.Fatalf("$2 read by %v", got)
+	}
+	if got := tl[2].ReadBy; len(got) != 1 || got[0] != "@ada:example.org" {
+		t.Fatalf("$3 read by %v", got)
+	}
+	if len(tl[0].ReadBy) != 0 {
+		t.Fatalf("$1 read by %v", tl[0].ReadBy)
+	}
+	if m, _ := s.Room("!a"); m.Unread != 0 {
+		t.Fatalf("my private receipt left %d unread", m.Unread)
+	}
+}
+
+// Sending is reading: a person is at least on their own latest message,
+// and a receipt further on wins over it.
+func TestImplicitReads(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{"!a": {}}}})
+	r := s.rooms["!a"]
+	t0 := time.UnixMilli(2_000_000)
+	add := func(idv, sender string, min int) {
+		r.appendEvent(model.Event{ID: idv, Sender: sender, Kind: model.EventText, Time: t0.Add(time.Duration(min) * time.Minute)}, sender, sender == "@me:example.org")
+	}
+	add("$1", "@me:example.org", 0)
+	add("$2", "@kai:example.org", 1) // kai wrote: kai has read up to here
+	add("$3", "@me:example.org", 2)
+	add("$4", "@ada:example.org", 3)
+	add("$5", "@me:example.org", 4)
+
+	// ada's receipt is further on than her message.
+	c := event.ReceiptEventContent{}
+	c.Set("$5", event.ReceiptTypeRead, "@ada:example.org", event.ReadReceipt{Timestamp: t0.Add(4 * time.Minute)})
+	s.onReceipt(nil, &event.Event{RoomID: "!a", Type: event.EphemeralEventReceipt, Content: event.Content{Parsed: &c}})
+
+	tl := s.Timeline("!a")
+	at := func(i int) string { return fmt.Sprint(tl[i].ReadBy) }
+	if at(1) != "[@kai:example.org]" || at(3) != "[]" || at(4) != "[@ada:example.org]" {
+		t.Fatalf("$2=%s $4=%s $5=%s", at(1), at(3), at(4))
+	}
+	if len(tl[0].ReadBy)+len(tl[2].ReadBy) != 0 {
+		t.Fatal("the user's own messages carry no reader of their own")
 	}
 }
 

@@ -129,6 +129,17 @@ type Event struct {
 	Poll      *Poll
 	// Mentions is set when it mentions the user.
 	Mentions bool
+	// ReadBy are the others (MXIDs) whose read marker sits at this event:
+	// each person is on the last event they have read, never on every
+	// one before it.
+	ReadBy []string
+}
+
+// ReceiptPrivacy is what a Source may offer: whether the read receipts
+// the user sends are public (others see them) or private (only the
+// server's own unread counts and the user's other devices do).
+type ReceiptPrivacy interface {
+	SetPublicReceipts(public bool)
 }
 
 // Media is an attachment.

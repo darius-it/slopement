@@ -89,6 +89,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 			a.callArea(c, r)
 		}
 		rows := a.rows(r.ID)
+		a.rs = a.receiptStateOf(r.ID)
 		ls := a.listState(r.ID)
 		ls.Key = func(i int) any { return rows[i].key }
 		// 24 under the last message before the composer, as Meetup's and
@@ -261,7 +262,8 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), First: tr.first,
 		Highlight: ev.Mentions, Edited: ev.Edited, Pending: ev.Pending, Undecryptable: ev.Kind == model.EventUndecryptable,
 		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals,
-		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning}
+		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),
+		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
 	if ev.Kind != model.EventUndecryptable {
 		m.Doc, m.Media, m.YouTube = a.content(ev)
 	}
@@ -439,6 +441,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 			a.callArea(c, r)
 		}
 		rows := a.rows(r.ID)
+		a.rs = a.receiptStateOf(r.ID)
 		ls := a.listState(r.ID)
 		ls.Key = func(i int) any { return rows[i].key }
 		me := a.src.Me().ID
@@ -458,6 +461,13 @@ func (a *App) phoneRoom(c *ui.Context) {
 			b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
 				Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
 				First: tr.first, Last: last, Pending: ev.Pending, Edited: ev.Edited, MaxWidth: 300}
+			if a.prefs.receipts {
+				b.Read = b.Out && ev.ID == a.rs.readID // your last message that was read
+				b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
+				if r.Kind != model.KindDM { // a DM's "Read" says it all
+					b.ReadBy = a.readers(ev)
+				}
+			}
 			if ev.Kind != model.EventUndecryptable {
 				b.Doc, b.Media, _ = a.content(ev)
 			}
