@@ -1,0 +1,10 @@
+node_modules/
+/dist/
+/build/
+/.mygo/
+mygo_windows_*.syso
+
+# Local secrets (KLIPY_API_KEY, …); .env.example is the template.
+.env
+.env.*
+!.env.example
