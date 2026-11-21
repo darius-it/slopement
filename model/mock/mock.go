@@ -25,6 +25,7 @@ type Source struct {
 	timeline map[string][]model.Event
 	sessions []model.Session
 	seq      int
+	verify   *fakeVerify
 	// Delay scales the simulated replies (0 in tests: none).
 	Delay time.Duration
 }
@@ -38,6 +39,7 @@ func New(now time.Time) *Source {
 		people:   map[string]*model.Person{},
 		rooms:    map[string]*model.Room{},
 		timeline: map[string][]model.Event{},
+		verify:   &fakeVerify{},
 		Delay:    time.Second,
 	}
 	s.seed(now)

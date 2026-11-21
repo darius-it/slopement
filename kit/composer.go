@@ -37,12 +37,12 @@ func (st *ComposerState) takePlus(r *ComposerResult) {
 // ComposerResult is what the composer asked for in this build. The
 // buttons are returned so popovers (the GIF picker) can anchor to them.
 type ComposerResult struct {
-	Send       bool
-	Attach     bool
-	Poll       bool // the + menu's Create poll
-	Emoji      bool
-	GIF        bool
-	GIFButton  ui.Element
+	Send        bool
+	Attach      bool
+	Poll        bool // the + menu's Create poll
+	Emoji       bool
+	GIF         bool
+	GIFButton   ui.Element
 	EmojiButton ui.Element
 	// Unified is set by composers with one button for emoji, GIFs and
 	// stickers (the phone's): it opens the picker where it was left.
@@ -121,7 +121,7 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 		if box.FocusWithin() {
 			border = p.BorderStrong
 		}
-		box.Radius(RadiusMd + 2).Background(p.BgInset).Border(1, box.AnimateColor("bd", border, Color))
+		box.Radius(RadiusMd+2).Background(p.BgInset).Border(1, box.AnimateColor("bd", border, Color))
 	})
 	if st.send {
 		st.send = false

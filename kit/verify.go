@@ -107,6 +107,80 @@ func VerifyStart(c *ui.Context) (ch VerifyChoice) {
 	return ch
 }
 
+// VerifyAsk is an incoming request: who asks, and the two answers —
+// decline first, so the safe choice isn't the one under the thumb by
+// habit.
+func VerifyAsk(c *ui.Context, from string) (accept, decline bool) {
+	p := Of(c)
+	ui.Column(c).Width(VerifyStartWidth).MaxWidthPercent(100).Gap(S4).AlignItems(ui.Stretch).Children(func() {
+		ui.Column(c).Gap(S1).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, IconShield).Size(28, 28).TextColor(p.Accent)
+			ui.Text(c, "Verify this device").FontSize(SizeTitle).FontWeight(WeightSemibold)
+			ui.Text(c, from+" asks to verify this device. Only agree if you started it there yourself.").
+				FontSize(SizeBody).TextColor(p.TextMuted).TextAlign(ui.Center).MaxWidth(340)
+		})
+		ui.Row(c).Gap(S2).Children(func() {
+			if Button(c, Secondary, "Decline", nil).Grow(1).Clicked() {
+				decline = true
+			}
+			if Button(c, Primary, "Accept", IconCheck).Grow(1).Clicked() {
+				accept = true
+			}
+		})
+	})
+	return accept, decline
+}
+
+// VerifyWait: we started it; the other side has to accept. cancel backs
+// out.
+func VerifyWait(c *ui.Context) (cancel bool) {
+	p := Of(c)
+	ui.Column(c).Width(VerifyStartWidth).MaxWidthPercent(100).Gap(S4).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, IconShield).Size(28, 28).TextColor(p.Accent)
+		ui.Text(c, "Waiting for your other device").FontSize(SizeTitle).FontWeight(WeightSemibold).TextAlign(ui.Center)
+		ui.Text(c, "Accept the request there — it may need a tap — and the emoji appear here.").
+			FontSize(SizeBody).TextColor(p.TextMuted).TextAlign(ui.Center).MaxWidth(340)
+		if Button(c, Secondary, "Cancel", nil).Clicked() {
+			cancel = true
+		}
+	})
+	return cancel
+}
+
+// VerifyKey asks for the Security Key; submitted reports Restore pressed
+// (or Enter). busy swaps the button for a working line.
+func VerifyKey(c *ui.Context, key *string, busy bool) (submitted bool) {
+	p := Of(c)
+	ui.Column(c).Width(VerifyStartWidth).MaxWidthPercent(100).Gap(S4).AlignItems(ui.Stretch).Children(func() {
+		ui.Column(c).Gap(S1).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, IconKey).Size(28, 28).TextColor(p.Accent)
+			ui.Text(c, "Use your Security Key").FontSize(SizeTitle).FontWeight(WeightSemibold)
+			ui.Text(c, "In Element: Settings → Security & Privacy → Security Key. Your Security Phrase works too.").
+				FontSize(SizeBody).TextColor(p.TextMuted).TextAlign(ui.Center).MaxWidth(340)
+		})
+		var in ui.Element
+		ui.Column(c).Gap(S15).Children(func() {
+			ui.Text(c, "Security Key").FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.TextMuted)
+			box := ui.Row(c)
+			box.Children(func() {
+				in = ui.TextInputBase(c, key).Grow(1).Password().
+					Placeholder("EsTc WLwb Z5P1…").PlaceholderColor(p.TextMuted).
+					Label("Security Key").FontSize(fieldSize(c)).AutoFocus()
+			})
+			field(c, box)
+		})
+		if in.Submitted() {
+			submitted = true
+		}
+		if busy {
+			ui.Text(c, "Reading the key…").FontSize(SizeSmall).TextColor(p.TextMuted)
+		} else if Button(c, Primary, "Restore", IconKey).Clicked() {
+			submitted = true
+		}
+	})
+	return submitted
+}
+
 // choiceRow is a large option row with an icon, a title and a subtitle.
 // It sits inside a group card or a sheet, so it is flat — no background
 // or border of its own (no cards in cards); hover and press tint over
@@ -124,7 +198,7 @@ func choiceRow(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 	b.Padding(S3).Gap(S3).Radius(RadiusMd - 2).AlignItems(ui.Center).
 		Background(b.AnimateColor("bg", bg, Color)).Label(title)
 	b.Children(func() {
-		ui.Box(c).Size(36, 36).Radius(RadiusSm+2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
+		ui.Box(c).Size(36, 36).Radius(RadiusSm + 2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
 			Children(func() { ui.Icon(c, icon).Size(18, 18).TextColor(p.AccentStrong) })
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium)

@@ -40,6 +40,16 @@ func TestRoomAppend(t *testing.T) {
 		t.Fatalf("system line: unread %d, preview %q", r.unread, r.preview)
 	}
 
+	// The same event ID again (a late decrypt re-dispatched) replaces the
+	// one the room has, in its place, without counting unread twice.
+	r.appendEvent(model.Event{ID: "$2", Time: at(2), Kind: model.EventText, Body: "done, edited"}, "You", true)
+	if len(r.events) != 3 || r.unread != 1 {
+		t.Fatalf("replaced: %d events, unread %d", len(r.events), r.unread)
+	}
+	if r.events[1].Body != "done, edited" {
+		t.Fatalf("the tile was not replaced in place: %+v", r.events[1])
+	}
+
 	// The timeline caps at timelineCap, keeping the newest.
 	for i := 0; i < timelineCap+20; i++ {
 		r.appendEvent(model.Event{ID: "$m" + time.Duration(i).String(), Time: at(int64(i)), Kind: model.EventText, Body: "m"}, "X", false)

@@ -23,13 +23,13 @@ type Quote struct {
 
 // MessageData is one event of the timeline.
 type MessageData struct {
-	ID       string
-	Sender   string
-	SenderID string
-	Avatar   AvatarSpec
-	Time     string // "14:02"
-	Body     string
-	Reply    *Quote
+	ID        string
+	Sender    string
+	SenderID  string
+	Avatar    AvatarSpec
+	Time      string // "14:02"
+	Body      string
+	Reply     *Quote
 	Reactions []Reaction
 	// First is set on the first of a group of consecutive messages from one
 	// sender, which shows the avatar and the name.
@@ -72,10 +72,10 @@ type YouTubeSpec struct {
 
 // MessageAction is what the user did to a message.
 type MessageAction struct {
-	React  string // a reaction key toggled
-	OpenEmoji bool // the reaction picker asked for
-	Reply  bool
-	More   bool
+	React     string // a reaction key toggled
+	OpenEmoji bool   // the reaction picker asked for
+	Reply     bool
+	More      bool
 	// OpenMedia is the attachment clicked, or -1.
 	OpenMedia int
 	// PlayVideo is set when an embedded video's play was pressed.
@@ -329,7 +329,7 @@ func ReactionPill(c *ui.Context, r Reaction) ui.Element {
 	Pressable(b)
 	b.Children(func() {
 		ui.Text(c, r.Key).FontSize(13)
-		ui.Text(c, strconv.Itoa(r.Count)).FontSize(SizeCaption+1).FontWeight(WeightMedium).FontFeatures("tnum").
+		ui.Text(c, strconv.Itoa(r.Count)).FontSize(SizeCaption + 1).FontWeight(WeightMedium).FontFeatures("tnum").
 			TextColor(fg).ContentTransition(ui.ContentTransition{Numeric: true})
 	})
 	return b
@@ -369,7 +369,7 @@ func TypingLine(c *ui.Context, text string) {
 				d.Opacity(o)
 			}
 		})
-		ui.Text(c, text).FontSize(SizeCaption+1).TextColor(p.TextMuted).SingleLine()
+		ui.Text(c, text).FontSize(SizeCaption + 1).TextColor(p.TextMuted).SingleLine()
 	})
 }
 

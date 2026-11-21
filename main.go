@@ -12,6 +12,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -117,11 +118,23 @@ func main() {
 					}
 					win.Update(func() {
 						a = app.New(src, pick)
+						// The app's own state (layout, settings, where the
+						// user was, drafts) comes back with the account.
+						if dir, err := matrix.AccountDir(string(s.UserID)); err == nil {
+							a.SetStatePath(filepath.Join(dir, "ui.json"))
+						}
 						a.OpenGallery = openGallery
 						a.Attach(win)
 						a.MenuChanged = setMenu
 						signed = true
 						setMenu()
+						// What the sync learned is on disk before the window
+						// goes (the cache also writes a second after every
+						// change, so a crash loses at most that).
+						win.OnClose(func(*mygo.CloseEvent) {
+							src.Flush()
+							a.SaveState()
+						})
 						src.Start(context.Background())
 					})
 				}()

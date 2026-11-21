@@ -185,7 +185,7 @@ func Dialog(c *ui.Context, open *bool, title string, width float32, fn func()) {
 		panel.Width(width).MaxWidthPercent(100).Padding(S5).Gap(S5).Radius(RadiusLg).Background(p.Raised).
 			Border(1, p.Border).Shadow(0, 16, 48, -8, p.Shadow).Transition(FadeIn())
 		if title != "" {
-			ui.Text(c, title).FontSize(SizeLabel+1).FontWeight(WeightSemibold).TextColor(p.Text).
+			ui.Text(c, title).FontSize(SizeLabel + 1).FontWeight(WeightSemibold).TextColor(p.Text).
 				Role(ui.RoleHeading).PaddingEnd(S6) // clear of the close button
 		}
 		fn()
@@ -239,7 +239,7 @@ func Confirm(c *ui.Context, st *SheetState, s ConfirmSpec) (answered, confirmed 
 	wasOpen := st.Open
 	body := func() {
 		ui.Column(c).Gap(S15).Children(func() {
-			ui.Text(c, s.Title).FontSize(SizeLabel+1).FontWeight(WeightSemibold).TextColor(p.Text).Role(ui.RoleHeading).
+			ui.Text(c, s.Title).FontSize(SizeLabel + 1).FontWeight(WeightSemibold).TextColor(p.Text).Role(ui.RoleHeading).
 				PaddingEnd(S6)
 			if s.Body != "" {
 				ui.Text(c, s.Body).FontSize(SizeBody).LineHeight(1.45).TextColor(p.TextMuted)

@@ -218,7 +218,7 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 							qbg = ui.RGBA(0, 0, 0, 0.2)
 						}
 					}
-					ui.Row(c).Gap(S2).Padding(S15, S2).Radius(RadiusSm+2).Background(qbg).Children(func() {
+					ui.Row(c).Gap(S2).Padding(S15, S2).Radius(RadiusSm + 2).Background(qbg).Children(func() {
 						ui.Box(c).Width(2).Radius(1).Background(colors.Color(p, q.SenderID)).AlignSelf(ui.Stretch)
 						ui.Column(c).Gap(1).MinWidth(0).Children(func() {
 							ui.Text(c, q.Sender).FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(colors.Color(p, q.SenderID)).SingleLine()
@@ -314,13 +314,13 @@ func TypingBubble(c *ui.Context, who string, avatar AvatarSpec, colors *UserColo
 			}
 			Avatar(c, av)
 			tl, tr, br, bl := bubbleRadii(false, true)
-			ui.Row(c).Height(36).PaddingX(S3 + 2).Gap(4).Radius(tl, tr, br, bl).Background(p.BubbleIn).AlignItems(ui.Center).
+			ui.Row(c).Height(36).PaddingX(S3+2).Gap(4).Radius(tl, tr, br, bl).Background(p.BubbleIn).AlignItems(ui.Center).
 				Label(who + " is typing").Children(func() {
 				for i := 0; i < 3; i++ {
 					d := ui.Box(c.Key(i)).Size(7, 7).Radius(RadiusFull).Background(p.TextMuted)
 					t := d.Loop("t", 1200*time.Millisecond, ui.Linear)
 					v := pulse(t, float32(i)/4)
-					d.Opacity(0.35 + 0.65*v).Translate(0, -2*v)
+					d.Opacity(0.35+0.65*v).Translate(0, -2*v)
 				}
 			})
 		})
@@ -364,7 +364,7 @@ func PhoneChatHeader(c *ui.Context, h ChatHeader) (a ChatHeaderAction) {
 			Avatar(c, av)
 			ui.Column(c).MinWidth(0).Gap(0).Children(func() {
 				ui.Row(c).Gap(S1).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, h.Title).FontSize(SizeLabel+1).FontWeight(WeightSemibold).SingleLine().Shrink(1)
+					ui.Text(c, h.Title).FontSize(SizeLabel + 1).FontWeight(WeightSemibold).SingleLine().Shrink(1)
 					if h.Muted {
 						ui.Icon(c, IconBellOff).Size(13, 13).TextColor(p.TextMuted)
 					}

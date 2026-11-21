@@ -237,7 +237,7 @@ func (a *App) meButton(c *ui.Context, size float32) {
 
 // communityCounts sums a community's rooms.
 func (a *App) communityCounts(cm model.Community) (unread bool, mentions int) {
-	for _, id := range cm.Rooms {
+	for _, id := range a.communityRoomIDs(cm, 0) {
 		if r, ok := a.src.Room(id); ok && !r.Muted {
 			unread = unread || r.Unread > 0
 			mentions += r.Mentions
@@ -252,7 +252,7 @@ func (a *App) railColumn(c *ui.Context) {
 	ui.Column(c).Width(288).Shrink(0).Background(a.sideBg(c)).
 		BorderWidth(0, 1, 0, 0).BorderColor(p.Border).Children(func() {
 		if cm, ok := a.communityOf(a.community); ok {
-			ui.Scroll(c.Key("cm:"+cm.ID)).Grow(1).PaddingX(kit.S2).Children(func() {
+			ui.Scroll(c.Key("cm:" + cm.ID)).Grow(1).PaddingX(kit.S2).Children(func() {
 				a.communityHome(c, cm)
 				ui.Box(c).Height(1).Background(p.Border).MarginY(kit.S1)
 				a.communityRooms(c, cm)
@@ -295,7 +295,7 @@ func (a *App) tabsColumn(c *ui.Context) {
 				a.switcher.Toggle()
 			}
 		})
-		ui.Scroll(c.Key("tab"+strconv.Itoa(a.tab))).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() {
+		ui.Scroll(c.Key("tab" + strconv.Itoa(a.tab))).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() {
 			if a.tab == 0 {
 				a.chatsList(c, true)
 				return
@@ -422,7 +422,7 @@ func (a *App) tabBar(c *ui.Context, names []string, icons []*ui.SVG) (pressed in
 			if i == a.phoneTab {
 				fg = p.AccentStrong
 			}
-			tab := ui.ButtonBase(c.Key("tab:"+n)).Grow(1).Gap(2).Column().AlignItems(ui.Center).Label(n).AccessSelected(i == a.phoneTab)
+			tab := ui.ButtonBase(c.Key("tab:" + n)).Grow(1).Gap(2).Column().AlignItems(ui.Center).Label(n).AccessSelected(i == a.phoneTab)
 			tab.Children(func() {
 				ui.Icon(c, icons[i]).Size(22, 22).TextColor(fg)
 				ui.Text(c, n).FontSize(10).FontWeight(kit.WeightMedium).TextColor(fg)

@@ -68,7 +68,7 @@ func PollEditor(c *ui.Context, d *PollDraft) (create bool) {
 		ui.Column(c).Gap(S15).Children(func() {
 			label("Answers")
 			for i := 0; i < len(d.Answers); i++ {
-				ui.Row(c.Key("ans"+strconv.Itoa(i))).Gap(S1).AlignItems(ui.Center).
+				ui.Row(c.Key("ans" + strconv.Itoa(i))).Gap(S1).AlignItems(ui.Center).
 					Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}).
 					Children(func() {
 						ui.Column(c).Grow(1).Children(func() {
@@ -361,7 +361,7 @@ func pollVoterList(c *ui.Context, pd PollData) {
 	ui.Scroll(c.Key("voters")).MaxHeight(340).Children(func() {
 		ui.Column(c).Gap(S3).Children(func() {
 			for i, an := range pd.Answers {
-				ui.Column(c.Key("va"+strconv.Itoa(i))).Gap(S1).Children(func() {
+				ui.Column(c.Key("va" + strconv.Itoa(i))).Gap(S1).Children(func() {
 					ui.Row(c).Gap(S2).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, an.Text).FontSize(SizeSmall).FontWeight(WeightSemibold).TextColor(p.Text).Grow(1).MinWidth(0)
 						ui.Text(c, strconv.Itoa(an.Votes)).FontSize(SizeSmall).FontFeatures("tnum").TextColor(p.TextMuted)
@@ -390,7 +390,7 @@ func pollVoterList(c *ui.Context, pd PollData) {
 // voterRow is a voter: a small avatar and their name in their color.
 func voterRow(c *ui.Context, key, name, mxid string, colors *UserColors) {
 	p := Of(c)
-	ui.Row(c.Key("v:"+key)).Gap(S2).AlignItems(ui.Center).MinHeight(24).Children(func() {
+	ui.Row(c.Key("v:" + key)).Gap(S2).AlignItems(ui.Center).MinHeight(24).Children(func() {
 		id := mxid
 		if id == "" {
 			id = name

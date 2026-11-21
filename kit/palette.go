@@ -136,7 +136,7 @@ func Switcher(c *ui.Context, st *SwitcherState, items []SwitcherItem, colors *Us
 		ui.Row(c).Height(52).PaddingX(S4).Gap(S3).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, IconSearch).Size(18, 18).TextColor(p.TextMuted)
 			in := ui.TextInputBase(c, &st.Query).Grow(1).Placeholder("Jump to a room or person…").
-				PlaceholderColor(p.TextMuted).FontSize(SizeLabel+1).Label("Jump to").AutoFocus()
+				PlaceholderColor(p.TextMuted).FontSize(SizeLabel + 1).Label("Jump to").AutoFocus()
 			if in.Changed() {
 				st.sel = 0
 			}
@@ -168,7 +168,7 @@ func Switcher(c *ui.Context, st *SwitcherState, items []SwitcherItem, colors *Us
 				st.Open = false
 			}
 		})
-		ui.Row(c).PaddingX(S4).Gap(S1+2).PaddingY(S05).Children(func() {
+		ui.Row(c).PaddingX(S4).Gap(S1 + 2).PaddingY(S05).Children(func() {
 			for i, l := range scopeLabels {
 				if Chip(c.Key("scope"+l), l, st.Scope == i).Clicked() {
 					st.Scope, st.sel = i, 0

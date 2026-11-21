@@ -124,47 +124,100 @@ func (a *App) switcherOverlay(c *ui.Context) {
 	}
 }
 
-var demoSAS = []kit.SASEmoji{
-	{Emoji: "🐶", Name: "Dog"}, {Emoji: "🔑", Name: "Key"}, {Emoji: "🌵", Name: "Cactus"}, {Emoji: "🎸", Name: "Guitar"},
-	{Emoji: "🚀", Name: "Rocket"}, {Emoji: "🍄", Name: "Mushroom"}, {Emoji: "⚓", Name: "Anchor"},
-}
-
-// verifyDialog walks through verifying this session (the flow, on fake
-// emoji: the crypto comes with the Matrix layer).
+// verifyDialog walks through verifying this session, on the source's
+// Verify (the crypto layer's real flow; the mock's fake walks the same
+// screens). An incoming request opens it by itself.
 func (a *App) verifyDialog(c *ui.Context) {
+	v := a.verifier
+	if v == nil {
+		a.verify.Open = false
+		return
+	}
+	st := v.State()
+	// Unverified with messages that cannot be read: the prompt shows once
+	// a run (declining it leaves the banner in the room and the settings
+	// entry), never nagging.
+	if st.Needed && !a.verifyAsked {
+		a.verifyAsked = true
+		a.verify.Open = true
+	}
+	if st.Phase == model.VerifyAsked && !a.verify.Open {
+		a.verify.Open = true
+	}
 	if !a.verify.Open {
 		return
 	}
+	err := func() { // one quiet line, on whichever screen says why
+		if st.Err != "" {
+			ui.Text(c, st.Err).FontSize(kit.SizeSmall).TextColor(kit.Of(c).Danger).TextAlign(ui.Center)
+		}
+	}
 	body := func() {
-		switch a.verifyStep {
-		case 0:
-			switch kit.VerifyStart(c) {
-			case kit.VerifyWithDevice:
-				a.verifyStep = 1
-			case kit.VerifyWithKey:
-				a.toast = "Security Key entry comes with the Matrix layer"
-				a.verify.Open = false
-			case kit.VerifyReset:
-				a.toast = "Resetting your identity comes with the Matrix layer"
-				a.verify.Open = false
+		// The key entry is a step of its own until submitted.
+		if a.verifyStep == 1 {
+			if kit.VerifyKey(c, &a.verifyKey, st.Phase == model.VerifyWorking) {
+				a.verifyStep = 0
+				v.UseKey(a.verifyKey)
+				a.verifyKey = ""
 			}
-		case 1:
-			switch kit.VerifyEmoji(c, "your other device", demoSAS) {
+			err()
+			return
+		}
+		switch st.Phase {
+		case model.VerifyAsked:
+			accept, decline := kit.VerifyAsk(c, st.From)
+			switch {
+			case accept:
+				v.Accept()
+			case decline:
+				v.Decline()
+			}
+		case model.VerifyWaiting:
+			if kit.VerifyWait(c) {
+				v.Decline()
+			}
+		case model.VerifyEmoji:
+			switch kit.VerifyEmoji(c, st.From, sasOf(st.Emoji)) {
 			case kit.VerifyMatch:
-				a.verifyStep = 2
+				v.Confirm(true)
 			case kit.VerifyMismatch:
-				a.toast = "Verification cancelled: the emoji didn't match"
-				a.verify.Open = false
+				v.Confirm(false)
 			}
-		default:
+		case model.VerifyWorking:
+			p := kit.Of(c)
+			ui.Column(c).AlignItems(ui.Center).Gap(kit.S3).Padding(kit.S4).Children(func() {
+				ui.Icon(c, kit.IconShield).Size(40, 40).TextColor(p.Accent)
+				ui.Text(c, "Working…").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold)
+				if st.From != "" {
+					ui.Text(c, "With "+st.From).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
+				}
+			})
+		case model.VerifyDone:
 			p := kit.Of(c)
 			ui.Column(c).AlignItems(ui.Center).Gap(kit.S3).Padding(kit.S4).Children(func() {
 				ui.Icon(c, kit.IconShield).Size(40, 40).TextColor(p.Success)
 				ui.Text(c, "This session is verified").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold)
+				if st.Err != "" { // the backup note: verified, history pending
+					ui.Text(c, st.Err).FontSize(kit.SizeSmall).TextColor(p.TextMuted).TextAlign(ui.Center)
+				} else {
+					ui.Text(c, "Your encrypted messages will appear as the keys arrive.").
+						FontSize(kit.SizeSmall).TextColor(p.TextMuted).TextAlign(ui.Center)
+				}
 				if kit.Button(c, kit.Primary, "Done", nil).Clicked() {
 					a.verify.Open = false
 				}
 			})
+		default: // idle: how to verify
+			switch kit.VerifyStart(c) {
+			case kit.VerifyWithDevice:
+				v.BeginWithDevice()
+			case kit.VerifyWithKey:
+				a.verifyStep = 1
+			case kit.VerifyReset:
+				a.toast = "Resetting your identity comes with the Matrix layer"
+				a.verify.Open = false
+			}
+			err()
 		}
 	}
 	if kit.Compact(c) {
@@ -172,6 +225,15 @@ func (a *App) verifyDialog(c *ui.Context) {
 	} else {
 		kit.Dialog(c, &a.verify.Open, "Verify this session", 460, body)
 	}
+}
+
+// sasOf maps the model's emoji to the kit's.
+func sasOf(emoji []model.SASEmoji) []kit.SASEmoji {
+	out := make([]kit.SASEmoji, len(emoji))
+	for i, e := range emoji {
+		out[i] = kit.SASEmoji{Emoji: e.Emoji, Name: e.Name}
+	}
+	return out
 }
 
 // phoneSheets are the phone's sheets: a room's actions and its info.

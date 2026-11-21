@@ -65,7 +65,7 @@ func (a *App) sectionHeader(c *ui.Context, title string, icon *ui.SVG) {
 		if icon != nil {
 			ui.Icon(c, icon).Size(12, 12).TextColor(p.TextMuted)
 		}
-		ui.Text(c, title).FontSize(kit.SizeCaption+1).FontWeight(kit.WeightMedium).TextColor(p.TextMuted)
+		ui.Text(c, title).FontSize(kit.SizeCaption + 1).FontWeight(kit.WeightMedium).TextColor(p.TextMuted)
 	})
 }
 
@@ -84,7 +84,7 @@ func (a *App) chatRow(c *ui.Context, r model.Room) {
 func (a *App) peopleEntry(c *ui.Context) {
 	p := kit.Of(c)
 	sel := a.view == viewPeople
-	b := ui.ButtonBase(c.Key("people")).Height(36).PaddingX(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd-2).
+	b := ui.ButtonBase(c.Key("people")).Height(36).PaddingX(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd - 2).
 		AlignItems(ui.Center).Justify(ui.Start).Label("People").AccessSelected(sel)
 	bg, fg := ui.Transparent, p.Text
 	switch {
@@ -121,7 +121,12 @@ func emptyNote(c *ui.Context, text string) {
 // communities are the spaces, favourites first, each group in the server's
 // order.
 func (a *App) communities() []model.Community {
-	all := a.src.Communities()
+	var all []model.Community
+	for _, cm := range a.src.Communities() {
+		if cm.Parent == "" { // sub-spaces live inside their parent
+			all = append(all, cm)
+		}
+	}
 	out := make([]model.Community, 0, len(all))
 	for _, cm := range all {
 		if cm.Favourite {
@@ -161,7 +166,7 @@ func (a *App) communityHome(c *ui.Context, cm model.Community) {
 			kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 48, Square: true})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 				ui.Row(c).Gap(kit.S1).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, cm.Name).FontSize(kit.SizeLabel+1).FontWeight(kit.WeightSemibold).SingleLine().Shrink(1)
+					ui.Text(c, cm.Name).FontSize(kit.SizeLabel + 1).FontWeight(kit.WeightSemibold).SingleLine().Shrink(1)
 					if cm.Favourite {
 						ui.Icon(c, kit.IconStar).Size(12, 12).TextColor(p.TextMuted).Label("Favourite")
 					}
@@ -187,6 +192,12 @@ func (a *App) communityHome(c *ui.Context, cm model.Community) {
 
 // communityRooms lists a community's rooms.
 func (a *App) communityRooms(c *ui.Context, cm model.Community) {
+	a.communityRoomsAt(c, cm, 0)
+}
+
+// communityRoomsAt lists a community's rooms, then each sub-space as a
+// titled group with its own rooms (nested a level deeper, never past four).
+func (a *App) communityRoomsAt(c *ui.Context, cm model.Community, depth int) {
 	for _, id := range cm.Rooms {
 		r, ok := a.src.Room(id)
 		if !ok {
@@ -196,13 +207,38 @@ func (a *App) communityRooms(c *ui.Context, cm model.Community) {
 			a.open(id)
 		}
 	}
+	if depth >= 3 {
+		return
+	}
+	for _, sid := range cm.Spaces {
+		sub, ok := a.communityOf(sid)
+		if !ok {
+			continue
+		}
+		a.sectionHeader(c, sub.Name, nil)
+		a.communityRoomsAt(c, sub, depth+1)
+	}
+}
+
+// communityRoomIDs is every room of a community, its sub-spaces' too.
+func (a *App) communityRoomIDs(cm model.Community, depth int) []string {
+	ids := append([]string(nil), cm.Rooms...)
+	if depth >= 3 {
+		return ids
+	}
+	for _, sid := range cm.Spaces {
+		if sub, ok := a.communityOf(sid); ok {
+			ids = append(ids, a.communityRoomIDs(sub, depth+1)...)
+		}
+	}
+	return ids
 }
 
 // roomLine is a community's room: # and its name, quiet unless unread,
 // with its menu on right click.
 func (a *App) roomLine(c *ui.Context, r model.Room, selected bool) ui.Element {
 	p := kit.Of(c)
-	b := ui.ButtonBase(c.Key("room:"+r.ID)).Height(32).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).
+	b := ui.ButtonBase(c.Key("room:" + r.ID)).Height(32).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).
 		AlignItems(ui.Center).Justify(ui.Start).Label(r.Name).AccessSelected(selected)
 	if kit.Touch(c) {
 		b.Height(44)
@@ -285,7 +321,7 @@ func (a *App) communitiesTab(c *ui.Context) {
 // click its menu.
 func (a *App) communityCard(c *ui.Context, cm model.Community) {
 	p := kit.Of(c)
-	b := ui.ButtonBase(c.Key("cm"+cm.ID)).Padding(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd).AlignItems(ui.Center).Justify(ui.Start).Label(cm.Name)
+	b := ui.ButtonBase(c.Key("cm" + cm.ID)).Padding(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd).AlignItems(ui.Center).Justify(ui.Start).Label(cm.Name)
 	if b.Hovered() {
 		b.Background(p.Hover)
 	}
@@ -294,7 +330,7 @@ func (a *App) communityCard(c *ui.Context, cm model.Community) {
 		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 44, Square: true})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, cm.Name).FontSize(kit.SizeBody).FontWeight(kit.WeightSemibold).SingleLine()
-			ui.Text(c, strconv.Itoa(len(cm.Rooms))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
+			ui.Text(c, strconv.Itoa(len(a.communityRoomIDs(cm, 0)))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
 		})
 		switch {
 		case ment > 0:
@@ -408,7 +444,7 @@ func (a *App) latest(cm model.Community) (t time.Time) {
 func (a *App) inboxCommunity(c *ui.Context, cm model.Community) {
 	p := kit.Of(c)
 	open := a.expanded[cm.ID]
-	b := ui.ButtonBase(c.Key("ic"+cm.ID)).Height(kit.RowHeight).PaddingX(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd-2).
+	b := ui.ButtonBase(c.Key("ic" + cm.ID)).Height(kit.RowHeight).PaddingX(kit.S2).Gap(kit.S3).Radius(kit.RadiusMd - 2).
 		AlignItems(ui.Center).Justify(ui.Start).Label(cm.Name).Expanded(open)
 	if b.Hovered() {
 		b.Background(p.Hover)
@@ -418,7 +454,7 @@ func (a *App) inboxCommunity(c *ui.Context, cm model.Community) {
 		kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 36, Square: true})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, cm.Name).FontSize(kit.SizeBody).FontWeight(kit.WeightSemibold).SingleLine()
-			ui.Text(c, strconv.Itoa(len(cm.Rooms))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
+			ui.Text(c, strconv.Itoa(len(a.communityRoomIDs(cm, 0)))+" rooms · "+compact(cm.Online)+" online").FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
 		})
 		if ment > 0 {
 			kit.Count(c, ment, true)
@@ -436,7 +472,7 @@ func (a *App) inboxCommunity(c *ui.Context, cm model.Community) {
 		a.expanded[cm.ID] = !open
 	}
 	if open {
-		ui.Column(c.Key("icr"+cm.ID)).PaddingStart(36+kit.S3).Gap(1).
+		ui.Column(c.Key("icr" + cm.ID)).PaddingStart(36 + kit.S3).Gap(1).
 			Transition(ui.ElementTransition{Duration: kit.DurBase, ExitDuration: kit.DurFast, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}).
 			Children(func() { a.communityRooms(c, cm) })
 	}

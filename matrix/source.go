@@ -3,6 +3,7 @@ package matrix
 import (
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"maunium.net/go/mautrix"
@@ -16,18 +17,46 @@ import (
 // fills in the rooms, the timeline and the people, changing everything
 // through SetUpdate's function, on the UI thread alone.
 type Source struct {
-	me       model.Person
-	rooms    map[string]*room
-	direct   map[string]bool // the DM rooms (m.direct)
-	people   map[string]*model.Person
-	update   func(func())
-	onChange []func()
+	me     model.Person
+	rooms  map[string]*room
+	direct map[string]bool // the DM rooms (m.direct)
+	people map[string]*model.Person
+	// encrypted counts the messages still waiting for keys: the verify
+	// prompt shows while any are there and the session is unverified.
+	encrypted int
+	update    func(func())
+	onChange  []func()
 
 	// The wiring Start needs; nil on a Source built by NewSource alone.
 	cli     *mautrix.Client
 	acc     *Account
 	helper  *cryptohelper.CryptoHelper
+	verify  *VerifyDriver
 	started bool
+
+	// mu guards the batch: posts made while a sync response is processed
+	// are queued and applied together.
+	mu       sync.Mutex
+	batching bool
+	queue    []func()
+
+	// keyKick wakes the key watcher when a message arrives locked.
+	keyKick chan struct{}
+
+	// The room cache (persist.go): the rooms changed since the last
+	// write, the rooms gone, the sync token the state is at, and whether
+	// a write is already scheduled. UI thread alone.
+	cache          *Cache
+	token          string
+	dirty          map[string]bool
+	gone           []string
+	dirtyMeta      bool
+	tokenDirty     bool
+	persistPending bool
+	// resumed: this run started from the cache's token (a token the
+	// server refuses then means the cache is dropped and the sync starts
+	// over).
+	resumed bool
 }
 
 // NewSource is the app's view of a signed-in account, before any sync.
@@ -37,6 +66,8 @@ func NewSource(s *Session) *Source {
 		rooms:  map[string]*room{},
 		direct: map[string]bool{},
 		people: map[string]*model.Person{},
+
+		keyKick: make(chan struct{}, 1),
 	}
 }
 
@@ -67,8 +98,58 @@ func (s *Source) post(fn func()) {
 	if s.update == nil {
 		return
 	}
+	s.mu.Lock()
+	if s.batching {
+		s.queue = append(s.queue, fn)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
 	s.update(func() {
 		fn()
+		s.changed()
+	})
+}
+
+// beginBatch starts collecting posts: one sync response is dozens of
+// events, and the UI must see it whole — or a room shows in Chats for a
+// frame before its space and parent claims arrive, then moves.
+func (s *Source) beginBatch() {
+	s.mu.Lock()
+	s.batching = true
+	s.mu.Unlock()
+}
+
+// endBatch runs everything collected as one UI update, one redraw.
+//
+// token is the sync token this response continues to: the state is at it
+// once the queue has run, so the cache writes them together. left are the
+// rooms the user is no longer in: they go once the queue has run (their
+// last events would otherwise bring them back).
+func (s *Source) endBatch(token string, left []string) {
+	s.mu.Lock()
+	q := s.queue
+	s.queue, s.batching = nil, false
+	s.mu.Unlock()
+	if s.update == nil {
+		return
+	}
+	s.update(func() {
+		for _, fn := range q {
+			fn()
+		}
+		for _, id := range left {
+			if _, ok := s.rooms[id]; ok {
+				delete(s.rooms, id)
+				s.gone = append(s.gone, id)
+				delete(s.dirty, id)
+				s.dirtyMeta = true
+			}
+		}
+		if token != "" {
+			s.token, s.tokenDirty = token, true
+		}
+		s.schedulePersist()
 		s.changed()
 	})
 }
@@ -90,6 +171,7 @@ func (r *room) modelRoom() model.Room {
 		Kind:         model.KindGroup,
 		Name:         r.name,
 		Topic:        r.topic,
+		Avatar:       r.avatar,
 		Members:      r.members,
 		Encrypted:    r.encrypted,
 		Unread:       r.unread,
@@ -110,11 +192,17 @@ func (r *room) modelRoom() model.Room {
 }
 
 // Rooms lists the joined rooms, the most recently active first, as the
-// lists show them.
+// lists show them, each with the space it belongs to.
 func (s *Source) Rooms() []model.Room {
+	spaceOf := s.spaceOf()
 	out := make([]model.Room, 0, len(s.rooms))
 	for _, r := range s.rooms {
-		out = append(out, r.modelRoom())
+		if r.space {
+			continue // a space is a community on the rail, never a chat
+		}
+		m := r.modelRoom()
+		m.Community = spaceOf[r.id]
+		out = append(out, m)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].LastActivity.After(out[j].LastActivity) })
 	return out
@@ -125,11 +213,90 @@ func (s *Source) Room(id string) (model.Room, bool) {
 	if !ok {
 		return model.Room{}, false
 	}
-	return r.modelRoom(), true
+	m := r.modelRoom()
+	m.Community = s.spaceOf()[id]
+	return m, true
 }
 
-// Communities is nothing yet: spaces come with a later milestone.
-func (s *Source) Communities() []model.Community { return nil }
+// Communities lists the spaces (the joined rooms of type m.space) by
+// name, with the rooms each one lists.
+func (s *Source) Communities() []model.Community {
+	var out []model.Community
+	spaceOf := s.spaceOf()
+	for _, r := range s.rooms {
+		if !r.space {
+			continue
+		}
+		cm := model.Community{
+			ID: r.id, Name: r.name, About: r.topic, Avatar: r.avatar,
+			Members: r.members, Favourite: r.favourite,
+			Rooms: s.childIDs(r),
+		}
+		if p := spaceOf[r.id]; p != "" && p != r.id {
+			cm.Parent = p
+		}
+		for _, ch := range r.children {
+			if cr, ok := s.rooms[ch.room]; ok && cr.space && spaceOf[ch.room] == r.id {
+				cm.Spaces = append(cm.Spaces, ch.room)
+			}
+		}
+		out = append(out, cm)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// childIDs is a space's rooms, in its own order — the sub-spaces among
+// them stay out: they are communities themselves, on the rail, not rooms
+// in a list.
+func (s *Source) childIDs(r *room) []string {
+	var out []string
+	for _, ch := range r.children {
+		if cr, ok := s.rooms[ch.room]; ok && cr.space {
+			continue
+		}
+		out = append(out, ch.room)
+	}
+	return out
+}
+
+// spaceOf maps each room to the space it belongs to, deterministically —
+// the same answer every call, or the lists would flicker. A room's own
+// m.space.parent claim wins; otherwise the first space by ID that lists
+// it, and only a joined space's claim counts (an unjoined space must not
+// take a room out of Chats and give it nowhere to go).
+func (s *Source) spaceOf() map[string]string {
+	out := map[string]string{}
+	var spaceIDs []string
+	byID := map[string]*room{}
+	for id, r := range s.rooms {
+		if r.space {
+			spaceIDs = append(spaceIDs, id)
+			byID[id] = r
+		}
+	}
+	sort.Strings(spaceIDs)
+	for _, r := range s.rooms {
+		if r.parent != "" {
+			if _, ok := s.rooms[r.parent]; ok {
+				out[r.id] = r.parent
+			}
+		}
+	}
+	for _, spaceID := range spaceIDs {
+		for _, ch := range byID[spaceID].children {
+			if _, ok := out[ch.room]; !ok {
+				out[ch.room] = spaceID
+			}
+		}
+	}
+	return out
+}
 
 func (s *Source) People() []model.Person {
 	out := make([]model.Person, 0, len(s.people))
@@ -157,6 +324,15 @@ func (s *Source) Timeline(room string) []model.Event {
 }
 
 func (s *Source) Sessions() []model.Session { return nil }
+
+// Verify is this device's verification: the emoji with another device,
+// or the Security Key. Nil before sync.
+func (s *Source) Verify() model.Verify {
+	if s.verify == nil {
+		return nil
+	}
+	return s.verify
+}
 
 // The writes that mean something before the later milestones: sending,
 // reacting, reading. The rest are quiet no-ops, marked for their own

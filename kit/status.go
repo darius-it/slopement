@@ -225,7 +225,7 @@ type ProfileAction struct {
 // name, ID, status, trust, and quick actions. A popover on desktops.
 func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time) (a ProfileAction) {
 	p := Of(c)
-	ui.Column(c.Key("profile:"+s.MXID)).Width(300).Gap(S3).Children(func() {
+	ui.Column(c.Key("profile:" + s.MXID)).Width(300).Gap(S3).Children(func() {
 		ui.Row(c).Gap(S3).AlignItems(ui.Center).Children(func() {
 			av := s.Avatar
 			av.Size, av.Name, av.ID, av.Colors, av.Trust = 56, s.Name, s.MXID, colors, s.Trust

@@ -23,7 +23,7 @@ func PeopleGrid(c *ui.Context, st *PeopleState, people []Person, colors *UserCol
 			}
 			ui.Text(c.Key("sec"+title), title+" — "+strconv.Itoa(len(list))).FontSize(SizeCaption).
 				FontWeight(WeightSemibold).TextColor(p.TextMuted).Padding(0, S1)
-			ui.Row(c.Key("grid"+title)).Wrap().Gap(S2).Children(func() {
+			ui.Row(c.Key("grid" + title)).Wrap().Gap(S2).Children(func() {
 				for _, ps := range list {
 					if act := personTile(c, ps, colors, now); act.Open != "" || act.Profile != "" {
 						a = act
@@ -82,7 +82,7 @@ func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a 
 				})
 			}
 		})
-		ui.Text(c, ps.Name).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(tileW - S4).
+		ui.Text(c, ps.Name).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(tileW-S4).
 			Margin(S1, 0, 0, 0)
 		how, col := "Online", p.TextMuted
 		switch {
@@ -97,7 +97,7 @@ func personTile(c *ui.Context, ps Person, colors *UserColors, now time.Time) (a 
 		if hov || Touch(c) {
 			m := ui.ButtonBase(c.Key("msg")).Size(28, 28).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
 				Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Top(S2).Left(S2).Background(p.Raised).Border(1, p.Border).
-				Label("Message "+ps.Name).Tooltip("Message")
+				Label("Message " + ps.Name).Tooltip("Message")
 			m.Children(func() { ui.Icon(c, IconMessage).Size(14, 14).TextColor(p.Text) })
 			if m.Clicked() {
 				a.Open = ps.ID

@@ -18,7 +18,7 @@ func CountText(n int) string {
 // centers its child, and a line box as tall as the font, so the glyphs sit
 // on the pill's middle rather than on a taller line's.
 func pillText(c *ui.Context, text string, h, size float32, weight int, fg, bg ui.Color) ui.Element {
-	box := ui.Row(c).Height(h).MinWidth(h).PaddingX(h/3).Radius(RadiusFull).Background(bg).
+	box := ui.Row(c).Height(h).MinWidth(h).PaddingX(h / 3).Radius(RadiusFull).Background(bg).
 		AlignItems(ui.Center).Justify(ui.Center).Shrink(0)
 	box.Children(func() {
 		ui.Text(c, text).FontSize(size).FontWeight(weight).FontFeatures("tnum").TextColor(fg).

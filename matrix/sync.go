@@ -2,6 +2,9 @@ package matrix
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"sort"
 	"time"
 
 	"maunium.net/go/mautrix"
@@ -27,17 +30,26 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 		return nil, err
 	}
 
+	s := NewSource(&Session{UserID: cli.UserID, DeviceID: cli.DeviceID})
+	s.cli, s.acc, s.cache = cli, acc, acc.Cache
+
 	// The stores: the room state the crypto machine trusts, and the sync
-	// batch token, which the crypto store also keeps.
+	// token — which the room cache owns: it resumes from it with the rooms
+	// the cache holds, or starts from nothing when there is no cache to
+	// trust.
 	cli.StateStore = acc.State
-	cli.Store = acc.Crypto
+	if acc.Cache != nil {
+		acc.Cache.setKey(pickle)
+	}
+	s.resumed = s.loadCache(ctx)
+	cli.Store = &tokenStore{SyncStore: acc.Crypto, token: s.token}
 
 	helper, err := cryptohelper.NewCryptoHelper(cli, pickle, acc.Crypto)
 	if err != nil {
 		return nil, err
 	}
 
-	syncer := mautrix.NewDefaultSyncer()
+	syncer := &batchSyncer{DefaultSyncer: mautrix.NewDefaultSyncer()}
 	syncer.FilterJSON = &mautrix.Filter{
 		Room: &mautrix.RoomFilter{
 			State:    &mautrix.FilterPart{LazyLoadMembers: true},
@@ -47,14 +59,25 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	cli.Syncer = syncer
 
 	// The crypto machine first — it must see the sync before anything can
-	// decrypt — then the member state store it reads, then us.
+	// decrypt — then the member state store it reads, then us. The
+	// client's Crypto hook makes sending encrypt automatically, and the
+	// verification helper requires it.
 	if err := helper.Init(ctx); err != nil {
 		return nil, err
 	}
+	cli.Crypto = helper
 	syncer.OnEvent(cli.StateStoreSyncHandler)
 
-	s := NewSource(&Session{UserID: cli.UserID, DeviceID: cli.DeviceID})
-	s.cli, s.acc, s.helper = cli, acc, helper
+	s.helper = helper
+	syncer.src = s
+
+	// The verification: the emoji with another device, or the Security
+	// Key with the key backup behind it.
+	driver, err := newVerify(ctx, s, cli, helper.Machine(), helper)
+	if err != nil {
+		return nil, err
+	}
+	s.verify = driver
 
 	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
 		s.onSync(resp)
@@ -69,12 +92,54 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.StateTopic, s.onTopic)
 	syncer.OnEventType(event.StateCanonicalAlias, s.onAlias)
 	syncer.OnEventType(event.StateEncryption, s.onEncryption)
+	syncer.OnEventType(event.StateCreate, s.onCreate)
+	syncer.OnEventType(event.StateSpaceChild, s.onSpaceChild)
+	syncer.OnEventType(event.StateSpaceParent, s.onSpaceParent)
 	syncer.OnEventType(event.EphemeralEventTyping, s.onTyping)
 	syncer.OnEventType(event.EphemeralEventReceipt, s.onReceipt)
 	syncer.OnEventType(event.EphemeralEventPresence, s.onPresence)
 	syncer.OnEventType(event.AccountDataDirectChats, s.onDirect)
 	syncer.OnEventType(event.AccountDataRoomTags, s.onTags)
 	return s, nil
+}
+
+// batchSyncer applies a whole sync response to the model as one UI
+// update (see Source.beginBatch).
+type batchSyncer struct {
+	*mautrix.DefaultSyncer
+	src *Source
+}
+
+func (b *batchSyncer) ProcessResponse(ctx context.Context, resp *mautrix.RespSync, since string) error {
+	if b.src != nil {
+		b.src.beginBatch()
+		var left []string
+		for id := range resp.Rooms.Leave {
+			left = append(left, id.String())
+		}
+		defer b.src.endBatch(resp.NextBatch, left)
+	}
+	return b.DefaultSyncer.ProcessResponse(ctx, resp, since)
+}
+
+// OnFailedSync: a resumed sync whose token the server refuses (400)
+// means the cache is stale — stop, so Start can drop it and begin again.
+// Anything else keeps the default retry.
+func (b *batchSyncer) OnFailedSync(res *mautrix.RespSync, err error) (time.Duration, error) {
+	if b.src != nil && b.src.resumed && badSyncToken(err) {
+		return 0, err
+	}
+	return b.DefaultSyncer.OnFailedSync(res, err)
+}
+
+// badSyncToken reports whether the server rejected the request's since
+// token (not the login: an unknown access token is its own error).
+func badSyncToken(err error) bool {
+	var h mautrix.HTTPError
+	if errors.As(err, &h) && h.Response != nil && h.Response.StatusCode == http.StatusBadRequest {
+		return true
+	}
+	return false
 }
 
 // Start runs the sync loop until ctx ends. Call it after SetUpdate, so
@@ -84,10 +149,28 @@ func (s *Source) Start(ctx context.Context) {
 		return
 	}
 	s.started = true
+	if s.verify != nil {
+		go s.verify.restoreSaved(ctx)
+		go s.keyWatch(ctx)
+	}
 	go func() {
 		// SyncWithContext retries on its own, with the default syncer's
-		// backoff; it returns when ctx ends.
-		_ = s.cli.SyncWithContext(ctx)
+		// backoff; it returns when ctx ends — or when the server refused
+		// the token the cache resumed from: then the cache goes, and the
+		// sync starts over from nothing.
+		for {
+			err := s.cli.SyncWithContext(ctx)
+			if ctx.Err() != nil || !(s.resumed && badSyncToken(err)) {
+				return
+			}
+			s.resumed = false
+			if ts, ok := s.cli.Store.(*tokenStore); ok {
+				ts.token = ""
+			}
+			if s.cache != nil {
+				s.cache.reset(ctx)
+			}
+		}
 	}()
 }
 
@@ -101,6 +184,7 @@ func (s *Source) roomOf(roomID string) *room {
 		r = &room{id: roomID}
 		s.rooms[roomID] = r
 	}
+	s.markDirty(roomID)
 	return r
 }
 
@@ -113,6 +197,11 @@ func (s *Source) onSync(resp *mautrix.RespSync) {
 			if joined.UnreadNotifications != nil {
 				r.unread = joined.UnreadNotifications.NotificationCount
 				r.mentions = joined.UnreadNotifications.HighlightCount
+			}
+			if sum := joined.Summary; sum.JoinedMemberCount != nil {
+				// The server's count: the member events a lazy-loading
+				// sync sends are only some of the room.
+				r.members, r.hasSummary = *sum.JoinedMemberCount, true
 			}
 		}
 	})
@@ -138,6 +227,12 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 		r := s.roomOf(evt.RoomID.String())
 		name := s.nameOf(sender)
 		r.appendEvent(e, name, sender == s.me.ID)
+		// A decrypted event may be one that had waited for keys
+		// re-dispatched: its raw copy goes with its tile.
+		if _, raw := r.raw[e.ID]; raw {
+			delete(r.raw, e.ID)
+			s.encrypted--
+		}
 		if r.dm && r.partner == "" && sender != s.me.ID {
 			r.partner = sender // a DM's other person
 			if r.name == "" {
@@ -157,13 +252,29 @@ func (s *Source) onReaction(ctx context.Context, evt *event.Event) {
 }
 
 // onEncrypted is a message that did not decrypt: the crypto helper
-// re-dispatches the ones that do, as plain m.room.message.
+// re-dispatches the ones that do, as plain m.room.message. The raw
+// event is kept for the retry once verification or the key backup
+// brings the session.
 func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 	if evt.Content.AsEncrypted() == nil {
 		return // it decrypted and was dispatched as m.room.message
 	}
 	e := undecryptable(evt)
-	s.post(func() { s.roomOf(evt.RoomID.String()).appendEvent(e, s.nameOf(evt.Sender.String()), false) })
+	s.post(func() {
+		r := s.roomOf(evt.RoomID.String())
+		r.appendEvent(e, s.nameOf(evt.Sender.String()), false)
+		if r.raw == nil {
+			r.raw = map[string]*rawEvent{}
+		}
+		if _, dup := r.raw[e.ID]; !dup {
+			s.encrypted++
+		}
+		r.raw[e.ID] = &rawEvent{evt: evt, tile: e}
+		select {
+		case s.keyKick <- struct{}{}:
+		default:
+		}
+	})
 }
 
 // onMember is a membership change: who is in the room, who they are, and
@@ -185,11 +296,13 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 			s.people[who] = &model.Person{ID: who, Name: name, Avatar: string(c.AvatarURL), Contact: true}
 		}
 		r := s.roomOf(evt.RoomID.String())
-		switch c.Membership {
-		case event.MembershipJoin:
-			r.members++
-		case event.MembershipLeave, event.MembershipBan:
-			r.members--
+		if !r.hasSummary { // with the server's count, the events only repeat it
+			switch c.Membership {
+			case event.MembershipJoin:
+				r.members++
+			case event.MembershipLeave, event.MembershipBan:
+				r.members--
+			}
 		}
 		if isLine && fromTimeline && who != s.me.ID {
 			r.appendEvent(line, name, false)
@@ -220,6 +333,78 @@ func (s *Source) onAlias(ctx context.Context, evt *event.Event) {
 
 func (s *Source) onEncryption(ctx context.Context, evt *event.Event) {
 	s.post(func() { s.roomOf(evt.RoomID.String()).encrypted = true })
+}
+
+// onCreate carries a room's birth: a space (a community) is a room of
+// type m.space.
+func (s *Source) onCreate(ctx context.Context, evt *event.Event) {
+	c := evt.Content.AsCreate()
+	if c == nil || c.Type != event.RoomTypeSpace {
+		return
+	}
+	s.post(func() { s.roomOf(evt.RoomID.String()).space = true })
+}
+
+// onSpaceChild is a room listed in a space. A repeat updates the entry —
+// its order may have changed — without duplicating it.
+func (s *Source) onSpaceChild(ctx context.Context, evt *event.Event) {
+	if evt.StateKey == nil {
+		return
+	}
+	c := evt.Content.AsSpaceChild()
+	child := spaceChild{room: *evt.StateKey}
+	if c != nil {
+		child.order = c.Order
+	}
+	space := evt.RoomID.String()
+	s.post(func() {
+		r := s.roomOf(space)
+		for i := range r.children {
+			if r.children[i].room == child.room {
+				r.children[i].order = child.order
+				spaceSort(r.children)
+				return
+			}
+		}
+		r.children = append(r.children, child)
+		spaceSort(r.children)
+	})
+}
+
+// onSpaceParent is a room saying which space it belongs to: the parent's
+// ID is the state key. A canonical claim wins over the spaces' own
+// lists, which keeps a room from flickering between two spaces that
+// both list it.
+func (s *Source) onSpaceParent(ctx context.Context, evt *event.Event) {
+	c := evt.Content.AsSpaceParent()
+	if evt.StateKey == nil || c == nil || *evt.StateKey == "" {
+		return
+	}
+	room, parent := evt.RoomID.String(), *evt.StateKey
+	canonical := c.Canonical
+	s.post(func() {
+		r := s.roomOf(room)
+		if canonical || r.parent == "" {
+			r.parent = parent
+		}
+	})
+}
+
+// spaceSort orders a space's children by their order field, the ones
+// without one after those with.
+func spaceSort(children []spaceChild) {
+	sort.SliceStable(children, func(i, j int) bool {
+		if children[i].order != children[j].order {
+			if children[i].order == "" {
+				return false
+			}
+			if children[j].order == "" {
+				return true
+			}
+			return children[i].order < children[j].order
+		}
+		return false
+	})
 }
 
 // onTyping is who is typing right now — the word expires, so it clears
@@ -265,6 +450,7 @@ func (s *Source) onReceipt(ctx context.Context, evt *event.Event) {
 				s.post(func() {
 					if r, ok := s.rooms[evt.RoomID.String()]; ok {
 						r.unread, r.mentions = 0, 0
+						s.markDirty(r.id)
 					}
 				})
 			}
@@ -317,7 +503,9 @@ func (s *Source) onDirect(ctx context.Context, evt *event.Event) {
 	s.post(func() {
 		for _, p := range pairs {
 			s.direct[p.room] = true
+			s.dirtyMeta = true
 			if r, ok := s.rooms[p.room]; ok {
+				s.markDirty(p.room)
 				r.dm, r.partner = true, p.partner
 				if r.name == "" {
 					r.name = s.nameOf(p.partner)
@@ -347,38 +535,117 @@ func (s *Source) nameOf(mxid string) string {
 	return mxidName(mxid)
 }
 
+// redecryptAll retries every still-encrypted event — run after
+// verification or a key restore, when the sessions may just have
+// arrived. It runs off the UI thread; what decrypts replaces its
+// "waiting" tile.
+func (s *Source) redecryptAll() {
+	if s.helper == nil {
+		return
+	}
+	ctx := context.Background()
+	for _, snap := range s.snapshotRaw() {
+		for evtID, raw := range snap.raw {
+			decrypted, err := s.helper.Decrypt(ctx, raw.evt)
+			if err != nil {
+				continue // still waiting for keys
+			}
+			s.applyDecrypted(snap, evtID, decrypted)
+		}
+	}
+}
+
+// applyDecrypted puts a late-decrypted event in place of its "waiting"
+// tile. Off the UI thread.
+func (s *Source) applyDecrypted(snap *rawSnapshot, evtID string, decrypted *event.Event) {
+	e := textEvent(s.me.ID, decrypted)
+	sender := decrypted.Sender.String()
+	name := snap.names[sender]
+	room := snap.id
+	s.post(func() {
+		if rr, ok := s.rooms[room]; ok {
+			if _, waiting := rr.raw[evtID]; !waiting {
+				return // another retry got there first
+			}
+			rr.appendEvent(e, name, sender == s.me.ID)
+			delete(rr.raw, evtID)
+			s.encrypted--
+			s.markDirty(room)
+		}
+	})
+}
+
+// rawSnapshot is one room's still-encrypted events with the names the
+// tiles need, taken on the UI thread for the goroutine's loop.
+type rawSnapshot struct {
+	id    string
+	raw   map[string]*rawEvent
+	names map[string]string
+}
+
+// snapshotRaw copies the encrypted events for redecryptAll's goroutine,
+// reading the rooms on the UI thread alone.
+func (s *Source) snapshotRaw() []*rawSnapshot {
+	if s.update == nil {
+		return s.collectRaw()
+	}
+	done := make(chan []*rawSnapshot, 1)
+	s.update(func() { done <- s.collectRaw() })
+	return <-done
+}
+
+func (s *Source) collectRaw() []*rawSnapshot {
+	var out []*rawSnapshot
+	for _, r := range s.rooms {
+		if len(r.raw) == 0 {
+			continue
+		}
+		// The maps are written on the UI thread alone; the goroutine
+		// reads only the copies taken here.
+		raw := make(map[string]*rawEvent, len(r.raw))
+		names := map[string]string{}
+		for k, v := range r.raw {
+			raw[k] = v
+			names[v.evt.Sender.String()] = s.nameOf(v.evt.Sender.String())
+		}
+		out = append(out, &rawSnapshot{id: r.id, raw: raw, names: names})
+	}
+	return out
+}
+
 // ---- the writes -----------------------------------------------------------------------
 
 // Send posts a message to a room: Markdown in, the homeserver's event
-// out, encrypted where the room is. The sync loop echoes it back into
-// the timeline.
+// out. The client's Crypto hook encrypts it where the room is; the sync
+// loop echoes it back into the timeline.
 func (s *Source) Send(room, markdown, replyTo string) {
 	if s.cli == nil {
 		return
 	}
-	// Read on this (UI) thread, so the goroutine never touches the maps.
-	r, ok := s.rooms[room]
-	encrypted := ok && r.encrypted
+	content := contentOf(markdown)
+	if replyTo != "" {
+		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(replyTo))
+	}
+	// The message shows at once, pending, under a local ID; it takes the
+	// server's ID when the send returns, and the sync's echo of it then
+	// lands on the same event. Sending itself (finding the room's devices,
+	// sharing the key) can take seconds the first time in a room.
+	txn := s.cli.TxnID()
+	local := localPrefix + txn
+	pending := model.Event{ID: local, Room: room, Sender: s.me.ID, Time: time.Now(), Kind: model.EventText,
+		Body: markdown, ReplyTo: replyTo, Pending: true}
+	s.post(func() { s.roomOf(room).appendEvent(pending, "You", true) })
 	go func() {
-		content := contentOf(markdown)
-		if replyTo != "" {
-			content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(replyTo))
-		}
-		ctx := context.Background()
-		var err error
-		if encrypted && s.helper != nil {
-			var enc *event.EncryptedEventContent
-			if enc, err = s.helper.Encrypt(ctx, id.RoomID(room), event.EventMessage, content); err == nil {
-				_, err = s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventEncrypted, enc)
+		resp, err := s.cli.SendMessageEvent(context.Background(), id.RoomID(room), event.EventMessage, content,
+			mautrix.ReqSendEvent{TransactionID: txn})
+		s.post(func() {
+			r := s.roomOf(room)
+			if err != nil {
+				r.failLocal(local, "Not sent: "+plain(err))
+			} else {
+				r.settleLocal(local, resp.EventID.String())
 			}
-		} else {
-			_, err = s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventMessage, content)
-		}
-		if err != nil {
-			// The sending milestone surfaces errors; a failed message is
-			// simply not echoed today.
-			_ = err
-		}
+		})
 	}()
 }
 
@@ -404,6 +671,7 @@ func (s *Source) MarkRead(room string) {
 	}
 	last := r.events[len(r.events)-1].ID
 	r.unread, r.mentions = 0, 0
+	s.markDirty(room)
 	go func() {
 		_ = s.cli.MarkRead(context.Background(), id.RoomID(room), id.EventID(last))
 	}()

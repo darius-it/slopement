@@ -428,7 +428,7 @@ func itemTile(c *ui.Context, t *PickerTile, r *PickerResult, sticker bool) ui.El
 			}
 		}
 		if hov && !sticker {
-			ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Radius(RadiusSm + 2).
+			ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Radius(RadiusSm+2).
 				Border(2, p.Accent).PassThrough()
 		}
 	})

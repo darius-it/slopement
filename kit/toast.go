@@ -32,7 +32,7 @@ func Toasts(c *ui.Context) {
 			// smoothly.
 			up := root.AnimateTo("stackY", depth*14, ui.Snappy)
 			s := root.AnimateTo("stackS", 1-depth*0.05, ui.Snappy)
-			root.Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-S5 - up).Scale(s, s)
+			root.Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-S5-up).Scale(s, s)
 			root.Transition(ui.ElementTransition{
 				Duration: DurBase, Ease: EaseOut, ExitDuration: DurExit,
 				Enter: &ui.Motion{Y: 8, Scale: 0.97},

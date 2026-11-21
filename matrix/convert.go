@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"encoding/json"
 	"time"
 
 	"maunium.net/go/mautrix/event"
@@ -59,7 +60,10 @@ func mediaOf(c *event.MessageEventContent) (model.Media, bool) {
 	if c.URL != "" {
 		m.URL = string(c.URL)
 	} else if c.File != nil {
-		m.URL = string(c.File.URL) // an encrypted attachment; the media milestone decrypts it
+		m.URL = string(c.File.URL) // an encrypted attachment: the key rides along
+		if b, err := json.Marshal(c.File); err == nil {
+			m.Secret = string(b)
+		}
 	} else {
 		return model.Media{}, false
 	}

@@ -175,7 +175,7 @@ func RoomRow(c *ui.Context, r RoomRowData, selected bool, menu func(m *ui.Menu))
 	if Touch(c) {
 		h = 64
 	}
-	b.Height(h).PaddingX(S2).Gap(S3).Radius(RadiusMd-2).AlignItems(ui.Center).Justify(ui.Start).
+	b.Height(h).PaddingX(S2).Gap(S3).Radius(RadiusMd - 2).AlignItems(ui.Center).Justify(ui.Start).
 		Background(b.AnimateColor("bg", rowBg(p, s), Color)).AccessSelected(selected).Label(r.Name).
 		FocusRingOffset(-2)
 	if menu != nil {

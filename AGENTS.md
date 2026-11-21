@@ -82,13 +82,21 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   `SLOPEMENT_LOGIN=1 go run .`.
 - `matrix/`: the Matrix layer (mautrix-go, `-tags goolm`): one `Account`
   per login — its directory (`<config>/slopement/accounts/<sha256(user)>/`)
-  holds `state.db` and `crypto.db`, a session lock enforces one process per
+  holds `state.db`, `crypto.db` and `cache.db` (the room cache: rooms,
+  timelines, waiting encrypted events, people, DMs, sealed with AES-GCM under
+  the keychain key, written in one transaction with the sync token so a launch
+  resumes the sync; `persist.go`, `cache.go`) and `ui.json` (the app's own
+  state: layout, theme, settings, last room, drafts; `app/uistate.go`), a
+  session lock enforces one process per
   account, and tokens/pickle keys live in the OS keychain via `mygo.Secrets`.
   Login probes a server (MAS/OIDC first-class) and `NewSynced` runs the
   classic `/v3/sync` loop into `model.Source`: rooms, timeline (capped at
   300/room in memory), presence, typing, reactions, sending and read
-  markers, with mautrix's olm machine decrypting through goolm. Sliding
-  sync (MSC4186) replaces the loop behind the same constructor later.
+  markers, with mautrix's olm machine decrypting through goolm, and
+  `newVerify` the verification: SAS emoji with another device or the
+  Security Key (SSSS) with the key backup behind it — after which the
+  still-encrypted events re-decrypt into their tiles. Sliding sync
+  (MSC4186) replaces the loop behind the same constructor later.
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: the component gallery and mock screens, built only from `kit`.
   It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.
@@ -123,3 +131,5 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
   `mygo.config.ts`.
 - Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).
+- Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
+  edit itself is already in `matrix/sync_test.go`).

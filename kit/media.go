@@ -262,7 +262,7 @@ func FileCard(c *ui.Context, f FileSpec) ui.Element {
 		b.Border(1, p.BorderStrong)
 	}
 	b.Children(func() {
-		ui.Box(c).Size(40, 40).Radius(RadiusSm+2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
+		ui.Box(c).Size(40, 40).Radius(RadiusSm + 2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
 			Children(func() { ui.Icon(c, IconFile).Size(20, 20).TextColor(p.AccentStrong) })
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, f.Name).FontSize(SizeBody).FontWeight(WeightMedium).TruncateMiddle()
@@ -313,7 +313,7 @@ func LinkPreview(c *ui.Context, l LinkCard, width float32) (dismiss bool) {
 	p := Of(c)
 	hasPic := l.Image.URL != "" || l.Image.Still != nil
 	large := hasPic && l.Image.W >= 400
-	card := ui.Column(c.Key("link:"+l.URL)).Width(width).MaxWidthPercent(100).Radius(embedRadius).Background(p.BgInset).
+	card := ui.Column(c.Key("link:" + l.URL)).Width(width).MaxWidthPercent(100).Radius(embedRadius).Background(p.BgInset).
 		Padding(S3).Gap(S2)
 	hov := card.Hovered()
 	card.Children(func() {
@@ -344,7 +344,7 @@ func LinkPreview(c *ui.Context, l LinkCard, width float32) (dismiss bool) {
 // press of play.
 func YouTubeCard(c *ui.Context, y YouTubeSpec, width float32) (play bool) {
 	p := Of(c)
-	ui.Column(c.Key("yt:"+y.ID)).Width(width).MaxWidthPercent(100).Gap(S2).Padding(S3).Radius(embedRadius).
+	ui.Column(c.Key("yt:" + y.ID)).Width(width).MaxWidthPercent(100).Gap(S2).Padding(S3).Radius(embedRadius).
 		Background(p.BgInset).Children(func() {
 		embedHeader(c, "YouTube", y.Title, "", y.Channel, 1)
 		w := width - S6

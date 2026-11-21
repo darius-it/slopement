@@ -67,6 +67,22 @@ type App struct {
 	docs     map[string]parsed
 	roomMenu map[string]bool
 
+	// The state file (uistate.go): its path, what was last written, a
+	// write already scheduled, and the room and community of the last run
+	// that are not in the Source yet.
+	statePath        string
+	stateLast        string
+	statePending     bool
+	restoreRoom      string
+	restoreCommunity string
+	restorePushed    bool
+
+	// Attachments: decoded pictures by mxc URL (bounded, oldest out),
+	// and the ones being fetched.
+	stills     map[string]ui.ImageSource
+	stillOrder []string
+	stillBusy  map[string]bool
+
 	// Overlays.
 	switcher     kit.SwitcherState
 	statusDraft  kit.StatusDraft
@@ -87,7 +103,10 @@ type App struct {
 	call         kit.CallState
 	inCall       string // the room whose call the user is in
 	verify       kit.SheetState
-	verifyStep   int // 0 choose, 1 emoji, 2 done
+	verifyStep   int    // 0 the flow; 1 the Security Key entry
+	verifyKey    string // the key being typed
+	verifier     model.Verify
+	verifyAsked  bool // the once-a-run prompt has shown
 	toast        string
 	reactTo      string            // the message the picker reacts to
 	replyTo      map[string]string // per room: the event replied to
@@ -111,6 +130,7 @@ func New(src model.Source, pick *picker.Controller) *App {
 	a := &App{
 		src:      src,
 		pick:     pick,
+		verifier: src.Verify(),
 		now:      time.Now(),
 		nav:      kit.DefaultNavLayout(),
 		sidebar:  true,
@@ -122,7 +142,9 @@ func New(src model.Source, pick *picker.Controller) *App {
 		reveals:  kit.Reveals{},
 		docs:     map[string]parsed{},
 		roomMenu: map[string]bool{},
-		call:     kit.NewCall(),
+		stills:    map[string]ui.ImageSource{},
+		stillBusy: map[string]bool{},
+		call:    kit.NewCall(),
 		replyTo:  map[string]string{},
 		prefs:    defaultPrefs(),
 	}
@@ -155,6 +177,7 @@ func (a *App) open(id string) {
 		return
 	}
 	a.room, a.view, a.pushed = id, viewRoom, true
+	a.restoreRoom = "" // the user chose; the last run's room no longer applies
 	a.profileMsg = ""
 	a.src.MarkRead(id)
 	recent := []string{id}
@@ -204,6 +227,7 @@ func (a *App) View(c *ui.Context) {
 		a.menuNav, a.menuTheme = a.nav, a.theme
 		a.MenuChanged()
 	}
+	a.stateChanged()
 }
 
 // Actions are the menu bar's actions.

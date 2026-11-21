@@ -139,3 +139,175 @@ func TestOnDirectAndTags(t *testing.T) {
 		t.Fatalf("room = %+v", m)
 	}
 }
+
+// TestSpaces pins the communities: a room of type m.space with
+// m.space.child state, its rooms listed in its order, and each child
+// room knowing the space it belongs to (so Chats leaves them alone).
+func TestSpaces(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{
+		"!space": {}, "!one": {}, "!two": {},
+	}}})
+
+	// The space room, and its children: two added in the order Element
+	// would show them, one without an order coming last.
+	create := &event.Event{
+		RoomID: id.RoomID("!space"), Type: event.StateCreate,
+		Content: event.Content{Parsed: &event.CreateEventContent{Type: event.RoomTypeSpace}},
+	}
+	s.onCreate(nil, create)
+	child := func(childID, order string) *event.Event {
+		return &event.Event{
+			RoomID: id.RoomID("!space"), Type: event.StateSpaceChild,
+			StateKey: ptr(childID),
+			Content:  event.Content{Parsed: &event.SpaceChildEventContent{Order: order}},
+		}
+	}
+	s.onSpaceChild(nil, child("!two", "b"))
+	s.onSpaceChild(nil, child("!one", "a"))
+	s.onSpaceChild(nil, child("!three", ""))
+	// A repeat of the full boot does not duplicate.
+	s.onSpaceChild(nil, child("!two", "b"))
+
+	comms := s.Communities()
+	if len(comms) != 1 || comms[0].ID != "!space" {
+		t.Fatalf("communities = %+v", comms)
+	}
+	if got := comms[0].Rooms; len(got) != 3 || got[0] != "!one" || got[1] != "!two" || got[2] != "!three" {
+		t.Fatalf("children = %v", got)
+	}
+
+	// Each child room carries its space.
+	for _, roomID := range []string{"!one", "!two"} {
+		m, ok := s.Room(roomID)
+		if !ok || m.Community != "!space" {
+			t.Fatalf("%s community = %q, %v", roomID, m.Community, ok)
+		}
+	}
+	// A plain room belongs to none.
+	if m, _ := s.Room("!space"); m.Community != "" {
+		t.Fatalf("the space itself claims a community: %q", m.Community)
+	}
+}
+
+// TestEncryptedNeeded pins the prompt's signal: a message that does not
+// decrypt sets Needed; its decrypted re-dispatch clears it.
+// A space is a community on the rail; it must never show among the rooms
+// of Chats.
+func TestSpacesStayOutOfRooms(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{
+		"!space": {}, "!chat": {},
+	}}})
+	s.rooms["!space"].space = true
+
+	rooms := s.Rooms()
+	if len(rooms) != 1 || rooms[0].ID != "!chat" {
+		t.Fatalf("rooms = %+v", rooms)
+	}
+	if cs := s.Communities(); len(cs) != 1 || cs[0].ID != "!space" {
+		t.Fatalf("communities = %+v", cs)
+	}
+}
+
+// A sent message shows pending at once and ends up once, whichever of
+// the send's answer and the sync's echo comes first.
+func TestLocalEcho(t *testing.T) {
+	for _, echoFirst := range []bool{false, true} {
+		r := &room{id: "!a"}
+		r.appendEvent(model.Event{ID: localPrefix + "1", Pending: true, Body: "hi"}, "You", true)
+		if echoFirst {
+			r.appendEvent(model.Event{ID: "$real", Body: "hi"}, "You", true)
+			r.settleLocal(localPrefix+"1", "$real")
+		} else {
+			r.settleLocal(localPrefix+"1", "$real")
+			r.appendEvent(model.Event{ID: "$real", Body: "hi"}, "You", true)
+		}
+		if len(r.events) != 1 || r.events[0].ID != "$real" || r.events[0].Pending {
+			t.Fatalf("echoFirst=%v: events = %+v", echoFirst, r.events)
+		}
+	}
+	r := &room{id: "!a"}
+	r.appendEvent(model.Event{ID: localPrefix + "2", Pending: true}, "You", true)
+	r.failLocal(localPrefix+"2", "Not sent: no")
+	if e := r.events[0]; e.Kind != model.EventSystem || e.Pending || e.Body != "Not sent: no" {
+		t.Fatalf("failed = %+v", e)
+	}
+}
+
+// A sub-space knows its parent, and the parent its sub-spaces.
+func TestSubSpaces(t *testing.T) {
+	s, _ := testSynced()
+	s.onSync(&mautrix.RespSync{Rooms: mautrix.RespSyncRooms{Join: map[id.RoomID]*mautrix.SyncJoinedRoom{
+		"!top": {}, "!sub": {}, "!room": {},
+	}}})
+	s.rooms["!top"].space, s.rooms["!sub"].space = true, true
+	s.rooms["!top"].children = []spaceChild{{room: "!sub"}}
+	s.rooms["!sub"].children = []spaceChild{{room: "!room"}}
+
+	byID := map[string]model.Community{}
+	for _, cm := range s.Communities() {
+		byID[cm.ID] = cm
+	}
+	if byID["!sub"].Parent != "!top" || byID["!top"].Parent != "" {
+		t.Fatalf("parents: %+v", byID)
+	}
+	if len(byID["!top"].Spaces) != 1 || byID["!top"].Spaces[0] != "!sub" || len(byID["!top"].Rooms) != 0 {
+		t.Fatalf("top: %+v", byID["!top"])
+	}
+	if got, _ := s.Room("!room"); got.Community != "!sub" {
+		t.Fatalf("room community = %q", got.Community)
+	}
+}
+
+// Posts made while a sync response is processed apply together, once.
+func TestBatchAppliesOnce(t *testing.T) {
+	s := NewSource(&Session{UserID: "@me:example.org"})
+	updates := 0
+	s.update = func(fn func()) { updates++; fn() }
+	s.beginBatch()
+	s.post(func() { s.roomOf("!a") })
+	s.post(func() { s.roomOf("!b") })
+	if updates != 0 || len(s.rooms) != 0 {
+		t.Fatalf("applied early: updates=%d rooms=%d", updates, len(s.rooms))
+	}
+	s.endBatch("", nil)
+	if updates != 1 || len(s.rooms) != 2 {
+		t.Fatalf("updates=%d rooms=%d", updates, len(s.rooms))
+	}
+}
+
+func TestEncryptedNeeded(t *testing.T) {
+	s, _ := testSynced()
+	if s.Verify() != nil {
+		t.Fatal("the pre-sync source has a verifier")
+	}
+	// The verify driver is wired by NewSynced; the test sets one with the
+	// Source's own post.
+	s.verify = &VerifyDriver{src: s}
+
+	enc := &event.Event{
+		ID: "$e", RoomID: id.RoomID("!r"), Sender: id.UserID("@ada:example.org"),
+		Timestamp: 1, Type: event.EventEncrypted,
+		Content: event.Content{Parsed: &event.EncryptedEventContent{}},
+	}
+	s.onEncrypted(nil, enc)
+	tl := s.Timeline("!r")
+	if len(tl) != 1 || tl[0].Kind != model.EventUndecryptable {
+		t.Fatalf("timeline = %+v", tl)
+	}
+	if !s.Verify().State().Needed {
+		t.Fatal("an undecrypted message did not ask for verification")
+	}
+
+	// The keys arrived: the same event re-dispatched decrypted.
+	s.onMessage(nil, msgEvent("$e", "!r", "@ada:example.org", 1,
+		&event.MessageEventContent{MsgType: event.MsgText, Body: "now readable"}))
+	tl = s.Timeline("!r")
+	if len(tl) != 1 || tl[0].Kind != model.EventText || tl[0].Body != "now readable" {
+		t.Fatalf("timeline = %+v", tl)
+	}
+	if s.Verify().State().Needed {
+		t.Fatal("the decrypted re-dispatch left the prompt on")
+	}
+}

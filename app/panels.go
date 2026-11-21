@@ -28,7 +28,7 @@ func (a *App) sidePanel(c *ui.Context) {
 				a.panel = panelNone
 			}
 		})
-		ui.Scroll(c.Key("panel:"+r.ID)).Grow(1).Padding(kit.S3).Gap(kit.S3).Children(func() {
+		ui.Scroll(c.Key("panel:" + r.ID)).Grow(1).Padding(kit.S3).Gap(kit.S3).Children(func() {
 			if a.panel == panelMembers {
 				a.members(c, r)
 			} else {
@@ -152,7 +152,7 @@ func (a *App) members(c *ui.Context, r model.Room) {
 	}
 	ui.Text(c, strconv.Itoa(r.Members)+" members").FontSize(kit.SizeCaption).FontWeight(kit.WeightSemibold).TextColor(p.TextMuted)
 	for _, ps := range list {
-		b := ui.ButtonBase(c.Key("m:"+ps.ID)).Height(40).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
+		b := ui.ButtonBase(c.Key("m:" + ps.ID)).Height(40).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
 			Justify(ui.Start).Label(ps.Name)
 		if b.Hovered() {
 			b.Background(p.Hover)

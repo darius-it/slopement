@@ -81,7 +81,7 @@ func (a *App) settingsView(c *ui.Context, back bool) {
 func (a *App) settingsNav(c *ui.Context, name string, icon *ui.SVG) {
 	p := kit.Of(c)
 	sel := a.settings == name
-	b := ui.ButtonBase(c.Key("sn:"+name)).Height(34).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
+	b := ui.ButtonBase(c.Key("sn:" + name)).Height(34).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
 		Justify(ui.Start).Label(name).AccessSelected(sel)
 	bg, fg := ui.Transparent, p.TextMuted
 	switch {
@@ -103,7 +103,7 @@ func (a *App) settingsNav(c *ui.Context, name string, icon *ui.SVG) {
 // group is a titled card of settings rows.
 func group(c *ui.Context, title, note string, fn func()) {
 	p := kit.Of(c)
-	ui.Column(c.Key("g:"+title)).Gap(kit.S2).Children(func() {
+	ui.Column(c.Key("g:" + title)).Gap(kit.S2).Children(func() {
 		if title != "" {
 			ui.Text(c, title).FontSize(kit.SizeCaption).FontWeight(kit.WeightSemibold).TextColor(p.TextMuted).PaddingStart(kit.S1)
 		}

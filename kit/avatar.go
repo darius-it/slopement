@@ -90,7 +90,7 @@ func Avatar(c *ui.Context, a AvatarSpec) ui.Element {
 		} else {
 			ui.Box(c).Size(a.Size, a.Size).Radius(r).Background(col.Alpha(0.16).Over(p.Bg)).
 				AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-				ui.Text(c, Initials(a.Name)).FontSize(a.Size*0.4).FontWeight(WeightSemibold).
+				ui.Text(c, Initials(a.Name)).FontSize(a.Size * 0.4).FontWeight(WeightSemibold).
 					TextColor(col).SingleLine()
 			})
 		}
@@ -138,7 +138,7 @@ func AvatarEditor(c *ui.Context, a AvatarSpec) ui.Element {
 		}
 		o = b.AnimateWith("o", o, DurFast, EaseOut)
 		ui.Box(c).Size(a.Size, a.Size).Radius(avatarRadius(a)).Background(ui.RGBA(0, 0, 0, 0.35)).
-			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Opacity(o*boolf(!Touch(c))).PassThrough().
+			Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Opacity(o * boolf(!Touch(c))).PassThrough().
 			AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, IconCamera).Size(a.Size*0.3, a.Size*0.3).TextColor(ui.Hex("#FFFFFF"))
 		})

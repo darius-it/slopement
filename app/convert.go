@@ -33,7 +33,9 @@ func trust(t model.Trust) kit.Trust {
 	return kit.TrustUnknown
 }
 
-func status(s model.Status) kit.Status { return kit.Status{Emoji: s.Emoji, Text: s.Text, Until: s.Until} }
+func status(s model.Status) kit.Status {
+	return kit.Status{Emoji: s.Emoji, Text: s.Text, Until: s.Until}
+}
 
 func (a *App) avatar(p model.Person, size float32) kit.AvatarSpec {
 	return kit.AvatarSpec{Name: p.Name, ID: p.ID, Size: size, Presence: presence(p.Presence), Colors: &a.colors}
@@ -158,8 +160,10 @@ type parsed struct {
 func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, yt *kit.YouTubeSpec) {
 	doc = a.doc(ev)
 	for i, m := range ev.Media {
-		media = append(media, kit.MediaSpec{ID: ev.ID + ":" + strconv.Itoa(i), Kind: kit.MediaImage, W: float32(m.W), H: float32(m.H),
-			Progress: -1, Label: m.Name, Spoiler: m.Spoiler})
+		spec := kit.MediaSpec{ID: ev.ID + ":" + strconv.Itoa(i), Kind: kit.MediaImage, W: float32(m.W), H: float32(m.H),
+			Progress: -1, Label: m.Name, Spoiler: m.Spoiler}
+		spec.Still = a.still(m)
+		media = append(media, spec)
 	}
 	if e, ok := embeds.SoleMedia(doc); ok {
 		gif := embeds.IsGIF(e.MediaURL)

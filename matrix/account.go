@@ -31,6 +31,9 @@ type Account struct {
 	State *sqlstatestore.SQLStateStore
 	// Crypto is the E2EE store (olm and megolm sessions, devices, trust).
 	Crypto *crypto.SQLCryptoStore
+	// Cache is the room cache (cache.db): what the sync has told the app,
+	// so a launch resumes instead of starting over.
+	Cache *Cache
 
 	stateDB, cryptoDB *dbutil.Database
 	lock              *sessionLock
@@ -99,6 +102,7 @@ func Open(ctx context.Context, userID id.UserID, deviceID id.DeviceID) (*Account
 	if err != nil {
 		return fail(fmt.Errorf("reading the crypto key: %w", err))
 	}
+	accountID := string(userID) + "/" + string(deviceID)
 
 	stateDB, err := dbutil.NewWithDialect(dbDSN(filepath.Join(dir, "state.db")), "sqlite")
 	if err != nil {
@@ -115,24 +119,78 @@ func Open(ctx context.Context, userID id.UserID, deviceID id.DeviceID) (*Account
 		stateDB.Close()
 		return fail(fmt.Errorf("opening crypto.db: %w", err))
 	}
-	store := crypto.NewSQLCryptoStore(cryptoDB, dbutil.NoopLogger, string(userID), deviceID, pickle)
+	store := crypto.NewSQLCryptoStore(cryptoDB, dbutil.NoopLogger,
+		// The crypto material is per device: a new login starts with
+		// nothing of the last one's, its sync token included — a fresh
+		// device must see the whole server state. (Rows older than this
+		// keying, under the user alone, are moved by
+		// migrateCryptoAccount below.)
+		accountID, deviceID, pickle)
 	if err = store.DB.Upgrade(ctx); err != nil {
 		cryptoDB.Close()
 		stateDB.Close()
 		return fail(fmt.Errorf("upgrading crypto.db: %w", err))
 	}
+	if err = migrateCryptoAccount(ctx, cryptoDB, string(userID), accountID); err != nil {
+		cryptoDB.Close()
+		stateDB.Close()
+		return fail(fmt.Errorf("migrating the crypto rows: %w", err))
+	}
+
+	cache, err := openCache(dir)
+	if err != nil {
+		cryptoDB.Close()
+		stateDB.Close()
+		return fail(err)
+	}
 
 	return &Account{
 		UserID: userID, DeviceID: deviceID, Dir: dir,
-		State: state, Crypto: store,
+		State: state, Crypto: store, Cache: cache,
 		stateDB: stateDB, cryptoDB: cryptoDB, lock: lock,
 	}, nil
+}
+
+// migrateCryptoAccount moves the crypto rows of an older build — keyed by
+// the user alone — to the per-device key this one uses: the same device's
+// identity, sessions and secrets, only renamed, so resuming a saved login
+// keeps working instead of tripping mautrix's "keys on the server"
+// guard. A half-created per-device row from a boot that failed the guard
+// is cleared first; new databases have nothing to move.
+func migrateCryptoAccount(ctx context.Context, db *dbutil.Database, userID, deviceKey string) error {
+	var old, new bool
+	if err := db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM crypto_account WHERE account_id=$1)", userID).Scan(&old); err != nil || !old {
+		return err // nothing to move (or unreadable, which Open reports)
+	}
+	if err := db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM crypto_account WHERE account_id=$1)", deviceKey).Scan(&new); err != nil {
+		return err
+	}
+	if new {
+		// The failed boot left a fresh identity this device never used;
+		// the row it should have is the old one, renamed below.
+		if _, err := db.Exec(ctx, "DELETE FROM crypto_account WHERE account_id=$1", deviceKey); err != nil {
+			return fmt.Errorf("clearing the half-created row: %w", err)
+		}
+	}
+	for _, table := range []string{
+		"crypto_account", "crypto_olm_session",
+		"crypto_megolm_inbound_session", "crypto_megolm_outbound_session",
+		"crypto_secrets",
+	} {
+		if _, err := db.Exec(ctx, "UPDATE "+table+" SET account_id=$1 WHERE account_id=$2", deviceKey, userID); err != nil {
+			return fmt.Errorf("moving %s: %w", table, err)
+		}
+	}
+	return nil
 }
 
 // Close releases the account's databases and the session lock. The
 // account can be opened again after it.
 func (a *Account) Close() error {
 	var err, err2 error
+	if a.Cache != nil {
+		err = a.Cache.close()
+	}
 	if err2 = a.stateDB.Close(); err == nil {
 		err = err2
 	}

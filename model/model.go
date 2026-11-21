@@ -94,6 +94,8 @@ type Community struct {
 	Members, Online int
 	Favourite       bool
 	Rooms           []string // room IDs, in the space's order
+	Parent          string   // the community this one is a sub-space of; "" at the top
+	Spaces          []string // its sub-spaces (community IDs), in the space's order
 }
 
 // EventKind is what an event shows as.
@@ -131,15 +133,22 @@ type Event struct {
 
 // Media is an attachment.
 type Media struct {
-	ID     string
-	Kind   MediaKind
-	URL    string // mxc:// (or https:// for a GIF by link)
-	Thumb  string
-	W, H   int
-	Name   string
-	Size   int64
-	Length time.Duration // video and audio
+	ID      string
+	Kind    MediaKind
+	URL     string // mxc:// (or https:// for a GIF by link)
+	Thumb   string
+	W, H    int
+	Name    string
+	Size    int64
+	Length  time.Duration // video and audio
 	Spoiler bool
+	Secret  string // the source's own key material for an encrypted attachment; opaque
+}
+
+// MediaLoader is what a Source may offer: the bytes of an attachment
+// (downloaded and decrypted), delivered to done on any goroutine.
+type MediaLoader interface {
+	LoadMedia(m Media, done func(data []byte, err error))
 }
 
 // MediaKind is an attachment's kind.
@@ -220,4 +229,7 @@ type Source interface {
 	Leave(room string)
 	// OpenDM returns the DM with someone, creating it if needed.
 	OpenDM(person string) string
+	// Verify is this device's verification, or nil when the source has
+	// none (the crypto layer's comes with its sync).
+	Verify() Verify
 }

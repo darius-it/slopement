@@ -114,7 +114,7 @@ func People(c *ui.Context, st *PeopleState, people []Person, colors *UserColors,
 			}
 			ui.Text(c.Key("sec"+title), title+" — "+strconv.Itoa(len(list))).FontSize(SizeCaption).
 				FontWeight(WeightSemibold).TextColor(p.TextMuted).Padding(S2, S2, 0, S2)
-			ui.Column(c.Key("list"+title)).Gap(1).Children(func() {
+			ui.Column(c.Key("list" + title)).Gap(1).Children(func() {
 				for _, ps := range list {
 					if act := personRow(c, ps, colors, now); act.Open != "" || act.Profile != "" {
 						a = act

@@ -78,7 +78,7 @@ func (a *App) draft(room string) *kit.ComposerState {
 // who is typing, and the composer.
 func (a *App) roomView(c *ui.Context, back bool) {
 	r, _ := a.src.Room(a.room)
-	ui.Column(c.Key("room:"+r.ID)).Grow(1).MinWidth(0).Children(func() {
+	ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0).Children(func() {
 		a.roomHeader(c, r, back)
 		if r.Call {
 			if kit.CallBanner(c, 3, a.inCall == r.ID) {
@@ -113,10 +113,42 @@ func (a *App) roomView(c *ui.Context, back bool) {
 				}
 			})
 		}
+		if a.encryptedWaiting(rows) {
+			a.verifyBanner(c)
+		}
 		if len(r.Typing) > 0 {
 			kit.TypingLine(c, strings.Join(r.Typing, ", ")+" is typing…")
 		}
 		a.composer(c, r)
+	})
+}
+
+// encryptedWaiting reports whether this room has messages waiting for
+// keys and the session is unverified: the quiet banner under the
+// timeline, the entry point that never goes away until it's done.
+func (a *App) encryptedWaiting(rows []trow) bool {
+	if a.verifier == nil || !a.verifier.State().Needed {
+		return false
+	}
+	for i := range rows {
+		if rows[i].ev != nil && rows[i].ev.Kind == model.EventUndecryptable {
+			return true
+		}
+	}
+	return false
+}
+
+// verifyBanner is the quiet line under a timeline with messages this
+// session cannot read yet.
+func (a *App) verifyBanner(c *ui.Context) {
+	p := kit.Of(c)
+	ui.Row(c).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, kit.IconShield).Size(16, 16).TextColor(p.Accent)
+		ui.Text(c, "Encrypted messages need this session verified.").FontSize(kit.SizeSmall).
+			TextColor(p.TextMuted).Grow(1)
+		if kit.Button(c, kit.Secondary, "Verify", nil).Clicked() {
+			a.verify.Open, a.verifyStep, a.verifyKey = true, 0, ""
+		}
 	})
 }
 

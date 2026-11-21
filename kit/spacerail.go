@@ -34,7 +34,7 @@ func RailItem(c *ui.Context, d RailItemData, selected bool) ui.Element {
 		ind := ui.Box(c).Width(4).Radius(0, 4, 4, 0).Background(p.Text)
 		hh := ind.AnimateWith("h", h, DurBase, EaseOut)
 		ind.Height(hh).Opacity(min(hh/4, 1))
-		ui.Box(c).Width((RailWidth - size) / 2 - 4)
+		ui.Box(c).Width((RailWidth-size)/2 - 4)
 
 		b = ui.ButtonBase(c).Size(size, size).Radius(RadiusMd + 2).AlignItems(ui.Center).Justify(ui.Center).
 			Label(d.Name).AccessSelected(selected).Tooltip(d.Name)
@@ -130,7 +130,7 @@ func RailDivider(c *ui.Context) {
 // "Favourites", with an optional count and trailing action.
 func SectionHeader(c *ui.Context, title string, open *bool, trailing func()) {
 	p := Of(c)
-	ui.Row(c.Key("section:"+title)).Height(28).PaddingX(S2).Gap(S1).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("section:" + title)).Height(28).PaddingX(S2).Gap(S1).AlignItems(ui.Center).Children(func() {
 		b := ui.ButtonBase(c).Gap(S1).AlignItems(ui.Center).Justify(ui.Start).Grow(1).Height(28).Radius(RadiusSm).
 			Label(title).Expanded(*open)
 		fg := p.TextMuted
