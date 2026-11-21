@@ -7,6 +7,7 @@ import (
 
 	"maunium.net/go/mautrix/event"
 
+	"slopement/format"
 	"slopement/model"
 )
 
@@ -97,7 +98,7 @@ type rawEvent struct {
 // count unread.
 func (r *room) appendEvent(e model.Event, senderName string, fromMe bool) {
 	if mark, ok := r.edits[e.ID]; ok && e.Kind != model.EventUndecryptable && e.Kind != model.EventSystem {
-		e.Body, e.Edited = mark.Body, true // an edit that came before the event could take it
+		mark.apply(&e) // an edit that came before the event could take it
 	}
 	for i := range r.events {
 		if r.events[i].ID == e.ID {
@@ -149,7 +150,7 @@ func (r *room) insertOlder(e model.Event) {
 		return
 	}
 	if mark, ok := r.edits[e.ID]; ok && e.Kind != model.EventUndecryptable && e.Kind != model.EventSystem {
-		e.Body, e.Edited = mark.Body, true
+		mark.apply(&e)
 	}
 	i := len(r.events)
 	for i > 0 && r.events[i-1].Time.After(e.Time) {
@@ -236,7 +237,13 @@ func previewText(e model.Event) string {
 		}
 		return "Attachment"
 	}
-	if line := strings.TrimSpace(strings.SplitN(e.Body, "\n", 2)[0]); line != "" {
+	body := e.Body
+	if e.Formatted != "" {
+		// What it says, not the Markdown it was typed as: "- a" is "a" in
+		// the list, and "**x**" is x.
+		body = format.Plain(format.ParseHTML(e.Formatted))
+	}
+	if line := strings.TrimSpace(strings.SplitN(body, "\n", 2)[0]); line != "" {
 		return line
 	}
 	return "Message"
@@ -248,20 +255,20 @@ func previewText(e model.Event) string {
 // readable yet (still waiting for its keys, or not synced) and takes the
 // edit when it is — an edit that finds nothing and is forgotten leaves the
 // message as it first was.
-func (r *room) editEvent(target, body string, ts int64) {
+func (r *room) editEvent(target, body, formatted string, ts int64) {
 	if old, ok := r.edits[target]; ok && old.TS > ts {
 		return // an older edit arriving late
 	}
 	if r.edits == nil {
 		r.edits = map[string]editMark{}
 	}
-	r.edits[target] = editMark{Body: body, TS: ts}
+	mark := editMark{Body: body, Formatted: formatted, TS: ts}
+	r.edits[target] = mark
 	i := r.indexOf(target)
 	if i < 0 || r.events[i].Kind == model.EventUndecryptable {
 		return
 	}
-	r.events[i].Body = body
-	r.events[i].Edited = true
+	mark.apply(&r.events[i])
 	if i == len(r.events)-1 {
 		if who, _, ok := strings.Cut(r.preview, ": "); ok {
 			r.preview = who + ": " + previewText(r.events[i])
@@ -269,10 +276,17 @@ func (r *room) editEvent(target, body string, ts int64) {
 	}
 }
 
-// editMark is the latest edit of an event: its new text, and when.
+// editMark is the latest edit of an event: its new text (and its HTML, if
+// it has one), and when.
 type editMark struct {
-	Body string
-	TS   int64
+	Body      string
+	Formatted string
+	TS        int64
+}
+
+// apply puts the edit on an event: its words, as it was formatted.
+func (m editMark) apply(e *model.Event) {
+	e.Body, e.Formatted, e.Plain, e.Edited = m.Body, m.Formatted, m.Formatted == "", true
 }
 
 // reactionRec is one reaction: who put which key on an event, and in what

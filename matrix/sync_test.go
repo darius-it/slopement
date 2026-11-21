@@ -419,6 +419,61 @@ func TestChosenMentionAsSent(t *testing.T) {
 	}
 }
 
+// What is sent keeps its formatting in both bodies: the body is the Markdown
+// as typed (a list is still "- a" there), the formatted body is the HTML; a
+// message with nothing to format has no formatted body, and is plain.
+func TestSentBodyKeepsTheMarkdown(t *testing.T) {
+	list := contentOf("- a\n- b")
+	if list.Body != "- a\n- b" || list.FormattedBody != "<ul><li>a</li><li>b</li></ul>" || list.Format != event.FormatHTML {
+		t.Fatalf("list: body %q, formatted %q", list.Body, list.FormattedBody)
+	}
+	bold := contentOf("**big** ~~gone~~")
+	if bold.Body != "**big** ~~gone~~" || !strings.Contains(bold.FormattedBody, "<strong>big</strong>") || !strings.Contains(bold.FormattedBody, "<del>gone</del>") {
+		t.Fatalf("bold: body %q, formatted %q", bold.Body, bold.FormattedBody)
+	}
+	// A lone * or ~ is only a character: nothing to format.
+	for _, text := range []string{"~a~", "5 * 3", "a*", "-a"} {
+		if c := contentOf(text); c.FormattedBody != "" || c.Body != text {
+			t.Errorf("%q: body %q formatted %q", text, c.Body, c.FormattedBody)
+		}
+	}
+	// A chosen mention is its name in the body and a link in the formatted one.
+	m := contentOf("- [@Kai](https://matrix.to/#/@kai:example.org) hi")
+	if m.Body != "- @Kai hi" || !strings.Contains(m.FormattedBody, `href="https://matrix.to/#/@kai:example.org"`) {
+		t.Fatalf("mention in a list: body %q, formatted %q", m.Body, m.FormattedBody)
+	}
+}
+
+// How a received message is to be shown: its HTML when it came with one,
+// else it is plain text. An edit takes the same, and the room list's
+// preview says what the message says, not how it was typed.
+func TestReceivedFormatting(t *testing.T) {
+	withHTML := &event.MessageEventContent{MsgType: event.MsgText, Body: "- a", Format: event.FormatHTML, FormattedBody: "<ul><li>a</li></ul>"}
+	e := textEvent("@me:example.org", msgEvent("$1", "!a", "@kai:example.org", 1, withHTML))
+	if e.Formatted != "<ul><li>a</li></ul>" || e.Plain {
+		t.Fatalf("html message: %+v", e)
+	}
+	plain := &event.MessageEventContent{MsgType: event.MsgText, Body: "just - text *here*"}
+	if p := textEvent("@me:example.org", msgEvent("$2", "!a", "@kai:example.org", 1, plain)); p.Formatted != "" || !p.Plain {
+		t.Fatalf("plain message: %+v", p)
+	}
+	if got := previewText(e); got != "a" {
+		t.Fatalf("preview of a list = %q", got)
+	}
+
+	// An edit that adds formatting, then one that removes it.
+	r := &room{id: "!a"}
+	r.appendEvent(model.Event{ID: "$o", Body: "x", Plain: true, Kind: model.EventText, Time: at(1)}, "kai", false)
+	r.editEvent("$o", "**x**", "<strong>x</strong>", 10)
+	if ev := r.events[0]; ev.Formatted != "<strong>x</strong>" || ev.Plain || !ev.Edited {
+		t.Fatalf("edit with html: %+v", ev)
+	}
+	r.editEvent("$o", "x again", "", 20)
+	if ev := r.events[0]; ev.Formatted != "" || !ev.Plain || ev.Body != "x again" {
+		t.Fatalf("edit back to plain: %+v", ev)
+	}
+}
+
 // A GIF sent as a file is a GIF: it carries its type, and the app plays it.
 func TestGIFAttachmentKind(t *testing.T) {
 	file := func(mime string, msg event.MessageType) *event.Event {

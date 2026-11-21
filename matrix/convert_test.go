@@ -81,11 +81,16 @@ func TestEditAndReactionOf(t *testing.T) {
 		Body: "* fixed", NewContent: &event.MessageEventContent{Body: "fixed"},
 		RelatesTo: &event.RelatesTo{Type: event.RelReplace, EventID: id.EventID("$orig")},
 	}
-	if target, body, ok := editOf(edit); !ok || target != "$orig" || body != "fixed" {
-		t.Fatalf("edit = %q %q %v", target, body, ok)
+	if target, body, formatted, ok := editOf(edit); !ok || target != "$orig" || body != "fixed" || formatted != "" {
+		t.Fatalf("edit = %q %q %q %v", target, body, formatted, ok)
+	}
+	// An edit that carries HTML keeps it.
+	edit.NewContent.Format, edit.NewContent.FormattedBody = event.FormatHTML, "<strong>fixed</strong>"
+	if _, _, formatted, ok := editOf(edit); !ok || formatted != "<strong>fixed</strong>" {
+		t.Fatalf("edit html = %q %v", formatted, ok)
 	}
 	plain := &event.MessageEventContent{Body: "hi"}
-	if _, _, ok := editOf(plain); ok {
+	if _, _, _, ok := editOf(plain); ok {
 		t.Fatal("a plain message parsed as an edit")
 	}
 

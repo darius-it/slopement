@@ -65,6 +65,62 @@ func TestMentions(t *testing.T) {
 	}
 }
 
+// The Markdown we define: the double delimiters format, a lone * or ~ is
+// only a character, and a list needs its marker at the line's start.
+func TestMarkdownAsDefined(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"~~a~~", "<del>a</del>"},
+		{"**bold** and *italic* and __under__", "<strong>bold</strong> and <em>italic</em> and <u>under</u>"},
+		{"~a~", "~a~"},
+		{"a ~ b ~ c", "a ~ b ~ c"},
+		{"*a", "*a"},
+		{"a*", "a*"},
+		{"2 * 3 * 4", "2 * 3 * 4"},
+		{"**a", "**a"},
+		{"~~a", "~~a"},
+		{"- a", "<ul><li>a</li></ul>"},
+		{"- a\n- b", "<ul><li>a</li><li>b</li></ul>"},
+		{"-a", "-a"},
+		{"a - b", "a - b"},
+		{"1. a\n2. b", "<ol><li>a</li><li>b</li></ol>"},
+	} {
+		if got := HTML(Parse(tc.in)); got != tc.want && got != "<p>"+tc.want+"</p>" {
+			t.Errorf("HTML(Parse(%q)) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// Plain text is read as typed: no Markdown, but links stay links and the
+// lines keep their breaks.
+func TestParsePlain(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"- a *b* ~~c~~", "- a *b* ~~c~~"}, // a lone paragraph has no <p>
+		{"two\nlines\n\nand a paragraph", "<p>two<br>lines</p><p>and a paragraph</p>"},
+		{"see https://example.org/x?y=1 now", `see <a href="https://example.org/x?y=1">https://example.org/x?y=1</a> now`},
+		{"x", "x"},
+		{"", ""},
+	} {
+		if got := HTML(ParsePlain(tc.in)); got != tc.want {
+			t.Errorf("HTML(ParsePlain(%q)) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// HTML as other clients write it — Element puts a newline between a list's
+// items — reads as the same tree: no stray text between the bullets.
+func TestParseHTMLAsClientsWriteIt(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n", "<ul><li>a</li><li>b</li></ul>"},
+		{"<ol start=\"3\">\n<li>x</li>\n</ol>", `<ol start="3"><li>x</li></ol>`},
+		{"<p>one <strong>two</strong> <em>three</em> <del>four</del></p>", "one <strong>two</strong> <em>three</em> <del>four</del>"},
+		{"first<br />second", "first<br>second"},
+	} {
+		if got := HTML(ParseHTML(tc.in)); got != tc.want && got != "<p>"+tc.want+"</p>" {
+			t.Errorf("HTML(ParseHTML(%q))\n got %s\nwant %s", tc.in, got, tc.want)
+		}
+	}
+}
+
 // A mention chosen from the suggestions is a link to the person with their
 // label: one link, not a link around another (which Element shows as two
 // pills, one for a user that does not exist).

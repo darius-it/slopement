@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"maunium.net/go/mautrix/event"
@@ -30,6 +31,7 @@ func textEvent(me string, evt *event.Event) model.Event {
 		Time:   eventTime(evt),
 		Body:   c.Body,
 	}
+	e.Formatted, e.Plain = formattedOf(c)
 	if c.Mentions != nil && c.Mentions.Has(id.UserID(me)) {
 		e.Mentions = true
 	}
@@ -139,13 +141,24 @@ func undecryptable(evt *event.Event) model.Event {
 	}
 }
 
-// editOf reports whether a message is an edit, and of which event, with
-// its new body.
-func editOf(c *event.MessageEventContent) (target, body string, ok bool) {
-	if c.NewContent == nil || c.RelatesTo == nil || c.RelatesTo.Type != event.RelReplace {
-		return "", "", false
+// formattedOf is how a message is to be shown: its HTML body when the
+// sender gave one (org.matrix.custom.html), else it is plain text, to be
+// shown as typed.
+func formattedOf(c *event.MessageEventContent) (formatted string, plain bool) {
+	if c.Format == event.FormatHTML && strings.TrimSpace(c.FormattedBody) != "" {
+		return c.FormattedBody, false
 	}
-	return c.RelatesTo.EventID.String(), c.NewContent.Body, true
+	return "", true
+}
+
+// editOf reports whether a message is an edit, and of which event, with
+// its new body and the new formatted body, if any.
+func editOf(c *event.MessageEventContent) (target, body, formatted string, ok bool) {
+	if c.NewContent == nil || c.RelatesTo == nil || c.RelatesTo.Type != event.RelReplace {
+		return "", "", "", false
+	}
+	formatted, _ = formattedOf(c.NewContent)
+	return c.RelatesTo.EventID.String(), c.NewContent.Body, formatted, true
 }
 
 // reactionOf reports whether a message is a reaction, on which event and

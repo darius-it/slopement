@@ -39,8 +39,8 @@ func (s *Source) Edit(room, eventID, text string) {
 	}
 	edit.NewContent = body
 	edit.RelatesTo = (&event.RelatesTo{}).SetReplace(id.EventID(eventID))
-	newText := body.Body
-	s.post(func() { s.roomOf(room).editEvent(eventID, newText, time.Now().UnixMilli()) })
+	newText, newHTML := body.Body, body.FormattedBody
+	s.post(func() { s.roomOf(room).editEvent(eventID, newText, newHTML, time.Now().UnixMilli()) })
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

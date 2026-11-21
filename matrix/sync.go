@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -263,11 +264,11 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 	}
 
 	// An edit rewrites its target; it is not an event of its own.
-	if target, body, ok := editOf(c); ok {
+	if target, body, formatted, ok := editOf(c); ok {
 		id, ts := evt.ID.String(), evt.Timestamp
 		s.post(func() {
 			r := s.roomOf(evt.RoomID.String())
-			r.editEvent(target, body, ts)
+			r.editEvent(target, body, formatted, ts)
 			s.clearLock(r, id) // the edit itself may have shown as waiting for keys
 		})
 		return
@@ -794,7 +795,8 @@ func (s *Source) Send(room, markdown, replyTo string) {
 	txn := s.cli.TxnID()
 	local := localPrefix + txn
 	pending := model.Event{ID: local, Room: room, Sender: s.me.ID, Time: time.Now(), Kind: model.EventText,
-		Body: markdown, ReplyTo: replyTo, Pending: true}
+		Body: content.Body, Formatted: content.FormattedBody, Plain: content.FormattedBody == "",
+		ReplyTo: replyTo, Pending: true}
 	s.post(func() { s.roomOf(room).appendEvent(pending, "You", true) })
 	go func() {
 		resp, err := s.cli.SendMessageEvent(context.Background(), id.RoomID(room), event.EventMessage, content,
@@ -922,19 +924,31 @@ func (s *Source) SetPublicReceipts(public bool) { s.publicReceipts = public }
 
 var _ model.ReceiptPrivacy = (*Source)(nil)
 
-// contentOf is a Markdown message as Matrix sends it: the plain body and
-// the formatted one when the Markdown means anything.
+// contentOf is a Markdown message as Matrix sends it: the formatted body
+// when the Markdown means anything, and the body, which a client without
+// formatting shows — the Markdown as typed (as Element sends it, so "- a" is
+// still a list in the body and "**x**" still says so), with a mention
+// chosen from the suggestions reduced to its name. A message with nothing to
+// format has the plain text as its body, and no formatted one.
 func contentOf(markdown string) *event.MessageEventContent {
 	doc := format.Parse(markdown)
 	content := event.MessageEventContent{MsgType: event.MsgText, Body: format.Plain(doc)}
 	if format.NeedsHTML(doc) {
 		content.FormattedBody, content.Format = format.HTML(doc), event.FormatHTML
+		content.Body = mentionLinkRE.ReplaceAllStringFunc(markdown, func(m string) string {
+			label := mentionLinkRE.FindStringSubmatch(m)[1]
+			return strings.NewReplacer(`\[`, "[", `\]`, "]").Replace(label)
+		})
 	}
 	if ids := mentionedUsers(doc); len(ids) > 0 {
 		content.Mentions = &event.Mentions{UserIDs: ids} // they are notified, as the spec has it
 	}
 	return &content
 }
+
+// mentionLinkRE is a mention as the composer writes it: [@Name](matrix.to
+// link of a user), the label possibly with escaped brackets.
+var mentionLinkRE = regexp.MustCompile(`\[((?:[^\]\\]|\\.)*)\]\(https://matrix\.to/#/@[^)\s]*\)`)
 
 // mentionedUsers are the people a message links to as matrix.to user
 // links (what the composer makes of a chosen @mention).

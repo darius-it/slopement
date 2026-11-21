@@ -36,7 +36,10 @@ import (
 //
 // 4: reactions are kept by the event that made each (so one can be taken
 // back), not by who made it.
-const cacheVersion = "4"
+//
+// 5: events carry their formatted body (or are marked plain), so lists and
+// formatting show as the sender wrote them.
+const cacheVersion = "5"
 
 // Cache is the room cache of one account.
 type Cache struct {

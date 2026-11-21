@@ -120,7 +120,13 @@ type Event struct {
 	Kind   EventKind
 	// Body is the text as Markdown (the formatted body converted), or the
 	// system line.
-	Body      string
+	Body string
+	// Formatted is the message's HTML body as the sender wrote it
+	// (org.matrix.custom.html), shown in place of Body; Plain says there is
+	// none and Body is plain text, shown as typed. With neither, Body is
+	// Markdown (the mock's).
+	Formatted string
+	Plain     bool
 	Media     []Media
 	ReplyTo   string // the event replied to
 	Reactions []Reaction

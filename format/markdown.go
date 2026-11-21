@@ -20,6 +20,57 @@ func Parse(md string) *Node {
 	return &Node{Kind: Doc, Children: blocks(strings.Split(md, "\n"))}
 }
 
+// ParsePlain is a message that was sent as plain text — it has no formatted
+// body, so what the sender typed is what they meant: no Markdown is read
+// into it (a lone * or ~, a "- " at a line's start, are only characters).
+// Its links are still links (a pasted address, a GIF), its lines keep their
+// breaks, and a blank line starts a new paragraph.
+func ParsePlain(s string) *Node {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	doc := &Node{Kind: Doc}
+	for _, block := range strings.Split(s, "\n\n") {
+		if strings.TrimSpace(block) == "" {
+			continue
+		}
+		para := &Node{Kind: Paragraph}
+		for i, line := range strings.Split(strings.Trim(block, "\n"), "\n") {
+			if i > 0 {
+				para.Children = append(para.Children, &Node{Kind: Break})
+			}
+			para.Children = append(para.Children, plainInline(line)...)
+		}
+		doc.Children = append(doc.Children, para)
+	}
+	return doc
+}
+
+// plainInline is a line of plain text: its web addresses are links.
+func plainInline(s string) []*Node {
+	var out []*Node
+	var text strings.Builder
+	flush := func() {
+		if text.Len() > 0 {
+			out = append(out, &Node{Kind: Text, Text: text.String()})
+			text.Reset()
+		}
+	}
+	for i := 0; i < len(s); {
+		if c := s[i]; (c == 'h' || c == 'H') && (i == 0 || !isWord(s[i-1])) {
+			if n := autolink(s[i:]); n > 0 {
+				flush()
+				u := s[i : i+n]
+				out = append(out, &Node{Kind: Link, Href: u, Children: []*Node{{Kind: Text, Text: u}}})
+				i += n
+				continue
+			}
+		}
+		text.WriteByte(s[i])
+		i++
+	}
+	flush()
+	return out
+}
+
 func blocks(lines []string) []*Node {
 	var out []*Node
 	for i := 0; i < len(lines); {

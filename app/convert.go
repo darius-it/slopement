@@ -157,12 +157,31 @@ func (a *App) pollData(id string, p model.Poll, mine bool) *kit.PollData {
 }
 
 // doc parses an event's Markdown once (and again only if it changes).
+// doc is what a message says, as the tree the timeline draws. A message
+// that came with HTML is drawn from it — the formatting its sender wrote, a
+// list's bullets and all, whichever client wrote it; one that came without is
+// plain text, shown as typed (its links still links); only an event that says
+// neither (the mock's) is Markdown.
 func (a *App) doc(ev model.Event) *format.Node {
-	if d, ok := a.docs[ev.ID]; ok && d.body == ev.Body {
+	key := ev.Body
+	if ev.Formatted != "" {
+		key = "html:" + ev.Formatted
+	} else if ev.Plain {
+		key = "plain:" + ev.Body
+	}
+	if d, ok := a.docs[ev.ID]; ok && d.body == key {
 		return d.doc
 	}
-	n := format.Parse(ev.Body)
-	a.docs[ev.ID] = parsed{ev.Body, n}
+	var n *format.Node
+	switch {
+	case ev.Formatted != "":
+		n = format.ParseHTML(ev.Formatted)
+	case ev.Plain:
+		n = format.ParsePlain(ev.Body)
+	default:
+		n = format.Parse(ev.Body)
+	}
+	a.docs[ev.ID] = parsed{key, n}
 	return n
 }
 
