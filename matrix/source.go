@@ -80,6 +80,8 @@ type Source struct {
 	railOrder []string
 	// packs are the custom emoji and sticker packs (packs.go).
 	packs packState
+	// keyStatus is where the account's key storage stands (keys.go).
+	keyStatus model.KeyStatus
 }
 
 // NewSource is the app's view of a signed-in account, before any sync.

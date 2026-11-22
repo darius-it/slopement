@@ -69,6 +69,7 @@ func (a *App) overlays(c *ui.Context) {
 	a.roomsOverlays(c)
 	kit.MediaViewer(c, &a.viewer, a.viewerItems, &a.viewerAt)
 	a.verifyDialog(c)
+	a.keysDialogView(c)
 	a.phoneSheets(c)
 }
 
@@ -216,8 +217,12 @@ func (a *App) verifyDialog(c *ui.Context) {
 			case kit.VerifyWithKey:
 				a.verifyStep = 1
 			case kit.VerifyReset:
-				a.toast = "Resetting your identity is coming soon"
 				a.verify.Open = false
+				if _, ok := a.src.(model.IdentityResetter); ok {
+					a.openKeys(keysReset)
+				} else {
+					a.toast = soonMsg
+				}
 			}
 			err()
 		}

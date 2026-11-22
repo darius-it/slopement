@@ -139,6 +139,7 @@ func (a *App) settingsPage(c *ui.Context) {
 	}
 	if a.settings != "Security" {
 		a.sessionsAsked = false // and the devices are asked for again
+		a.keysAsked = false     // and where the keys stand
 	}
 	switch a.settings {
 	case "Account":
@@ -266,13 +267,9 @@ func (a *App) settingsPage(c *ui.Context) {
 			if kit.ChoiceRow(c, kit.IconShield, "Verify this session", "With another device (emoji) or your Security Key").Clicked() {
 				a.verify.Open, a.verifyStep = true, 0
 			}
-			if kit.ChoiceRowSoon(c, kit.IconKey, "Key storage", "Back up your keys on your homeserver").Clicked() {
-				a.toast = soonMsg
-			}
-			if kit.ChoiceRowSoon(c, kit.IconDownload, "Export room keys", "A file encrypted with a passphrase").Clicked() {
-				a.toast = soonMsg
-			}
+			a.keyRows(c)
 		})
+		a.resetIdentityGroup(c)
 		// The devices are asked for once each time the page opens.
 		if sm, ok := a.src.(model.SessionManager); ok && !a.sessionsAsked {
 			a.sessionsAsked = true
@@ -290,7 +287,11 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 	case "Advanced":
 		group(c, "Troubleshooting", "Resetting the cache never touches your encryption keys.", func() {
-			if kit.ChoiceRowSoon(c, kit.IconDownload, "Export logs", "Without message contents or tokens").Clicked() {
+			if _, ok := a.src.(model.LogExporter); ok {
+				if kit.ChoiceRow(c, kit.IconDownload, "Export logs", "A zip for bug reports, without message contents, names or tokens").Clicked() {
+					a.exportLogs()
+				}
+			} else if kit.ChoiceRowSoon(c, kit.IconDownload, "Export logs", "Without message contents or tokens").Clicked() {
 				a.toast = soonMsg
 			}
 			if cr, ok := a.src.(model.CacheResetter); ok {
@@ -320,7 +321,7 @@ func accentSwatch(c *ui.Context, pr kit.AccentPreset, selected bool) ui.Element 
 	if p.Dark {
 		col = ui.Oklch(0.78+pr.Dark, 0.115, pr.Hue).SRGB()
 	}
-	b := ui.ButtonBase(c.Key("accent:" + pr.Name)).Size(34, 34).Radius(kit.RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
+	b := ui.ButtonBase(c.Key("accent:"+pr.Name)).Size(34, 34).Radius(kit.RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
 		Label(pr.Name + " accent").Tooltip(pr.Name).AccessSelected(selected)
 	ring := ui.Transparent
 	switch {
@@ -357,7 +358,7 @@ func (a *App) ignoredGroup(c *ui.Context) {
 					ui.Text(c, pe.Name).FontSize(kit.SizeBody).SingleLine()
 					ui.Text(c, id).FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
 				})
-				if kit.Button(c, kit.Ghost, "Unignore", nil).Label("Unignore "+pe.Name).Clicked() {
+				if kit.Button(c, kit.Ghost, "Unignore", nil).Label("Unignore " + pe.Name).Clicked() {
 					a.setIgnore(id, false)
 				}
 			})

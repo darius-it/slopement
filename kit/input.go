@@ -35,6 +35,25 @@ func TextField(c *ui.Context, value *string, label, placeholder string) ui.Eleme
 	return in
 }
 
+// PasswordField is TextField with the typing hidden (a password or
+// passphrase).
+func PasswordField(c *ui.Context, value *string, label, placeholder string) ui.Element {
+	p := Of(c)
+	var in ui.Element
+	ui.Column(c).Gap(S15).Children(func() {
+		if label != "" {
+			ui.Text(c, label).FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.TextMuted)
+		}
+		box := ui.Row(c)
+		box.Children(func() {
+			in = ui.TextInputBase(c, value).Grow(1).Password().Placeholder(placeholder).
+				PlaceholderColor(p.TextMuted).Label(label).FontSize(fieldSize(c))
+		})
+		field(c, box)
+	})
+	return in
+}
+
 func fieldSize(c *ui.Context) float32 {
 	// 16 on phones stops iOS-style zoom expectations and reads better.
 	if Touch(c) {

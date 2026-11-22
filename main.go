@@ -44,6 +44,7 @@ func main() {
 		log.Printf("reading .env: %v", err)
 	}
 	platform.Install()
+	startLogging()
 	pick := picker.NewWithKey()
 
 	// The window's content: the sign-in screen in login mode until a

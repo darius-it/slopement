@@ -391,6 +391,56 @@ type Uploader interface {
 	SendFile(room string, f File, replyTo string)
 }
 
+// KeyStatus is what is known of the account's key storage.
+type KeyStatus struct {
+	Asked bool // it was asked for (the rest is meaningless before)
+	// BackupVersion is the account's key backup on its homeserver ("" for
+	// none) and BackupKeys how many keys it holds.
+	BackupVersion string
+	BackupKeys    int
+	// HaveBackupKey: this device holds the backup's key, so it reads the
+	// backup on its own.
+	HaveBackupKey bool
+	SecretStorage bool // the account has a Security Key
+	CrossSigning  bool // the account has cross-signing keys
+	Verified      bool // this device is verified by them
+	Problem       string
+}
+
+// KeyStorage is what a Source may offer: where the account's keys stand, and
+// a file of the room keys this device holds (locked with a passphrase, in
+// Element's format) and the way back in.
+type KeyStorage interface {
+	KeyStatus() KeyStatus
+	RefreshKeyStatus()
+	ExportRoomKeys(passphrase string, done func(data []byte, count int, problem string))
+	ImportRoomKeys(passphrase string, data []byte, done func(imported, total int, problem string))
+}
+
+// IdentityReset is what resetting an account's identity may need: the account
+// password, or, for a server with an account service, Approve, which is given a
+// page to have the user open and returns when they have approved there (false:
+// they gave up).
+type IdentityReset struct {
+	Password string
+	Approve  func(url string) bool
+}
+
+// IdentityResetter is what a Source may offer: replacing the account's
+// cross-signing keys and Security Key. done gets the new Security Key, or why
+// not. NeedsPasswordToReset says whether to ask for the password first.
+type IdentityResetter interface {
+	ResetIdentity(req IdentityReset, done func(recoveryKey, problem string))
+	NeedsPasswordToReset() bool
+}
+
+// LogExporter is what a Source may offer: the logs as a zip for a bug report,
+// with IDs hashed (room IDs too unless includeRoomIDs). done gets the bytes
+// and a suggested file name, or why not.
+type LogExporter interface {
+	ExportLogs(includeRoomIDs bool, done func(data []byte, name string, problem string))
+}
+
 // Sticker is what is sent as an m.sticker: a picture with its words (the
 // alt text clients without stickers show). Data is uploaded first; with URL
 // set (an mxc:// of a pack's sticker) nothing is uploaded.

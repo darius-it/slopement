@@ -73,14 +73,20 @@ type App struct {
 	// The state file (uistate.go): its path, what was last written, a
 	// write already scheduled, and the room and community of the last run
 	// that are not in the Source yet.
-	statePath        string
-	stateLast        string
-	statePending     bool
-	gifFolders       []string                 // folders of pictures the GIF picker also offers (gifsettings.go)
-	files            map[string][]model.File  // per room, waiting in the composer (files.go)
-	previews         map[string]*previewState // link previews by URL (previews.go)
-	noPreview        map[string]bool          // messages whose preview the user dismissed
-	msgSheet         kit.SheetState           // phones: a message's menu (actions.go)
+	statePath    string
+	stateLast    string
+	statePending bool
+	// Tests' file dialogs (dialogs.go), and the key storage dialog (keys.go).
+	pickFileFn       func(title, ext string, done func(path string))
+	saveFileFn       func(title, name string, done func(path string))
+	keys             keysDialog
+	keysAsked        bool                                // the key status was asked for since the Security page opened
+	confirmLogs      func(answer func(include, ok bool)) // tests' answer to the export logs dialog
+	gifFolders       []string                            // folders of pictures the GIF picker also offers (gifsettings.go)
+	files            map[string][]model.File             // per room, waiting in the composer (files.go)
+	previews         map[string]*previewState            // link previews by URL (previews.go)
+	noPreview        map[string]bool                     // messages whose preview the user dismissed
+	msgSheet         kit.SheetState                      // phones: a message's menu (actions.go)
 	msgRoom, msgID   string
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)

@@ -6,6 +6,7 @@ require (
 	github.com/egoist/mygo v0.10.0
 	github.com/forPelevin/gomoji v1.4.1
 	github.com/rivo/uniseg v0.4.7
+	github.com/rs/zerolog v1.35.1
 	go.mau.fi/util v0.11.1
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.62.0
@@ -33,7 +34,6 @@ require (
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/petermattis/goid v0.0.0-20261109124353-7cfa343ad0ab // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.3.0 // indirect

@@ -106,8 +106,18 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   `m.room.power_levels`, `matrix/power.go`) show `kit.ReadOnlyBar` instead of the
   composer; a profile card's picture opens the viewer (`app/profilepic.go`). Tests that build an `App` with `picker.New(nil)` must
   `t.Setenv("HOME"/"XDG_CONFIG_HOME", t.TempDir())`, or they write the user's
-  real `picker.json`. Still "Soon": key backup/export, identity
-  reset, log export. Voice recording (and Opus/AAC decode) is in the
+  real `picker.json`. Security (Settings): `matrix/keys.go` + `app/keys.go` —
+  key storage status (`model.KeyStorage`), export/import of room keys (Element's
+  file format, locked with a passphrase), identity reset
+  (`model.IdentityResetter`, UIA by password or by a browser approval, MSC4312
+  stages `m.oauth` / `org.matrix.cross_signing_reset`). Not built: creating a
+  new key backup (make it in Element, restore here). Logs: `internal/diag`
+  (one redacted file a day under `<config>/slopement/logs`, 7 days, 20 MB; an
+  export hashes IDs), wired in `logging.go` and `matrix/diagnostics.go`, exported
+  from Advanced (`model.LogExporter`). Still "Soon" in settings: animate profile
+  pictures, hide joins/leaves, fetch previews from this device (and calls).
+  File dialogs go through `app/dialogs.go` (tests replace `pickFileFn` /
+  `saveFileFn`). Voice recording (and Opus/AAC decode) is in the
   mobile-polish/device-pass scope (plan step 9), not stage 5: mygo has no
   capture API yet.
 - `model/`: the app's data types and the `Source` interface (the Matrix
