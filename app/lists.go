@@ -153,8 +153,8 @@ func (a *App) communityMenu(cm model.Community, m *ui.Menu) {
 		a.src.SetCommunityFavourite(cm.ID, !cm.Favourite)
 	}
 	m.Separator()
-	if m.Item("Community settings").Chosen() {
-		a.toast = "Community settings come with the Matrix layer"
+	if m.Item("Community settings").Trailing("Soon").Chosen() {
+		a.toast = soonMsg
 	}
 }
 

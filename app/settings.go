@@ -208,8 +208,8 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "GIF previews", "A message that is only a GIF link shows as the GIF", &a.prefs.gifPreviews)
 			switchRow(c, "Animate GIFs", "Only while they're on screen", &a.prefs.gifAutoplay)
 			switchRow(c, "Send GIFs as files", "Off: the picker sends a link, which costs your homeserver nothing, and shows as the GIF here and in clients that preview links. On: the GIF is uploaded, so every client animates it.", &a.prefs.gifFiles)
-			switchRow(c, "Animate profile pictures", "Otherwise only on hover", &a.prefs.animatedAvatars)
-			switchRow(c, "Hide joins and leaves", "In large rooms they're collapsed anyway", &a.prefs.hideJoins)
+			a.soonSwitch(c, "Animate profile pictures", "Otherwise only on hover")
+			a.soonSwitch(c, "Hide joins and leaves", "In large rooms they're collapsed anyway")
 		})
 	case "Notifications":
 		group(c, "This device", "", func() {
@@ -222,22 +222,22 @@ func (a *App) settingsPage(c *ui.Context) {
 	case "Privacy":
 		group(c, "Activity", "", func() {
 			switchRow(c, "Read receipts", "Show who has read your messages, and let others see what you've read. Off: nothing is shown, and your receipts stay private.", &a.prefs.receipts)
-			switchRow(c, "Send typing notifications", "", &a.prefs.typing)
+			a.soonSwitch(c, "Send typing notifications", "")
 		})
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)
-			switchRow(c, "Fetch previews from this device", "", &a.prefs.previewsDirect)
+			a.soonSwitch(c, "Fetch previews from this device", "")
 		})
 	case "Security":
 		group(c, "This session", "", func() {
 			if kit.ChoiceRow(c, kit.IconShield, "Verify this session", "With another device (emoji) or your Security Key").Clicked() {
 				a.verify.Open, a.verifyStep = true, 0
 			}
-			if kit.ChoiceRow(c, kit.IconKey, "Key storage", "Backed up · in sync").Clicked() {
-				a.toast = "Key backup comes with the Matrix layer"
+			if kit.ChoiceRowSoon(c, kit.IconKey, "Key storage", "Back up your keys on your homeserver").Clicked() {
+				a.toast = soonMsg
 			}
-			if kit.ChoiceRow(c, kit.IconDownload, "Export room keys", "A file encrypted with a passphrase").Clicked() {
-				a.toast = "Key export comes with the Matrix layer"
+			if kit.ChoiceRowSoon(c, kit.IconDownload, "Export room keys", "A file encrypted with a passphrase").Clicked() {
+				a.toast = soonMsg
 			}
 		})
 		// The devices are asked for once each time the page opens.
@@ -247,23 +247,21 @@ func (a *App) settingsPage(c *ui.Context) {
 		}
 		a.sessions(c)
 	case "Calls":
-		group(c, "Call system", "Calls use MatrixRTC (Element Call) when your homeserver supports it, and Jitsi when it doesn't or MatrixRTC fails. A setting to prefer Jitsi comes in v1.1.", func() {
-			ui.Row(c).Padding(kit.S3).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, kit.IconPhone).Size(16, 16).TextColor(p.TextMuted)
-				ui.Text(c, "MatrixRTC, with Jitsi as the fallback").FontSize(kit.SizeBody).Grow(1)
-			})
+		group(c, "Call system", "Calls are coming: MatrixRTC (Element Call) where your homeserver has it, and Jitsi where it doesn't.", func() {
+			if kit.ChoiceRowSoon(c, kit.IconPhone, "MatrixRTC, with Jitsi as the fallback", "How calls are made").Clicked() {
+				a.toast = soonMsg
+			}
 		})
 		group(c, "Starting calls", "", func() {
-			on := true
-			switchRow(c, "Camera off when joining", "Turn it on in the call", &on)
+			a.soonSwitch(c, "Camera off when joining", "Turn it on in the call")
 		})
 	case "Advanced":
 		group(c, "Troubleshooting", "Resetting the cache never touches your encryption keys.", func() {
-			if kit.ChoiceRow(c, kit.IconDownload, "Export logs", "Without message contents or tokens").Clicked() {
-				a.toast = "Log export comes with the Matrix layer"
+			if kit.ChoiceRowSoon(c, kit.IconDownload, "Export logs", "Without message contents or tokens").Clicked() {
+				a.toast = soonMsg
 			}
-			if kit.ChoiceRow(c, kit.IconTrash, "Reset local cache", "Syncs everything again").Clicked() {
-				a.toast = "Cache reset comes with the Matrix layer"
+			if kit.ChoiceRowSoon(c, kit.IconTrash, "Reset local cache", "Syncs everything again").Clicked() {
+				a.toast = soonMsg
 			}
 		})
 		if a.OpenGallery != nil {

@@ -213,6 +213,33 @@ func choiceRow(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 	return b
 }
 
+// ChoiceRowSoon is a choice that is not built yet: faded, with "Soon" where
+// the chevron would be, and no hover. It is still pressable, so the app can
+// say "Coming soon" instead of nothing happening.
+func ChoiceRowSoon(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
+	p := Of(c)
+	b := ui.ButtonBase(c.Key(title)).Opacity(0.55).Cursor(ui.CursorDefault)
+	b.Padding(S3).Gap(S3).Radius(RadiusMd - 2).AlignItems(ui.Center).Label(title + ", coming soon")
+	b.Children(func() {
+		ui.Box(c).Size(36, 36).Radius(RadiusSm + 2).Background(p.BgInset).AlignItems(ui.Center).Justify(ui.Center).
+			Children(func() { ui.Icon(c, icon).Size(18, 18).TextColor(p.TextMuted) })
+		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.TextMuted)
+			ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextFaint)
+		})
+		SoonTag(c)
+	})
+	return b
+}
+
+// SoonTag is the small "Soon" label of what is not built yet.
+func SoonTag(c *ui.Context) {
+	p := Of(c)
+	ui.Row(c).Padding(1, S2).Radius(RadiusFull).Background(p.BgInset).Border(1, p.Border).Shrink(0).Children(func() {
+		ui.Text(c, "Soon").FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted).SingleLine()
+	})
+}
+
 // ChoiceRow is exported for other screens (login: server choice, etc.).
 func ChoiceRow(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 	return choiceRow(c, icon, title, sub)

@@ -216,7 +216,7 @@ func (a *App) verifyDialog(c *ui.Context) {
 			case kit.VerifyWithKey:
 				a.verifyStep = 1
 			case kit.VerifyReset:
-				a.toast = "Resetting your identity comes with the Matrix layer"
+				a.toast = "Resetting your identity is coming soon"
 				a.verify.Open = false
 			}
 			err()

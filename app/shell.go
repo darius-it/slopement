@@ -418,7 +418,7 @@ func (a *App) phone(c *ui.Context) {
 		}
 		if i := a.tabBar(c, names, icons); i >= 0 {
 			if inbox && i == 1 {
-				a.toast = "Calls come with the Matrix layer"
+				a.toast = "Calls are coming soon"
 			} else {
 				a.phoneTab = i
 				a.view = []view{viewRoom, viewRoom, viewPeople, viewSettings}[i]

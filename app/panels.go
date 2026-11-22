@@ -141,6 +141,29 @@ func actionTile(c *ui.Context, icon *ui.SVG, label string) ui.Element {
 }
 
 // switchRow is a setting with a switch; it reports a change.
+// soonMsg is what a setting that is not built yet answers to a press.
+const soonMsg = "Coming soon"
+
+// soonSwitch is a switch setting that is not built yet: faded, with "Soon"
+// in place of the switch, and a press says so.
+func (a *App) soonSwitch(c *ui.Context, title, sub string) {
+	p := kit.Of(c)
+	row := ui.ButtonBase(c.Key("soon:"+title)).Opacity(0.55).Cursor(ui.CursorDefault).MinHeight(44).
+		Padding(kit.S2, kit.S3).Gap(kit.S3).AlignItems(ui.Center).Label(title + ", coming soon")
+	row.Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, title).FontSize(kit.SizeBody).TextColor(p.TextMuted)
+			if sub != "" {
+				ui.Text(c, sub).FontSize(kit.SizeSmall).TextColor(p.TextFaint)
+			}
+		})
+		kit.SoonTag(c)
+	})
+	if row.Clicked() {
+		a.toast = soonMsg
+	}
+}
+
 func switchRow(c *ui.Context, title, sub string, on *bool) (changed bool) {
 	p := kit.Of(c)
 	was := *on
@@ -199,7 +222,7 @@ func (a *App) joinCall(r model.Room) {
 	}
 	a.inCall = r.ID
 	a.call = kit.NewCall() // mic on, camera off
-	a.toast = "Calls (MatrixRTC, Jitsi as the fallback) come with the calls layer: this is the layout"
+	a.toast = "Calls are coming soon (this is how they will look)"
 }
 
 // callArea is the call over the timeline: tiles and the control bar.
