@@ -259,12 +259,21 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				if m.Failed {
 					fg = p.Danger
 				}
+				// A right click on the words: the message's menu, with Copy and
+				// Select All under it (the text's own menu would hide it).
+				textMenu := func(mm *ui.Menu) {
+					if !m.Menu.Off {
+						a.chose(MessageMenu(mm, m.Menu))
+						mm.Separator()
+					}
+					mm.EditItems()
+				}
 				body := func() {
 					if m.Doc != nil {
 						// Selected with the rest of the timeline (the list is Selectable).
-						MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg, Shared: true})
+						MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg, Shared: true, Menu: textMenu})
 					} else if m.Body != "" {
-						ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45)
+						ContextMenu(c, ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45), textMenu)
 					}
 				}
 				if m.Edited {

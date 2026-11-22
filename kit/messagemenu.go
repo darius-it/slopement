@@ -41,7 +41,7 @@ func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 	if s.HasText && m.Item("Copy text").Icon(MenuIcon(IconCopy)).Chosen() {
 		ch = MsgCopyText
 	}
-	if m.Item("Copy link").Icon(MenuIcon(IconLink)).Chosen() {
+	if m.Item("Copy message link").Icon(MenuIcon(IconLink)).Chosen() {
 		ch = MsgCopyLink
 	}
 	if s.Pinned {

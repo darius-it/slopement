@@ -29,6 +29,11 @@ type BodyStyle struct {
 	// body (the timeline's list), so one drag can cross messages as it does
 	// on the web; without it the body is one selection of its own.
 	Shared bool
+	// Menu is the menu of a right click on the body's text. Selectable text
+	// has a menu of its own (Copy, Select All) that, being innermost, would
+	// hide the message's: this puts the message's there, with the editing
+	// items (m.EditItems) below it.
+	Menu func(m *ui.Menu)
 }
 
 // MessageBody renders a message's formatted tree. key identifies the
@@ -132,6 +137,9 @@ func (b *bodyBuilder) paragraph(inl []*format.Node, size float32, weight int, pa
 	if click := b.s.OnClick; click != nil && para.Clicked() {
 		click()
 	}
+	if b.s.Menu != nil {
+		ContextMenu(b.c, para, b.s.Menu)
+	}
 	prev, prevID := b.para, b.paraID
 	b.para, b.paraID = para, b.key+"|"+path
 	para.Children(func() {
@@ -178,7 +186,19 @@ func (b *bodyBuilder) inline(n *format.Node, path string) {
 		if b.s.OnAccent {
 			col = p.LinkOnBubble
 		}
-		ui.Link(c, format.Plain(n), n.Href).TextColor(col).Tooltip(n.Href)
+		link := ui.Link(c, format.Plain(n), n.Href).TextColor(col).Tooltip(n.Href)
+		// A right click on the link itself: open it, or copy it. (The
+		// innermost menu wins, so the message's own does not open here.)
+		href := n.Href
+		ContextMenu(c, link, func(m *ui.Menu) {
+			if m.Item("Open link").Icon(MenuIcon(IconLink)).Chosen() {
+				c.Services().OpenURL(href)
+			}
+			if m.Item("Copy link").Icon(MenuIcon(IconCopy)).Chosen() {
+				c.Services().WriteClipboard(href)
+				c.AddToast(ui.Toast{Title: "Link copied"})
+			}
+		})
 	case format.Mention:
 		// A mention is a pill: a tinted box around the name, in the accent,
 		// so a ping stands out in the sentence without shouting. On an

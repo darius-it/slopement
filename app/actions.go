@@ -135,7 +135,7 @@ func (a *App) messageSheet(c *ui.Context) {
 		if st.HasText {
 			row(kit.IconCopy, "Copy text", kit.MsgCopyText)
 		}
-		row(kit.IconLink, "Copy link", kit.MsgCopyLink)
+		row(kit.IconLink, "Copy message link", kit.MsgCopyLink)
 		if st.Pinned {
 			row(kit.IconPin, "Unpin", kit.MsgUnpin)
 		} else {

@@ -192,7 +192,7 @@ func TestMessageSheetOnPhone(t *testing.T) {
 	}
 	tt := ui.NewTester(a.View, 390, 844)
 	settle(tt)
-	if !tt.HasText("Copy link") || !tt.HasText("Reply") {
+	if !tt.HasText("Copy message link") || !tt.HasText("Reply") {
 		t.Fatal("the sheet does not list the actions")
 	}
 	if err := tt.Click("Pin"); err != nil {

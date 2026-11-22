@@ -38,6 +38,47 @@ func TestDragSelectsAcrossMessages(t *testing.T) {
 	}
 }
 
+// A right click on a hyperlink offers to open or copy that link; one on the
+// message elsewhere is the message's own menu, whose link item says it is
+// the message's.
+func TestLinkContextMenu(t *testing.T) {
+	a, src, room := actApp(t)
+	ev := src.tl[27]
+	ev.Body = "see the docs now"
+	ev.Formatted = `see <a href="https://example.com/docs">the docs</a> now`
+	src.tl[27] = ev
+	_ = room
+	tt := ui.NewTester(a.View, 1100, 700)
+	settle(tt)
+	l, ok := tt.Find("the docs")
+	if !ok {
+		t.Fatal("the link is not drawn")
+	}
+	tt.RightClickAt(l.X+l.W/2, l.Y+l.H/2)
+	settle(tt)
+	menu := strings.Join(tt.Menu(), "|")
+	if !strings.Contains(menu, "Open link") || !strings.Contains(menu, "Copy link") {
+		t.Fatalf("the link's menu = %q", menu)
+	}
+	if strings.Contains(menu, "Reply") {
+		t.Fatalf("the message's menu opened over the link's: %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Copy link"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != "https://example.com/docs" {
+		t.Fatalf("copied %q", got)
+	}
+
+	// Beside the link, on the message: its own menu.
+	tt.RightClickAt(l.X+l.W+120, l.Y+l.H/2)
+	settle(tt)
+	menu = strings.Join(tt.Menu(), "|")
+	if !strings.Contains(menu, "Copy message link") || strings.Contains(menu, "Open link") {
+		t.Fatalf("the message's menu = %q", menu)
+	}
+}
+
 // A click on a message leaves nothing stuck: once the pointer leaves, its
 // hover gray and toolbar are gone (keyboard focus left in the row by the
 // click does not keep them).
