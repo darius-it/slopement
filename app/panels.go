@@ -15,7 +15,11 @@ import (
 func (a *App) sidePanel(c *ui.Context) {
 	p := kit.Of(c)
 	r, _ := a.src.Room(a.room)
-	ui.Column(c.Key("panel")).Width(300).Shrink(0).Background(p.BgSubtle).BorderWidth(0, 0, 0, 1).BorderColor(p.Border).
+	width := float32(300)
+	if a.panel == panelThread {
+		width = 380 // a thread holds whole messages: room for their text
+	}
+	ui.Column(c.Key("panel")).Width(width).Shrink(0).Background(p.BgSubtle).BorderWidth(0, 0, 0, 1).BorderColor(p.Border).
 		Transition(ui.ElementTransition{Duration: kit.DurBase, ExitDuration: kit.DurFast, Width: true}).Children(func() {
 		ui.Row(c).Height(52).PaddingStart(kit.S4).PaddingEnd(kit.S2).AlignItems(ui.Center).Shrink(0).
 			BorderWidth(0, 0, 1, 0).BorderColor(p.Border).DragWindow().Children(func() {
@@ -25,12 +29,18 @@ func (a *App) sidePanel(c *ui.Context) {
 				title = "Members"
 			case panelPins:
 				title = "Pinned messages"
+			case panelThread:
+				title = "Thread"
 			}
 			ui.Text(c, title).FontSize(kit.SizeLabel).FontWeight(kit.WeightSemibold).Grow(1)
 			if kit.IconButton(c, kit.Ghost, kit.IconX, "Close the panel").Clicked() {
 				a.panel = panelNone
 			}
 		})
+		if a.panel == panelThread { // the thread scrolls as a list of its own
+			a.threadPanel(c, r)
+			return
+		}
 		ui.Scroll(c.Key("panel:" + r.ID)).Grow(1).Padding(kit.S3).Gap(kit.S3).Children(func() {
 			switch a.panel {
 			case panelMembers:
@@ -91,7 +101,7 @@ func (a *App) roomInfoBody(c *ui.Context, r model.Room) {
 			a.toast = "Link copied"
 		}
 		if actionTile(c, kit.IconUser, "Invite").Clicked() {
-			a.toast = "Invites come with the Matrix layer"
+			a.openInvite(r.ID)
 		}
 	})
 	ui.Column(c).Radius(kit.RadiusMd).Background(p.Raised).Border(1, p.Border).Padding(kit.S1).Children(func() {
@@ -234,7 +244,7 @@ func (a *App) peopleView(c *ui.Context, back bool) {
 			ui.Icon(c, kit.IconUsers).Size(18, 18).TextColor(p.TextMuted)
 			ui.Text(c, "People").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold).Grow(1)
 			if kit.Button(c, kit.Secondary, "Add person", kit.IconPlus).Clicked() {
-				a.toast = "Inviting people comes with the Matrix layer"
+				a.openAddPerson()
 			}
 		})
 		ui.Scroll(c).Grow(1).Padding(kit.S4).Children(func() {
@@ -247,7 +257,7 @@ func (a *App) peopleView(c *ui.Context, back bool) {
 			}
 			switch {
 			case act.Open != "":
-				a.open(a.src.OpenDM(act.Open))
+				a.openDM(act.Open, a.open)
 				a.community = ""
 			case act.Profile != "":
 				a.profileOpen, a.profileSheet.Open = act.Profile, true

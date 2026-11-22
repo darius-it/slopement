@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -122,12 +123,18 @@ func group(c *ui.Context, title, note string, fn func()) {
 func (a *App) settingsPage(c *ui.Context) {
 	p := kit.Of(c)
 	me := a.src.Me()
+	if a.settings != "Account" {
+		a.nameLoaded = false // the name field takes the profile's again next visit
+	}
+	if a.settings != "Security" {
+		a.sessionsAsked = false // and the devices are asked for again
+	}
 	switch a.settings {
 	case "Account":
 		group(c, "Profile", "", func() {
 			ui.Row(c).Padding(kit.S3).Gap(kit.S4).AlignItems(ui.Center).Children(func() {
 				if kit.AvatarEditor(c, a.avatar(me, 64)).Clicked() {
-					a.toast = "Changing your picture comes with the Matrix layer"
+					a.pickAvatar()
 				}
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, me.Name).FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold)
@@ -140,19 +147,40 @@ func (a *App) settingsPage(c *ui.Context) {
 					a.statusDraft.Edit(status(me.Status))
 				}
 			})
+			// The name, and the picture's removal: only where the account can change them.
+			if _, ok := a.src.(model.Profile); ok {
+				if !a.nameLoaded {
+					a.nameDraft, a.nameLoaded = me.Name, true
+				}
+				ui.Column(c).Padding(0, kit.S3, kit.S3, kit.S3).Gap(kit.S2).Children(func() {
+					in := kit.TextField(c.Key("myname"), &a.nameDraft, "Display name", me.Name)
+					ui.Row(c).Gap(kit.S2).Children(func() {
+						changed := strings.TrimSpace(a.nameDraft) != "" && strings.TrimSpace(a.nameDraft) != me.Name
+						if (kit.Button(c, kit.Primary, "Save name", nil).Clicked() || in.Submitted()) && changed {
+							a.saveName()
+						}
+						if me.Avatar != "" && kit.Button(c, kit.Ghost, "Remove picture", nil).Clicked() {
+							a.removeAvatar()
+						}
+					})
+				})
+			}
 		})
-		group(c, "Your name's colour", "Others see it only in apps that read it; you can recolour anyone for yourself from their profile.", func() {
+		group(c, "Your name's colour", "Saved with your account. You can recolour anyone for yourself from their profile.", func() {
 			ui.Column(c).Padding(kit.S3).Children(func() {
-				was := a.prefs.myColor
-				kit.SwatchPicker(c, &a.prefs.myColor, me.Name, me.ID)
-				if a.prefs.myColor != was {
-					a.colors.Set(me.ID, a.prefs.myColor)
+				sel := a.colorOf(me.ID)
+				was := sel
+				kit.SwatchPicker(c, &sel, me.Name, me.ID)
+				if sel != was {
+					a.chooseColor(me.ID, sel)
 				}
 			})
 		})
 		group(c, "", "", func() {
-			if kit.ChoiceRow(c, kit.IconLogOut, "Sign out", "Keeps your keys backed up if key storage is on").Clicked() {
-				a.toast = "Signing out comes with the Matrix layer"
+			if a.accounts != nil && a.accounts.Remove != nil {
+				if kit.ChoiceRow(c, kit.IconLogOut, "Log out", "Keeps your keys backed up if key storage is on").Clicked() {
+					a.removing, a.removeAccount.Open = me.ID, true
+				}
 			}
 		})
 	case "Appearance":
@@ -188,9 +216,8 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Desktop notifications", "", &a.prefs.notifyDesktop)
 			switchRow(c, "Sound", "", &a.prefs.notifySound)
 		})
-		group(c, "Notify me for", "Rooms can override this from their menu: all messages, mentions only, or muted for a while.", func() {
-			switchRow(c, "Mentions of my name", "", &a.prefs.notifyMentions)
-			switchRow(c, "Keywords", "Add words that should notify you", &a.prefs.notifyKeywords)
+		group(c, "Notify me for", "Chats with a person always notify; in rooms, a mention of you does. A room muted from its menu stays quiet.", func() {
+			switchRow(c, "Mentions of my name", "In rooms", &a.prefs.notifyMentions)
 		})
 	case "Privacy":
 		group(c, "Activity", "", func() {
@@ -213,6 +240,11 @@ func (a *App) settingsPage(c *ui.Context) {
 				a.toast = "Key export comes with the Matrix layer"
 			}
 		})
+		// The devices are asked for once each time the page opens.
+		if sm, ok := a.src.(model.SessionManager); ok && !a.sessionsAsked {
+			a.sessionsAsked = true
+			sm.RefreshSessions()
+		}
 		a.sessions(c)
 	case "Calls":
 		group(c, "Call system", "Calls use MatrixRTC (Element Call) when your homeserver supports it, and Jitsi when it doesn't or MatrixRTC fails. A setting to prefer Jitsi comes in v1.1.", func() {
@@ -243,6 +275,48 @@ func (a *App) settingsPage(c *ui.Context) {
 		}
 		ui.Text(c, "slopement 0.1 · mock data").FontSize(kit.SizeSmall).TextColor(p.TextFaint).PaddingStart(kit.S1)
 	}
+}
+
+// sessionLine is a device's second line: what is known of it, joined.
+func sessionLine(s model.Session, now time.Time) string {
+	var parts []string
+	for _, p := range []string{s.Client, s.IP} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	if s.Current {
+		parts = append(parts, "this device")
+	} else if !s.LastSeen.IsZero() {
+		parts = append(parts, "last seen "+timeLabel(s.LastSeen, now))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// signOutSession signs another device out. A homeserver that wants it
+// confirmed (as one with an account page does) is sent to, in the browser.
+func (a *App) signOutSession(s model.Session) {
+	sm, ok := a.src.(model.SessionManager)
+	if !ok {
+		a.toast = "This account can't sign sessions out here"
+		return
+	}
+	sm.SignOutSession(s.ID, func(err string, needsBrowser bool) {
+		switch {
+		case err != "":
+			a.toast = err
+		case needsBrowser:
+			page := sm.AccountPage()
+			if page == "" {
+				a.toast = "Your homeserver wants you to confirm this elsewhere: sign that session out from the app it runs in"
+				return
+			}
+			a.toast = "Your homeserver asks you to confirm this on its account page"
+			a.openURL = page // opened by the next frame, which has the services
+		default:
+			a.toast = "Signed out " + s.Name
+		}
+	})
 }
 
 // sessions lists the user's devices: current, verified, unverified,
@@ -278,10 +352,10 @@ func (a *App) sessions(c *ui.Context) {
 					ui.Icon(c, ic).Size(18, 18).TextColor(col)
 					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 						ui.Text(c, s.Name).FontSize(kit.SizeBody).SingleLine()
-						ui.Text(c, s.Client+" · "+s.IP+" · last seen "+timeLabel(s.LastSeen, a.now)).FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
+						ui.Text(c, sessionLine(s, a.now)).FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
 					})
 					if !s.Current && kit.Button(c, kit.Ghost, "Sign out", nil).Clicked() {
-						a.toast = "Signing out sessions comes with the Matrix layer"
+						a.signOutSession(s)
 					}
 				})
 			}

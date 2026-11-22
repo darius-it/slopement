@@ -77,6 +77,8 @@ func (a *App) main(c *ui.Context, back bool) {
 			a.peopleView(c, back)
 		case viewSettings:
 			a.settingsView(c, back)
+		case viewSearch:
+			a.searchView(c, back)
 		default:
 			if _, ok := a.src.Room(a.room); !ok {
 				a.emptyMain(c)
@@ -191,8 +193,13 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 		}
 		var add kit.RailAddAction
 		kit.RailAdd(c, &add)
-		if add != kit.RailAddNone {
-			a.toast = []string{"", "Creating communities", "Joining communities", "Exploring communities"}[add] + " comes with the Matrix layer"
+		switch add {
+		case kit.RailAddCreate: // a community
+			a.openRooms(1, 2)
+		case kit.RailAddJoin:
+			a.openRooms(0, 0)
+		case kit.RailAddExplore:
+			a.openRooms(2, 0)
 		}
 		ui.Spacer(c)
 		ui.Column(c).AlignItems(ui.Center).Gap(kit.S2).Children(func() {
@@ -374,6 +381,10 @@ func (a *App) phone(c *ui.Context) {
 	}
 	a.pushed = false
 	inbox := a.nav.Resolve(true) == kit.NavInbox
+	if a.view == viewSearch { // message search takes the whole screen, with a Back
+		ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg).Children(func() { a.searchView(c, true) })
+		return
+	}
 	ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg).Children(func() {
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			switch {
@@ -385,7 +396,7 @@ func (a *App) phone(c *ui.Context) {
 				a.inboxColumn(c, 0)
 			case a.phoneTab == 1:
 				if listHeader(c, "Communities", kit.IconPlus, "Join or create") {
-					a.toast = "Joining communities comes with the Matrix layer"
+					a.openRooms(2, 0)
 				}
 				ui.Scroll(c.Key("comms")).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.communitiesTab(c) })
 			default:

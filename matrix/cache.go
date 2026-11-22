@@ -65,8 +65,9 @@ type cacheWrite struct {
 type cacheSnapshot struct {
 	token  string
 	rooms  map[string][]byte
-	people []byte
-	direct []byte
+	people  []byte
+	direct  []byte
+	invites []byte
 }
 
 // setKey sets the key the cached rooms and people are sealed with
@@ -148,7 +149,7 @@ func (c *Cache) load(ctx context.Context, device id.DeviceID) (snap cacheSnapsho
 		return snap, false
 	}
 	snap.token = token
-	for key, dst := range map[string]*[]byte{"people": &snap.people, "direct": &snap.direct} {
+	for key, dst := range map[string]*[]byte{"people": &snap.people, "direct": &snap.direct, "invites": &snap.invites} {
 		if v, found := meta(key); found {
 			plain, err := c.open([]byte(v))
 			if err != nil {
@@ -244,8 +245,8 @@ func (c *Cache) apply(w cacheWrite) error {
 		return err
 	}
 	for key, v := range w.meta {
-		if key == "people" || key == "direct" {
-			v = c.seal(v) // names and DMs are as private as the rooms
+		if key == "people" || key == "direct" || key == "invites" {
+			v = c.seal(v) // names, DMs and invitations are as private as the rooms
 		}
 		if err = put(key, v); err != nil {
 			return err

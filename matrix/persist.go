@@ -40,6 +40,10 @@ type roomRecord struct {
 	Back      string
 	BackDone  bool
 	Pinned    []string
+
+	MutedUntil   time.Time
+	MarkedUnread bool
+	Polls        map[string]*pollState
 }
 
 type rawRecord struct {
@@ -57,6 +61,7 @@ func (r *room) record() roomRecord {
 		Favourite: r.favourite, LowPriority: r.lowPriority, Muted: r.muted,
 		Last: r.last, Preview: r.preview, Parent: r.parent,
 		Reactions: r.reactions, Reads: r.reads, Edits: r.edits, Pinned: r.pinned,
+		MutedUntil: r.mutedUntil, MarkedUnread: r.markedUnread, Polls: r.polls,
 	}
 	events := r.events
 	if len(events) > timelineCap {
@@ -98,6 +103,7 @@ func (rec roomRecord) room() *room {
 		// page, which cut rooms' history short for good. A room whose
 		// history is all held asks once more a run and learns it again.
 		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, pinned: rec.Pinned,
+		mutedUntil: rec.MutedUntil, markedUnread: rec.MarkedUnread, polls: rec.Polls,
 	}
 	for _, byID := range r.reactions {
 		for _, rr := range byID {
@@ -153,6 +159,7 @@ func (s *Source) loadCache(ctx context.Context) bool {
 	for _, id := range direct {
 		s.direct[id] = true
 	}
+	s.loadInvites(snap.invites)
 	if me, ok := s.people[s.me.ID]; ok { // the user's own name and picture, as last known
 		s.setMe(me.Name, me.Avatar)
 	}
@@ -220,6 +227,7 @@ func (s *Source) persistNow() {
 		}
 		w.meta["people"], _ = json.Marshal(people)
 		w.meta["direct"], _ = json.Marshal(direct)
+		w.meta["invites"] = s.invitesRecord()
 		w.meta["device"] = []byte(s.cli.DeviceID)
 	}
 	s.dirty, s.gone, s.dirtyMeta, s.tokenDirty = nil, nil, false, false

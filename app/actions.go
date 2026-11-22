@@ -21,6 +21,7 @@ func (a *App) msgMenu(ev model.Event) kit.MessageMenuState {
 	}
 	st.HasText = (ev.Kind == model.EventText || ev.Kind == model.EventNotice || ev.Kind == model.EventEmote) && strings.TrimSpace(ev.Body) != ""
 	st.Mine = ev.Sender == a.src.Me().ID
+	st.Thread = a.threadsOn()
 	if acts, ok := a.src.(model.Actions); ok {
 		st.Pinned = acts.IsPinned(ev.Room, ev.ID)
 	}
@@ -31,6 +32,8 @@ func (a *App) msgMenu(ev model.Event) kit.MessageMenuState {
 func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 	acts, canAct := a.src.(model.Actions)
 	switch ch {
+	case kit.MsgThread:
+		a.openThread(room, ev)
 	case kit.MsgOpenSheet:
 		a.msgSheet.Open, a.msgRoom, a.msgID = true, room, ev.ID
 	case kit.MsgCopyText:

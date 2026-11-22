@@ -144,8 +144,8 @@ func (s *Source) pageBack(room, oldest, token string, n int) {
 // undo a newer one.
 func (s *Source) historyEvent(ctx context.Context, room string, evt *event.Event) {
 	evt.RoomID = id.RoomID(room)
-	if err := evt.Content.ParseRaw(evt.Type); err != nil && evt.Type != event.EventEncrypted {
-		return
+	if err := evt.Content.ParseRaw(evt.Type); err != nil && evt.Type != event.EventEncrypted && !isPollType(evt.Type) {
+		return // (a poll's events have no content type of mautrix's: read from the raw content)
 	}
 	evt.Mautrix.EventSource = event.SourceJoin | event.SourceTimeline | sourceHistory
 	if evt.Type == event.EventEncrypted {
@@ -163,6 +163,22 @@ func (s *Source) historyEvent(ctx context.Context, room string, evt *event.Event
 }
 
 func (s *Source) historyEvent2(ctx context.Context, evt *event.Event) {
+	if isPollType(evt.Type) {
+		// A poll's start, votes and end through the handlers a live one
+		// takes (the start is placed by time, as history).
+		for _, set := range []struct {
+			types []event.Type
+			fn    func(context.Context, *event.Event)
+		}{{pollStartTypes, s.onPollStart}, {pollResponseTypes, s.onPollResponse}, {pollEndTypes, s.onPollEnd}} {
+			for _, t := range set.types {
+				if t.Type == evt.Type.Type {
+					set.fn(ctx, evt)
+					return
+				}
+			}
+		}
+		return
+	}
 	switch evt.Type {
 	case event.EventMessage:
 		s.onMessage(ctx, evt)

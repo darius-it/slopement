@@ -66,6 +66,7 @@ func (a *App) overlays(c *ui.Context) {
 	}
 
 	a.removeAccountDialog(c)
+	a.roomsOverlays(c)
 	kit.MediaViewer(c, &a.viewer, a.viewerItems, &a.viewerAt)
 	a.verifyDialog(c)
 	a.phoneSheets(c)
@@ -121,7 +122,7 @@ func (a *App) switcherOverlay(c *ui.Context) {
 			}
 		}
 	case searchMsgs:
-		a.toast = "Message search comes with the Matrix layer"
+		a.openSearch(a.switcher.Query) // what was typed is what is searched
 	}
 }
 

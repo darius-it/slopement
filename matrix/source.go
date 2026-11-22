@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
@@ -62,6 +61,17 @@ type Source struct {
 
 	// publicReceipts: the read receipts sent are public (SetPublicReceipts).
 	publicReceipts bool
+
+	// userColors are the colors chosen for names (profile.go); sessions
+	// the account's devices as last asked for.
+	userColors map[string]int
+	sessions   []model.Session
+	// invites are the invitations waiting, by room (rooms.go).
+	invites map[string]*model.Invite
+	// notify hears of messages that may notify (notify.go); notified are
+	// those it was told of.
+	notify   func(model.Notice)
+	notified map[string]bool
 }
 
 // NewSource is the app's view of a signed-in account, before any sync.
@@ -187,6 +197,7 @@ func (r *room) modelRoom() model.Room {
 		ID:           r.id,
 		Kind:         model.KindGroup,
 		Name:         r.name,
+		Alias:        r.alias,
 		Topic:        r.topic,
 		Avatar:       r.avatar,
 		Members:      r.members,
@@ -196,9 +207,13 @@ func (r *room) modelRoom() model.Room {
 		Favourite:    r.favourite,
 		LowPriority:  r.lowPriority,
 		Muted:        r.muted,
+		MutedUntil:   r.mutedUntil,
 		LastActivity: r.last,
 		Preview:      r.preview,
 		Typing:       r.typing,
+	}
+	if r.markedUnread && m.Unread == 0 {
+		m.Unread = 1 // unread by the user's own mark: shown until it is opened
 	}
 	if r.dm {
 		m.Kind, m.Partner = model.KindDM, r.partner
@@ -340,8 +355,6 @@ func (s *Source) Timeline(room string) []model.Event {
 	return nil
 }
 
-func (s *Source) Sessions() []model.Session { return nil }
-
 // Verify is this device's verification: the emoji with another device,
 // or the Security Key. Nil before sync.
 func (s *Source) Verify() model.Verify {
@@ -351,18 +364,5 @@ func (s *Source) Verify() model.Verify {
 	return s.verify
 }
 
-// The writes that mean something before the later milestones: sending,
-// reacting, reading. The rest are quiet no-ops, marked for their own
-// milestones.
-
-func (s *Source) SetFavourite(string, bool)           {}
-func (s *Source) SetCommunityFavourite(string, bool)  {}
-func (s *Source) SetLowPriority(string, bool)         {}
-func (s *Source) Mute(string, time.Time)              {}
-func (s *Source) Unmute(string)                       {}
-func (s *Source) MarkUnread(string)                   {} // m.fully_read account data, a later milestone
-func (s *Source) CreatePoll(string, model.Poll)       {}
-func (s *Source) Vote(room, event string, answer int) {}
-func (s *Source) EndPoll(room, event string)          {}
-func (s *Source) Leave(string)                        {}
-func (s *Source) OpenDM(person string) string         { return "" }
+// The room actions (tags, mute, leave, marking unread, DMs) are in
+// roomactions.go; polls in polls.go.

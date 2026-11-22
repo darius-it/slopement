@@ -89,6 +89,52 @@ func TestApplySuggestionAndMentionLinks(t *testing.T) {
 	}
 }
 
+// After a # the rooms are suggested (not chats with a person, nor the one
+// open), by name or address; picking one writes its address and the draft
+// links it, where a room with no address is linked by its ID.
+func TestRoomSuggestions(t *testing.T) {
+	a := testApp()
+	room, tl := longTimeline(a, 4)
+	a.src = timeline{a.src, tl}
+	st := a.draft(room.ID)
+
+	var group model.Room
+	for _, r := range a.src.Rooms() {
+		if r.Kind != model.KindDM && r.ID != room.ID {
+			group = r
+			break
+		}
+	}
+	if group.ID == "" {
+		t.Skip("no room besides the DM in the mock data")
+	}
+	st.Text = "see #" + strings.ToLower(group.Name[:2])
+	got := a.suggestions(room.ID, st)
+	if len(got) == 0 {
+		t.Fatalf("no room suggested for %q", st.Text)
+	}
+	for _, it := range got {
+		if r, _ := a.src.Room(it.ID); r.Kind == model.KindDM {
+			t.Fatalf("a chat with a person was suggested as a room: %+v", it)
+		}
+	}
+	a.applySuggestion(room.ID, st, got[0])
+	if !strings.HasPrefix(st.Text, "see #") {
+		t.Fatalf("text = %q", st.Text)
+	}
+	out := st.Draft()
+	if !strings.Contains(out, "](https://matrix.to/#/") {
+		t.Fatalf("the room is not a link in what is sent: %q", out)
+	}
+	// The room open now is not offered to itself.
+	st.Text = "#"
+	for _, it := range a.suggestions(room.ID, st) {
+		if it.ID == room.ID {
+			t.Fatal("the open room is suggested to itself")
+		}
+	}
+}
+
 // The field keeps the keyboard focus while suggestions show: typing goes on,
 // Up and Down move the highlight, Tab takes the highlighted one (and not
 // Enter, which sends), and typing goes on after it — nothing in between asks

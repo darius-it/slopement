@@ -28,6 +28,7 @@ func (a *App) chatsList(c *ui.Context, people bool) {
 	if people {
 		a.peopleEntry(c)
 	}
+	a.invitesSection(c) // invitations waiting, above the chats
 	var favs, rest, low []model.Room
 	for _, r := range a.chats() {
 		switch {
@@ -42,7 +43,7 @@ func (a *App) chatsList(c *ui.Context, people bool) {
 	a.section(c, "Favourites", kit.IconStar, favs)
 	a.section(c, "Chats", nil, rest)
 	a.section(c, "Low priority", nil, low)
-	if len(favs)+len(rest)+len(low) == 0 {
+	if len(favs)+len(rest)+len(low) == 0 && len(a.pendingInvites()) == 0 {
 		emptyNote(c, "No chats yet. Start one from People.")
 	}
 }
@@ -182,7 +183,7 @@ func (a *App) communityHome(c *ui.Context, cm model.Community) {
 		}
 		ui.Row(c).Gap(kit.S2).Children(func() {
 			if kit.Button(c, kit.Secondary, "Invite", kit.IconUser).Grow(1).Clicked() {
-				a.toast = "Invites come with the Matrix layer"
+				a.openInvite(cm.ID)
 			}
 			menu := kit.IconButton(c, kit.Secondary, kit.IconSettings, "Community settings")
 			kit.MenuButton(c, menu, func(m *ui.Menu) { a.communityMenu(cm, m) })
@@ -313,7 +314,7 @@ func (a *App) communitiesTab(c *ui.Context) {
 	}
 	ui.Box(c).Height(kit.S2)
 	if kit.Button(c, kit.Secondary, "Join or create a community", kit.IconPlus).Margin(0, kit.S2, 0, kit.S2).Clicked() {
-		a.toast = "Joining communities comes with the Matrix layer"
+		a.openRooms(2, 0)
 	}
 }
 

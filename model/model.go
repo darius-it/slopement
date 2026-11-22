@@ -71,6 +71,7 @@ type Room struct {
 	Topic     string
 	Avatar    string
 	Partner   string // a DM's other person (MXID)
+	Alias     string // its address (#room:server), when it has one
 	Community string // the community (space) it belongs to; "" for none
 	Members   int
 	Encrypted bool
@@ -129,7 +130,11 @@ type Event struct {
 	Plain     bool
 	Media     []Media
 	ReplyTo   string // the event replied to
-	Reactions []Reaction
+	// ThreadRoot is the message a thread reply belongs to ("" for a message
+	// of the room itself); Thread, on a thread's root, sums its replies up.
+	ThreadRoot string
+	Thread     *Thread
+	Reactions  []Reaction
 	Edited    bool
 	Pending   bool
 	// Failed: the user's message could not be sent; Error says why. Until
@@ -143,6 +148,21 @@ type Event struct {
 	// each person is on the last event they have read, never on every
 	// one before it.
 	ReadBy []string
+}
+
+// Thread sums up a thread on its root message.
+type Thread struct {
+	Replies      int
+	Last         time.Time
+	LastSender   string   // the MXID of the latest reply's author
+	Participants []string // who replied, the first to reply first
+}
+
+// Threads is what a Source may offer: replies in a thread. Replies show in
+// their thread, not among the room's messages, and the root says how many
+// there are. SendInThread sends a reply in the thread of root.
+type Threads interface {
+	SendInThread(room, root, markdown string)
 }
 
 // Preview is what a page says about itself (OpenGraph), as the
@@ -170,6 +190,101 @@ type Actions interface {
 	Pin(room, event string, on bool)
 	IsPinned(room, event string) bool
 	Pinned(room string) []string
+}
+
+// Notice is a message that may deserve a desktop notification: new (live,
+// not history), from someone else, in a room that is not muted, and a chat
+// with a person or a mention of the user. The app decides whether to show
+// it (its setting, the window's focus, the room being open).
+type Notice struct {
+	Room, Event string
+	Title       string // who or where: the person, or the room
+	Body        string // what it said (a group's: "Name: …")
+	Sender      string // the MXID
+	DM          bool
+	Mention     bool
+}
+
+// Notifier is what a Source may offer: telling the app of messages that
+// may notify, on the UI thread.
+type Notifier interface {
+	OnNotify(fn func(Notice))
+}
+
+// RoomSpec is a room (or community) to make.
+type RoomSpec struct {
+	Name, Topic string
+	Space       bool // a community
+	Public      bool // open to anyone, with an address; else private and encrypted
+	Invite      []string
+}
+
+// PublicRoom is a room of a homeserver's directory.
+type PublicRoom struct {
+	ID, Alias, Name, Topic, Avatar string
+	Members                        int
+	Space                          bool
+	Joined                         bool // the user is in it already
+}
+
+// Invite is an invitation waiting.
+type Invite struct {
+	ID, Name, Avatar, Topic string
+	Inviter                 string // the MXID of who asked
+	DM, Space               bool
+	Time                    time.Time
+}
+
+// RoomManager is what a Source may offer: making rooms and communities,
+// joining by address or link, inviting people, the invitations received, and
+// looking for people and public rooms. Results come on the UI thread: room
+// IDs ("" with an error text when it did not work).
+type RoomManager interface {
+	CreateRoom(spec RoomSpec, done func(room, err string))
+	JoinRoom(target string, done func(room, err string))
+	Invite(room, person string, done func(err string))
+	SearchPeople(query string, done func(people []Person, err string))
+	PublicRooms(query, server string, done func(rooms []PublicRoom, err string))
+	Invites() []Invite
+	AcceptInvite(room string, done func(room, err string))
+	DeclineInvite(room string)
+}
+
+// Profile is what a Source may offer: changing who the user is to others.
+// Each shows at once where it can; done is called on the UI thread with ""
+// or the reason it did not work.
+type Profile interface {
+	SetDisplayName(name string, done func(err string))
+	// SetAvatar sets the picture from an image file (any common format; the
+	// middle square of it, scaled down).
+	SetAvatar(f File, done func(err string))
+	RemoveAvatar(done func(err string))
+}
+
+// UserColors is what a Source may offer: the colors chosen for names (an
+// index of the palette, by MXID), kept with the account so every session
+// shows them. SetUserColor with -1 goes back to the automatic color.
+type UserColors interface {
+	UserColors() map[string]int
+	SetUserColor(mxid string, index int)
+}
+
+// SessionManager is what a Source may offer: the account's devices.
+// RefreshSessions asks for them (Sessions then has them); SignOutSession
+// signs another out, or says (needsBrowser) the homeserver wants that
+// confirmed on its account page, which AccountPage names ("" if none).
+type SessionManager interface {
+	RefreshSessions()
+	SignOutSession(id string, done func(err string, needsBrowser bool))
+	AccountPage() string
+}
+
+// DMCreator is what a Source may offer: opening a DM with someone who has
+// none yet. OpenDM answers only for DMs that exist; this makes one (off the
+// UI thread) and calls done on it with the room's ID ("" if it could not be
+// made).
+type DMCreator interface {
+	OpenDMAsync(person string, done func(room string))
 }
 
 // Pins is what a Source may offer beyond Actions: the pinned messages
@@ -232,6 +347,7 @@ type Media struct {
 	Spoiler bool
 	Secret  string // the source's own key material for an encrypted attachment; opaque
 	Mime    string // its media type, as the sender said ("image/gif")
+	Audio   bool   // an audio or voice message: it plays (Kind is still MediaFile, for a download)
 	// Local is the picture's own bytes while it is being sent: it shows at
 	// once, before the server has it. Never stored.
 	Local []byte `json:"-"`

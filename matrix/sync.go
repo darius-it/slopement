@@ -105,6 +105,19 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.EphemeralEventPresence, s.onPresence)
 	syncer.OnEventType(event.AccountDataDirectChats, s.onDirect)
 	syncer.OnEventType(event.AccountDataRoomTags, s.onTags)
+	syncer.OnEventType(event.AccountDataMarkedUnread, s.onMarkedUnread)
+	syncer.OnEventType(event.AccountDataPushRules, s.onPushRules)
+	syncer.OnEventType(mutesType, s.onMutes)
+	syncer.OnEventType(userColorsType, s.onUserColors)
+	for _, t := range pollStartTypes {
+		syncer.OnEventType(t, s.onPollStart)
+	}
+	for _, t := range pollResponseTypes {
+		syncer.OnEventType(t, s.onPollResponse)
+	}
+	for _, t := range pollEndTypes {
+		syncer.OnEventType(t, s.onPollEnd)
+	}
 	return s, nil
 }
 
@@ -118,6 +131,7 @@ type batchSyncer struct {
 func (b *batchSyncer) ProcessResponse(ctx context.Context, resp *mautrix.RespSync, since string) error {
 	if b.src != nil {
 		b.src.beginBatch()
+		b.src.takeInvites(resp) // invitations are not rooms: kept apart, out of the handlers' way
 		var left []string
 		for id := range resp.Rooms.Leave {
 			left = append(left, id.String())
@@ -286,6 +300,7 @@ func (s *Source) onMessage(ctx context.Context, evt *event.Event) {
 			r.insertOlder(e) // a page of history: in its place, and not news
 		} else {
 			r.appendEvent(e, name, sender == s.me.ID)
+			s.noticeOf(r, e, name)
 		}
 		// A decrypted event may be one that had waited for keys
 		// re-dispatched: its raw copy goes with its tile.
@@ -784,12 +799,39 @@ func (s *Source) collectRaw() []*rawSnapshot {
 // Send posts a message to a room: Markdown in, the homeserver's event
 // out. The client's Crypto hook encrypts it where the room is; the sync
 // loop echoes it back into the timeline.
-func (s *Source) Send(room, markdown, replyTo string) {
+func (s *Source) Send(room, markdown, replyTo string) { s.sendMessage(room, markdown, replyTo, "") }
+
+// SendInThread sends a reply in the thread of root (a thread starts with its
+// first reply). Clients without threads see it as a reply to the thread's
+// latest message.
+func (s *Source) SendInThread(room, root, markdown string) {
+	s.sendMessage(room, markdown, "", root)
+}
+
+var _ model.Threads = (*Source)(nil)
+
+// sendMessage sends a Markdown message: a reply to one (replyTo), in a thread
+// (threadRoot), or plain.
+func (s *Source) sendMessage(room, markdown, replyTo, threadRoot string) {
 	if s.cli == nil {
 		return
 	}
 	content := contentOf(markdown)
-	if replyTo != "" {
+	if threadRoot != "" {
+		fallback := threadRoot
+		if r, ok := s.rooms[room]; ok {
+			for i := len(r.events) - 1; i >= 0; i-- { // the thread's latest, for clients without threads
+				if e := r.events[i]; e.ThreadRoot == threadRoot && !strings.HasPrefix(e.ID, localPrefix) {
+					fallback = e.ID
+					break
+				}
+			}
+		}
+		content.RelatesTo = (&event.RelatesTo{}).SetThread(id.EventID(threadRoot), id.EventID(fallback))
+		if replyTo != "" {
+			content.RelatesTo.SetReplyTo(id.EventID(replyTo))
+		}
+	} else if replyTo != "" {
 		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(replyTo))
 	}
 	// The message shows at once, pending, under a local ID; it takes the
@@ -800,7 +842,7 @@ func (s *Source) Send(room, markdown, replyTo string) {
 	local := localPrefix + txn
 	pending := model.Event{ID: local, Room: room, Sender: s.me.ID, Time: time.Now(), Kind: model.EventText,
 		Body: content.Body, Formatted: content.FormattedBody, Plain: content.FormattedBody == "",
-		ReplyTo: replyTo, Pending: true}
+		ReplyTo: replyTo, ThreadRoot: threadRoot, Pending: true}
 	s.post(func() { s.roomOf(room).appendEvent(pending, "You", true) })
 	go func() {
 		resp, err := s.cli.SendMessageEvent(context.Background(), id.RoomID(room), event.EventMessage, content,
@@ -905,6 +947,10 @@ func (s *Source) MarkRead(room string) {
 		return
 	}
 	r.unread, r.mentions = 0, 0
+	if r.markedUnread {
+		r.markedUnread = false
+		go s.setMarkedUnread(room, false) // read: the mark goes, on every device
+	}
 	s.markDirty(room)
 	receipt := event.ReceiptTypeReadPrivate // nobody sees it, unless the user chose so
 	if s.publicReceipts {
@@ -951,8 +997,9 @@ func contentOf(markdown string) *event.MessageEventContent {
 }
 
 // mentionLinkRE is a mention as the composer writes it: [@Name](matrix.to
-// link of a user), the label possibly with escaped brackets.
-var mentionLinkRE = regexp.MustCompile(`\[((?:[^\]\\]|\\.)*)\]\(https://matrix\.to/#/@[^)\s]*\)`)
+// link of a user) or [#room](matrix.to link of a room), the label possibly
+// with escaped brackets.
+var mentionLinkRE = regexp.MustCompile(`\[((?:[^\]\\]|\\.)*)\]\(https://matrix\.to/#/[@#!][^)\s]*\)`)
 
 // mentionedUsers are the people a message links to as matrix.to user
 // links (what the composer makes of a chosen @mention).

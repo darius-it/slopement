@@ -219,11 +219,19 @@ type ProfileSpec struct {
 	Trust      Trust
 	Pronouns   string
 	Self       bool // the user's own card: edit the status, no Message or Call
+	// Recolor shows the row to choose the name's color; ColorIndex is the
+	// one chosen now (-1 automatic).
+	Recolor    bool
+	ColorIndex int
 }
 
 // ProfileAction is what the card asked for.
 type ProfileAction struct {
 	Message, Call, Verify, EditStatus bool
+	// SetColor: the name's color was chosen (Color: an index of the
+	// palette, -1 for automatic).
+	SetColor bool
+	Color    int
 }
 
 // ProfileCard is the card a user's avatar or name opens: their picture,
@@ -248,6 +256,14 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 			// The status in a soft bubble, as Discord's profile shows it.
 			ui.Row(c).Padding(S2, S3).Radius(RadiusMd).Background(p.BgInset).Children(func() {
 				StatusLine(c, s.Status, now, false).Grow(1)
+			})
+		}
+		if s.Recolor {
+			ui.Row(c.Key("recolor")).Gap(S2).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Name colour").FontSize(SizeSmall).TextColor(p.TextMuted).Grow(1).SingleLine()
+				if i, ok := ColorDots(c, s.ColorIndex, s.MXID); ok {
+					a.SetColor, a.Color = true, i
+				}
 			})
 		}
 		if s.Trust == TrustWarning {

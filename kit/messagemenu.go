@@ -13,6 +13,9 @@ type MessageMenuState struct {
 	Pinned bool
 	// Off hides the menu (a message still being sent, or a lock tile).
 	Off bool
+	// Thread offers "Reply in thread" (where the account has threads and
+	// there is room for the thread panel).
+	Thread bool
 }
 
 // MessageChoice is what was chosen from a message's menu.
@@ -27,6 +30,7 @@ const (
 	MsgPin
 	MsgUnpin
 	MsgDelete
+	MsgThread // reply in (or open) the message's thread
 	// MsgOpenSheet asks for the menu as a sheet (a long press on a phone).
 	MsgOpenSheet
 )
@@ -37,6 +41,9 @@ const (
 func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 	if m.Item("Reply").Icon(MenuIcon(IconReply)).Chosen() {
 		ch = MsgReply
+	}
+	if s.Thread && m.Item("Reply in thread").Icon(MenuIcon(IconMessage)).Chosen() {
+		ch = MsgThread
 	}
 	if s.HasText && m.Item("Copy text").Icon(MenuIcon(IconCopy)).Chosen() {
 		ch = MsgCopyText

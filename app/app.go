@@ -23,6 +23,7 @@ const (
 	viewRoom view = iota
 	viewPeople
 	viewSettings
+	viewSearch // message search (search.go)
 )
 
 // panel is the right panel beside the room; it stays open across rooms.
@@ -33,6 +34,7 @@ const (
 	panelInfo
 	panelMembers
 	panelPins
+	panelThread // the open thread (threads.go); not restored on a launch
 )
 
 // App is the app's UI state. The data is the Source's.
@@ -129,6 +131,26 @@ type App struct {
 	accounts      *Accounts
 	detached      bool // the window moved on to another account's app
 	fileSeq       int  // numbers the files waiting in composers (their thumbnails)
+	// The display name being edited in Settings → Account, and whether it
+	// has been taken from the profile yet.
+	nameDraft     string
+	nameLoaded    bool
+	focused bool // the window is in front (notifications stay quiet for the room in view)
+	srch    searchState
+	// narrow: the window is phone-sized this frame (no side panels);
+	// thread is the open thread, inThread says one is being drawn.
+	narrow   bool
+	thread   threadState
+	inThread bool
+	clips    map[string]*clip // audio messages played or being loaded, by event (audio.go)
+	// Join / create / explore, and inviting (rooms.go); a room to open as
+	// soon as the sync has it.
+	rd            roomsDialog
+	inv           inviteDialog
+	pendingOpen   string
+	pendingOpenBy time.Time
+	sessionsAsked bool   // the devices were asked for this visit to Security
+	openURL       string // a page for the next frame to open in the browser
 	removing      string
 	removeAccount kit.SheetState
 	picker       kit.PickerState
@@ -220,7 +242,10 @@ func (a *App) Attach(w *mygo.Window) {
 	}
 	// Coming back to the window is a frame: the room open there is read
 	// (readStep), whatever arrived while the user was away.
-	w.OnFocus(func() { w.Update(func() {}) })
+	a.focused = true // opened in front
+	w.OnFocus(func() { w.Update(func() { a.focused = true }) })
+	w.OnBlur(func() { w.Update(func() { a.focused = false }) })
+	a.listenForNotices()
 	// Files dropped where no element takes them (over the composer's field,
 	// the side panel, a gap) still go to the open room's composer: the
 	// window takes files anywhere once it has a listener.
@@ -237,7 +262,10 @@ func (a *App) Attach(w *mygo.Window) {
 // Detach ends the app's hold on the window: its handlers do nothing from
 // here on. The host calls it when it swaps the window to another account's
 // app.
-func (a *App) Detach() { a.detached = true }
+func (a *App) Detach() {
+	a.detached = true
+	a.closeClips()
+}
 
 // open opens a room: it becomes the open room, is marked read, and leads
 // the switcher's recents.
@@ -261,7 +289,14 @@ func (a *App) open(id string) {
 // View is the window's content.
 func (a *App) View(c *ui.Context) {
 	a.now = time.Now()
+	a.narrow = kit.Compact(c)
 	a.receiptsSync()
+	a.syncColors()
+	a.pendingStep()
+	if a.openURL != "" { // a page to show in the browser, asked for off the view
+		c.Services().OpenURL(a.openURL)
+		a.openURL = ""
+	}
 	switch a.theme {
 	case 1:
 		kit.ApplyTheme(c, false)
@@ -271,6 +306,9 @@ func (a *App) View(c *ui.Context) {
 		kit.Apply(c)
 	}
 	kit.SwitcherShortcut(c, &a.switcher)
+	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyF) { // ⌘⇧F: search messages
+		a.openSearch("")
+	}
 	if a.glass(c) {
 		kit.WindowChrome(c) // the bar and sidebars show the window's material
 	}
@@ -306,8 +344,8 @@ func (a *App) Actions() platform.Actions {
 	return platform.Actions{
 		QuickSwitcher: func() { a.switcher.Toggle() },
 		NewMessage:    func() { a.view, a.phoneTab = viewPeople, 2 },
-		NewRoom:       func() { a.toast = "Creating rooms comes with the Matrix layer" },
-		JoinRoom:      func() { a.toast = "Joining rooms comes with the Matrix layer" },
+		NewRoom:       func() { a.openRooms(1, 0) },
+		JoinRoom:      func() { a.openRooms(0, 0) },
 		Settings:      func() { a.view, a.phoneTab = viewSettings, 3 },
 		ToggleSidebar: func() { a.sidebar = !a.sidebar },
 		Appearance:    func(mode int) { a.theme = mode },

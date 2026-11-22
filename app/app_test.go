@@ -146,7 +146,7 @@ func TestSendAndNavigate(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tt)
-	if !tt.HasText("Sign out") {
+	if !tt.HasText("Your name's colour") {
 		t.Fatal("settings didn't open")
 	}
 	snap(t, "app-settings", tt)

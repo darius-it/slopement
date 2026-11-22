@@ -81,6 +81,17 @@ func main() {
 
 		setMenu := func() { mygo.App.SetMenu(platform.MenuBar(a.Actions(), win.Update)) }
 
+		// A click on a desktop notification brings the window forward on the
+		// room it was about (its ID).
+		mygo.App.OnNotificationClick(func(id string) {
+			win.Update(func() {
+				if a != nil && (lg == nil || signed) {
+					a.OpenFromNotification(id)
+				}
+				win.Focus()
+			})
+		})
+
 		// Debug → Component Gallery: the kit's gallery, in its own window
 		// (one at a time).
 		var gwin *mygo.Window

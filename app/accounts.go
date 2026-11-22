@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slopement/kit"
+	"slopement/model"
 )
 
 // AccountEntry is one account signed in on this device, as the account
@@ -30,6 +31,30 @@ type Accounts struct {
 	// Remove logs an account out on this device (its sign-in; the messages
 	// stay on the server).
 	Remove func(user string)
+}
+
+// openDM opens the chat with someone and calls then with its room: the DM
+// there is, or one made now (a source that can: the real account's), or
+// nothing — said as a toast — when it could not be made.
+func (a *App) openDM(person string, then func(room string)) {
+	if room := a.src.OpenDM(person); room != "" {
+		then(room)
+		return
+	}
+	mk, ok := a.src.(model.DMCreator)
+	if !ok {
+		a.toast = "Could not start a chat with " + person
+		return
+	}
+	a.toast = "Starting the chat…"
+	mk.OpenDMAsync(person, func(room string) {
+		if room == "" {
+			a.toast = "Could not start a chat with " + person
+			return
+		}
+		a.toast = ""
+		then(room)
+	})
 }
 
 // SetAccounts gives the app its accounts.

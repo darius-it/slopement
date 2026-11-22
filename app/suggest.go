@@ -31,10 +31,55 @@ func (a *App) suggestions(room string, st *kit.ComposerState) []kit.SuggestItem 
 	switch {
 	case strings.HasPrefix(word, "@"):
 		return a.mentionSuggestions(room, strings.ToLower(word[1:]))
+	case strings.HasPrefix(word, "#"):
+		return a.roomSuggestions(room, strings.ToLower(word[1:]))
 	case strings.HasPrefix(word, ":") && len(word) >= 3 && !strings.Contains(word[1:], ":"):
 		return emojiSuggestions(word[1:])
 	}
 	return nil
+}
+
+// roomSuggestions are the rooms (not chats with a person, nor communities)
+// whose name or address starts with the query, then those that contain it:
+// picking one writes its address and makes the word a link to it, which
+// other clients show as a room pill.
+func (a *App) roomSuggestions(current, query string) []kit.SuggestItem {
+	type scored struct {
+		r     model.Room
+		score int
+	}
+	var found []scored
+	for _, r := range a.src.Rooms() { // already most recently active first
+		if r.Kind == model.KindDM || r.ID == current {
+			continue
+		}
+		name := strings.ToLower(r.Name)
+		alias := strings.ToLower(strings.TrimPrefix(r.Alias, "#"))
+		switch {
+		case query == "":
+			found = append(found, scored{r, 2})
+		case strings.HasPrefix(name, query) || strings.HasPrefix(alias, query):
+			found = append(found, scored{r, 2})
+		case strings.Contains(name, query) || strings.Contains(alias, query):
+			found = append(found, scored{r, 1})
+		}
+	}
+	sort.SliceStable(found, func(i, j int) bool { return found[i].score > found[j].score })
+	var out []kit.SuggestItem
+	for _, f := range found {
+		if len(out) == suggestMax {
+			break
+		}
+		target := f.r.Alias // linked by its address; a room with none, by its ID
+		insert := f.r.Alias
+		if target == "" {
+			target, insert = f.r.ID, "#"+f.r.Name
+		}
+		out = append(out, kit.SuggestItem{Label: f.r.Name, Sub: f.r.Alias,
+			Avatar: kit.AvatarSpec{Name: f.r.Name, ID: f.r.ID, Size: 24, Square: true, Colors: &a.colors, Image: a.avatarPic(f.r.Avatar)},
+			Insert: insert, ID: target})
+	}
+	return out
 }
 
 // mentionSuggestions are people of the room whose name or address starts

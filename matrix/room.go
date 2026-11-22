@@ -34,7 +34,14 @@ type room struct {
 
 	unread, mentions              int
 	favourite, lowPriority, muted bool
-	last                          time.Time
+	// mutedUntil is when a timed mute ends (zero while muted for good);
+	// markedUnread is m.marked_unread: unread by the user's own choice.
+	mutedUntil   time.Time
+	markedUnread bool
+	// polls are the votes and ends of the room's polls, by poll event
+	// (polls.go): kept apart from the events, which show the tally.
+	polls map[string]*pollState
+	last  time.Time
 	preview                       string
 	typing                        []string
 
@@ -452,6 +459,36 @@ func (r *room) timeline(me string) []model.Event {
 	sort.Strings(users)
 	for _, u := range users {
 		out[at[u]].ReadBy = append(out[at[u]].ReadBy, u)
+	}
+	// A thread's root says how many replies it has, and who wrote them.
+	threads := map[string]*model.Thread{}
+	for _, e := range r.events {
+		if e.ThreadRoot == "" || e.Kind == model.EventSystem {
+			continue
+		}
+		th := threads[e.ThreadRoot]
+		if th == nil {
+			th = &model.Thread{}
+			threads[e.ThreadRoot] = th
+		}
+		th.Replies++
+		if !e.Time.Before(th.Last) {
+			th.Last, th.LastSender = e.Time, e.Sender
+		}
+		seen := false
+		for _, p := range th.Participants {
+			seen = seen || p == e.Sender
+		}
+		if !seen {
+			th.Participants = append(th.Participants, e.Sender)
+		}
+	}
+	if len(threads) > 0 {
+		for i := range out {
+			if th, ok := threads[out[i].ID]; ok {
+				out[i].Thread = th
+			}
+		}
 	}
 	// A message that arrived a moment ago and cannot be read yet is not
 	// shown as locked: its key is usually on its way, and a lock tile that

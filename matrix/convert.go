@@ -36,8 +36,13 @@ func textEvent(me string, evt *event.Event) model.Event {
 		e.Mentions = true
 	}
 	if rel := c.RelatesTo; rel != nil {
-		if id := rel.GetReplyTo(); id != "" {
+		// A reply in a thread points at the latest message of the thread as
+		// a fallback for clients without threads: that is not a reply.
+		if id := rel.GetNonFallbackReplyTo(); id != "" {
 			e.ReplyTo = id.String()
+		}
+		if root := rel.GetThreadParent(); root != "" {
+			e.ThreadRoot = root.String()
 		}
 	}
 	switch c.MsgType {
@@ -86,7 +91,7 @@ func mediaOf(c *event.MessageEventContent) (model.Media, bool) {
 			m.Kind = model.MediaGIF
 		}
 	case event.MsgAudio:
-		m.Kind = model.MediaFile
+		m.Kind, m.Audio = model.MediaFile, true
 	case event.MsgFile:
 		m.Kind = model.MediaFile
 	}

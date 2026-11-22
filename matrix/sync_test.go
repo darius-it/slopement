@@ -444,6 +444,21 @@ func TestSentBodyKeepsTheMarkdown(t *testing.T) {
 	}
 }
 
+// A room chosen from the # suggestions is its address in the body and a
+// link in the formatted one — and notifies no one.
+func TestRoomLinkInASentMessage(t *testing.T) {
+	c := contentOf("see [#lounge:example.org](https://matrix.to/#/#lounge:example.org) now")
+	if c.Body != "see #lounge:example.org now" {
+		t.Fatalf("body %q", c.Body)
+	}
+	if !strings.Contains(c.FormattedBody, `href="https://matrix.to/#/#lounge:example.org"`) {
+		t.Fatalf("formatted %q", c.FormattedBody)
+	}
+	if c.Mentions != nil {
+		t.Fatalf("a room link mentioned people: %+v", c.Mentions)
+	}
+}
+
 // How a received message is to be shown: its HTML when it came with one,
 // else it is plain text. An edit takes the same, and the room list's
 // preview says what the message says, not how it was typed.

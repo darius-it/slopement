@@ -48,6 +48,10 @@ func rubberBand(over, dim float32) float32 {
 	return (1 - 1/(over*0.55/dim+1)) * dim
 }
 
+// SheetAlive says a sheet is still built: open, or on its way shut, so its
+// owner keeps calling Sheet until it is gone.
+func SheetAlive(st *SheetState) bool { return st.alive }
+
 // SheetTitle is a sheet's or dialog's title row, with a close button.
 func SheetTitle(c *ui.Context, title string, open *bool) {
 	p := Of(c)

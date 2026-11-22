@@ -25,8 +25,12 @@ func (a *App) rows(room string) []trow {
 	evs := a.src.Timeline(room)
 	out := make([]trow, 0, len(evs)+2)
 	var prev *model.Event
+	threads := a.threadsOn()
 	for i := range evs {
 		ev := &evs[i]
+		if threads && ev.ThreadRoot != "" {
+			continue // a reply in a thread shows in its thread's panel
+		}
 		newDay := prev == nil || !sameDay(prev.Time, ev.Time)
 		if newDay {
 			out = append(out, trow{key: "day:" + ev.Time.Format("2006-01-02"), day: dayLabel(ev.Time, a.now)})
@@ -291,9 +295,15 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals,
 		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),
 		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
+	if ev.Thread != nil && a.threadsOn() && !a.inThread {
+		m.Thread = a.threadChipOf(ev.Thread)
+	}
 	if ev.Kind != model.EventUndecryptable {
 		m.Doc, m.Media, m.YouTube = a.content(ev)
 		m.File = a.fileSpec(ev)
+		if am, ok := audioOf(ev); ok {
+			m.Audio = a.audioData(ev, am) // it plays; the file card stays for saving it
+		}
 		if m.YouTube == nil && len(m.Media) == 0 {
 			m.Embed = a.linkCard(ev, m.Doc)
 		}
@@ -322,6 +332,10 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		d.Reply = a.quote(room, ev.ID)
 		a.replyTo[room] = ev.ID
 		d.Focus()
+	case act.OpenThread:
+		a.openThread(room, ev)
+	case act.Audio.Toggle || act.Audio.Seek:
+		a.audioAct(ev, act.Audio)
 	case act.Menu != kit.MsgNone:
 		a.messageChoice(room, ev, act.Menu)
 	case act.OpenMedia >= 0:
@@ -344,6 +358,8 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		} else {
 			a.profileMsg = ev.ID
 		}
+	case act.ProfileAct.SetColor && !act.ProfileClosed: // chosen with the card still open
+		a.chooseColor(ev.Sender, act.ProfileAct.Color)
 	case act.ProfileClosed:
 		a.profileMsg = ""
 		a.profileActs(ev.Sender, act.ProfileAct)
@@ -353,15 +369,19 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 // profileActs applies a profile card's buttons.
 func (a *App) profileActs(person string, act kit.ProfileAction) {
 	switch {
+	case act.SetColor: // the card stays open: the name changes under it
+		a.chooseColor(person, act.Color)
 	case act.Message:
 		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
-		a.open(a.src.OpenDM(person))
+		a.openDM(person, a.open)
 	case act.Call:
 		a.profileOpen, a.profileSheet.Open = "", false
-		if r, ok := a.src.Room(a.src.OpenDM(person)); ok {
-			a.open(r.ID)
-			a.joinCall(r)
-		}
+		a.openDM(person, func(room string) {
+			if r, ok := a.src.Room(room); ok {
+				a.open(r.ID)
+				a.joinCall(r)
+			}
+		})
 	case act.Verify:
 		a.profileOpen, a.profileSheet.Open = "", false
 		a.verify.Open, a.verifyStep = true, 0

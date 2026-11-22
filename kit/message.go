@@ -35,6 +35,8 @@ type MessageData struct {
 	Time      string // "14:02"
 	Body      string
 	Reply     *Quote
+	Thread    *ThreadChip // set on a thread's root: its replies, summed up
+	Audio     *AudioData  // an audio message: its player
 	Reactions []Reaction
 	// First is set on the first of a group of consecutive messages from one
 	// sender, which shows the avatar and the name.
@@ -115,6 +117,48 @@ type MessageAction struct {
 	Menu MessageChoice
 	// DismissPreview: the × of the message's link card was pressed.
 	DismissPreview bool
+	// OpenThread: the replies chip under the message was pressed.
+	OpenThread bool
+	// Audio is what the message's player asked for.
+	Audio AudioAction
+}
+
+// ThreadChip sums a thread up under its root: how many replies, who wrote
+// them (their pictures), and when the last came.
+type ThreadChip struct {
+	Replies int
+	Last    string // "12:30", "Mon"
+	Avatars []AvatarSpec
+}
+
+// threadChip is the chip under a message that has a thread: a press opens
+// it.
+func threadChip(c *ui.Context, t ThreadChip) (pressed bool) {
+	p := Of(c)
+	label := "1 reply"
+	if t.Replies != 1 {
+		label = strconv.Itoa(t.Replies) + " replies"
+	}
+	b := ui.ButtonBase(c.Key("thread")).Gap(S2).Padding(S1, S2, S1, S1+2).Radius(RadiusSm).AlignSelf(ui.Start).
+		AlignItems(ui.Center).Label("Open the thread: " + label)
+	if b.Hovered() {
+		b.Background(p.Hover)
+	}
+	Pressable(b)
+	b.Children(func() {
+		for i, av := range t.Avatars {
+			if i >= 3 {
+				break
+			}
+			av.Size = 18
+			Avatar(c, av)
+		}
+		ui.Text(c, label).FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.AccentStrong).SingleLine()
+		if t.Last != "" {
+			ui.Text(c, "Last reply "+t.Last).FontSize(SizeCaption).TextColor(p.TextFaint).SingleLine()
+		}
+	})
+	return b.Clicked()
 }
 
 // senderName is a sender's name: in their color, a link to their card
@@ -303,6 +347,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						a.OpenMedia = i
 					}
 				}
+				if m.Audio != nil {
+					a.Audio = AudioCard(c, *m.Audio)
+				}
 				if m.File != nil && FileCard(c, *m.File).Clicked() {
 					a.Download = true
 				}
@@ -332,6 +379,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						}
 					}
 				})
+			}
+			if m.Thread != nil && m.Thread.Replies > 0 && threadChip(c, *m.Thread) {
+				a.OpenThread = true
 			}
 		})
 		// Who has read up to here, at the row's end, level with its last line.

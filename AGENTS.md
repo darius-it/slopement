@@ -78,6 +78,12 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   paste, drop, GIFs uploaded), `app/suggest.go` (@mentions, `:emoji:`),
   `app/actions.go` (message menu, edit, pins), `app/previews.go` (link
   cards), `app/history.go` (asks for older messages near the top).
+  Stage-5 app files: `app/rooms.go` (join/create/explore + invite dialogs, the
+  Invitations section), `app/search.go` (⌘⇧F screen), `app/threads.go` (thread
+  panel; replies hidden from the timeline only while `threadsOn`), `app/audio.go`,
+  `app/notify.go` (`showNotification` is a var for tests), `app/profile.go`.
+  Edit tool gotcha: a `<` typed into a tool parameter is decoded before it
+  reaches the file; write `\\u003c` inside an interpreted Go string.
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
 - `login/`: the sign-in screen over `matrix/` (probe a server, the MAS
@@ -114,7 +120,21 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   sends files, encrypted in encrypted rooms), `Actions` (`actions.go`: edit,
   delete, pin; each shows at once, a refusal is said as a quiet line),
   `Previewer` (`preview.go`: the homeserver's `preview_url`), `MediaLoader`
-  (`media.go`: attachments and avatar thumbnails), `ReceiptPrivacy`. Events
+  (`media.go`: attachments and avatar thumbnails), `ReceiptPrivacy`, and the
+  stage-5 ones: `DMCreator`/room tags/mute/mark-unread/leave
+  (`roomactions.go`: mute is a room push rule with no actions, timed ends in
+  account data `com.slopement.mutes`), `Polls` (`polls.go`, MSC3381 both
+  shapes; votes live in `room.polls` and the cache), `Profile`/`UserColors`/
+  `SessionManager` (`profile.go`, `avatar.go`; colors are account data
+  `com.slopement.user_colors`), `RoomManager` (`rooms.go`: create, join by
+  address/link, invite, directory, invitations — kept out of the room handlers
+  by `takeInvites`), `Notifier` (`notify.go`), `Searcher` (`search.go`: the held
+  timelines, which keeps encrypted rooms searchable without a plaintext index,
+  plus the server's `/search` for unencrypted ones; the matching rules are
+  `model.SearchQuery.Match`), `Threads` (`SendInThread`; `Event.ThreadRoot`,
+  `Thread` summary built in `room.timeline`). Voice-message *recording* is not
+  built: mygo's `audio` package only plays (no capture), and has no Opus/AAC
+  decoder (`app/audio.go` plays WAV/MP3/Vorbis/FLAC/ALAC). Events
   paged in are marked `sourceHistory` and placed by time by `insertOlder`
   (no unread, no preview change).
 - `kit/`: design tokens, theme, and components (the design kit).

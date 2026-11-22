@@ -74,7 +74,8 @@ func (a *App) contacts() []kit.Person {
 func (a *App) profile(id string) *kit.ProfileSpec {
 	p, _ := a.src.Person(id)
 	return &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
-		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID}
+		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID,
+		Recolor: true, ColorIndex: a.colorOf(p.ID)}
 }
 
 // timeLabel is a room row's time: 14:02, Yesterday, Mon, 12 Nov.
