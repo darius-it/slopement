@@ -1,10 +1,10 @@
 // slopement is a minimal Matrix client drawn with MyGo's native UI.
 //
-// The window shows the app (package app) on mock data (package
-// model/mock); SLOPEMENT_LOGIN=1 boots the sign-in screen (package
-// login) over the Matrix backend instead, and the app on the signed-in
-// account once it succeeds. The design kit's gallery (package gallery)
-// opens from Debug → Component Gallery, in a window of its own.
+// The window shows the sign-in screen (package login) over the Matrix
+// backend, then the app (package app) on the signed-in account. For
+// interface work only, SLOPEMENT_MOCK=1 boots the app on fake data (package
+// model/mock) instead. The design kit's gallery (package gallery) opens
+// from Debug → Component Gallery, in a window of its own.
 package main
 
 import (
@@ -48,8 +48,7 @@ func main() {
 	pick := picker.NewWithKey()
 
 	// The window's content: the sign-in screen in login mode until a
-	// session exists, then the app on the account; the mock boots straight
-	// into the app. SLOPEMENT_LOGIN=1 signs in.
+	// session exists, then the app on the account.
 	var a *app.App
 	var lg *login.Login
 	var signed bool
@@ -61,10 +60,12 @@ func main() {
 		}
 	}
 
-	if os.Getenv("SLOPEMENT_LOGIN") == "1" {
-		lg = login.New()
-	} else {
+	// The app signs in. The fake account (model/mock) is for developing the
+	// interface only, and only with SLOPEMENT_MOCK=1: a build never starts on it.
+	if os.Getenv("SLOPEMENT_MOCK") == "1" {
 		a = app.New(mock.New(time.Now()), pick)
+	} else {
+		lg = login.New()
 	}
 
 	mygo.App.WhenReady(func() {

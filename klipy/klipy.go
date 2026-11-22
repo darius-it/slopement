@@ -22,6 +22,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -70,12 +72,17 @@ type Config struct {
 type Client struct {
 	cfg  Config
 	http *http.Client
+	mu   sync.RWMutex // guards cfg.Key, which SetKey may change
+	// fixed: the key came from Config or KLIPY_API_KEY, and SetKey leaves it.
+	fixed bool
 }
 
 // New returns a client.
 func New(cfg Config) *Client {
+	fixed := cfg.Key != ""
 	if cfg.Key == "" {
 		cfg.Key = os.Getenv("KLIPY_API_KEY")
+		fixed = cfg.Key != ""
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.klipy.com"
@@ -84,11 +91,33 @@ func New(cfg Config) *Client {
 	if h == nil {
 		h = &http.Client{Timeout: 10 * time.Second}
 	}
-	return &Client{cfg: cfg, http: h}
+	return &Client{cfg: cfg, http: h, fixed: fixed}
+}
+
+// key is the key in use.
+func (c *Client) key() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cfg.Key
 }
 
 // HasKey reports whether a key is configured.
-func (c *Client) HasKey() bool { return c.cfg.Key != "" }
+func (c *Client) HasKey() bool { return c.key() != "" }
+
+// KeyFromEnvironment reports that the key came from the program's
+// configuration or KLIPY_API_KEY, which SetKey does not replace.
+func (c *Client) KeyFromEnvironment() bool { return c.fixed }
+
+// SetKey gives the client the key the user entered. A key from the
+// environment wins: it is left as it is.
+func (c *Client) SetKey(key string) {
+	if c.fixed {
+		return
+	}
+	c.mu.Lock()
+	c.cfg.Key = strings.TrimSpace(key)
+	c.mu.Unlock()
+}
 
 // Rendition is one file of an item.
 type Rendition struct {
@@ -166,7 +195,8 @@ func pick(f map[string]map[string]rendition, sizes []string, formats ...string) 
 }
 
 func (c *Client) get(ctx context.Context, path string, q url.Values, out any) error {
-	if c.cfg.Key == "" {
+	key := c.key()
+	if key == "" {
 		return ErrNoKey
 	}
 	if c.cfg.CustomerID != "" {
@@ -175,7 +205,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	if c.cfg.Locale != "" {
 		q.Set("locale", c.cfg.Locale)
 	}
-	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(c.cfg.Key) + path
+	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(key) + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
@@ -185,7 +215,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
-		return redact(err, c.cfg.Key)
+		return redact(err, key)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -248,14 +278,15 @@ func (c *Client) page(ctx context.Context, kind Kind, endpoint string, q url.Val
 // install's anonymous customer ID. A failure is returned but is not worth
 // more than a log line.
 func (c *Client) Share(ctx context.Context, kind Kind, slug, query string) error {
-	if c.cfg.Key == "" {
+	key := c.key()
+	if key == "" {
 		return ErrNoKey
 	}
 	if slug == "" {
 		return errors.New("klipy: nothing to share without a slug")
 	}
 	body, _ := json.Marshal(map[string]string{"customer_id": c.cfg.CustomerID, "q": query})
-	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(c.cfg.Key) + "/" + kind.path() + "/share/" + url.PathEscape(slug)
+	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(key) + "/" + kind.path() + "/share/" + url.PathEscape(slug)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -263,7 +294,7 @@ func (c *Client) Share(ctx context.Context, kind Kind, slug, query string) error
 	req.Header.Set("Content-Type", "application/json")
 	res, err := c.http.Do(req)
 	if err != nil {
-		return redact(err, c.cfg.Key)
+		return redact(err, key)
 	}
 	defer res.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(res.Body, 1<<16))

@@ -1,0 +1,94 @@
+name: Release
+
+# Push a tag to build slopement for macOS, Windows and Linux and publish the
+# installers as a pre-release:
+#   git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.1.0-alpha.1"
+        required: true
+
+permissions:
+  contents: write # the release, and the uploads to it
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the draft pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: |
+            > **Super early alpha.** slopement is in early development and is
+            > not recommended for daily use yet: things are missing, broken or
+            > will change, and your data may need resetting between versions.
+            > Do not rely on it for anything important.
+
+            These builds are **not signed**, so your system will warn you once:
+
+            - **macOS:** open the disk image, drag slopement to Applications, then run
+              `xattr -dr com.apple.quarantine /Applications/slopement.app` in Terminal
+              (or right-click the app, Open).
+            - **Windows:** SmartScreen says "Windows protected your PC": More info, then Run anyway.
+            - **Linux:** install the `.deb` or `.rpm`, or unpack the `.tar.gz` and run `install.sh`.
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --draft --prerelease --verify-tag --title "slopement $TAG (super early alpha)" \
+              --notes "$NOTES"
+          fi
+
+  build:
+    needs: draft-release
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
+          # MyGo needs no cgo: Ubuntu builds the Windows apps too.
+          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@v2
+      # The CLI (mygo-cli) comes from package.json.
+      - run: bun install
+      - name: Install NSIS, for the Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Build
+        # package.json's "build" sets GOFLAGS=-tags=goolm (mautrix's crypto is
+        # pure Go only with it).
+        run: bun run build -- -platform "${{ matrix.platform }}"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz)
+          if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
+          gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease

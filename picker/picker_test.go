@@ -150,7 +150,7 @@ func TestNoKeyNotice(t *testing.T) {
 	c := New(klipy.New(klipy.Config{}))
 	st := &kit.PickerState{Tab: kit.TabStickers}
 	st.Open = true
-	if m := c.Model(st); !strings.Contains(m.Notice, "KLIPY_API_KEY") {
+	if m := c.Model(st); !strings.Contains(m.Notice, "Settings → GIFs") {
 		t.Fatalf("notice = %q", m.Notice)
 	}
 }

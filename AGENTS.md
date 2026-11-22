@@ -138,7 +138,8 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `login/`: the sign-in screen over `matrix/` (probe a server, the MAS
   browser flow or a password form), handing the session to `main.go`,
   which then swaps the window to the app on the account. Reached with
-  `SLOPEMENT_LOGIN=1 go run .`.
+  `go run .` (the app always starts on the sign-in; the fake account of
+  `model/mock` opens only with `SLOPEMENT_MOCK=1 go run .`, for interface work).
 - Accounts: `main.go` owns the one account on screen (`live`), the last used
   is remembered (`matrix.SetLastUsed`, file `last-account`) and opened on its
   own (`login.Resume`); the app's account menu (`app/accounts.go`, on the
@@ -213,15 +214,25 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
+## Releases
+`.github/workflows/release.yml`: push a `v*` tag (e.g. `v0.1.0-alpha.1`) to
+build macOS, Windows and Linux with `mygo build` and publish the installers as
+a pre-release (unsigned: no certificates or updater key yet). `docs/known-gaps.md`
+lists what is missing; keep it current. The app starts on the sign-in; the mock
+account is `SLOPEMENT_MOCK=1` only. `identifier` in `mygo.config.ts` is the
+keychain service: do not change it after a release.
+
 ## Secrets
 - `KLIPY_API_KEY` lives in `.env` (gitignored). Never commit keys or print them.
+  Releases carry no key: users add their own in Settings → GIFs
+  (`picker.SetKlipyKey`, in `picker.json`; the environment's key wins).
 
 ## Pending manual cleanup (needs user; do not bypass)
 - Delete `matrix/debug_lock_test.go` (an emptied one-off diagnostic).
 - Delete the leftover webview scaffold: `index.html`, `src/`, `vite.config.ts`,
-  `tsconfig.json`, and the Vite/TS parts of `package.json` / `bun.lock`; then
-  drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
-  `mygo.config.ts`.
+  `tsconfig.json`, and the Vite/TS parts of `package.json` / `bun.lock`
+  (`mygo.config.ts` no longer names them; the release workflow runs a plain
+  `bun install`, not `--frozen-lockfile`, until `bun.lock` is regenerated).
 - Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).
 - Delete `app/zz_probe_test.go` and `app/zz_dbg_test.go` (emptied one-off
   diagnostics).

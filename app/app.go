@@ -81,13 +81,14 @@ type App struct {
 	pickFileFn       func(title, ext string, done func(path string))
 	saveFileFn       func(title, name string, done func(path string))
 	keys             keysDialog
-	source           eventSource // "View source" (source.go)
-	testRowHook      func(*model.Event) // tests: runs inside each timeline row (to make one panic)
-	rowPanics        []string   // what a timeline row panicked with (a row shows as broken, not the view)
+	source           eventSource                         // "View source" (source.go)
+	testRowHook      func(*model.Event)                  // tests: runs inside each timeline row (to make one panic)
+	rowPanics        []string                            // what a timeline row panicked with (a row shows as broken, not the view)
 	previewFetcher   *linkpreview.Client                 // fetches previews from this device (previews.go)
 	previewsDirect   bool                                // which source previews were asked from
 	keysAsked        bool                                // the key status was asked for since the Security page opened
 	confirmLogs      func(answer func(include, ok bool)) // tests' answer to the export logs dialog
+	klipyDraft       string                              // the KLIPY key being typed (gifsettings.go)
 	gifFolders       []string                            // folders of pictures the GIF picker also offers (gifsettings.go)
 	files            map[string][]model.File             // per room, waiting in the composer (files.go)
 	previews         map[string]*previewState            // link previews by URL (previews.go)

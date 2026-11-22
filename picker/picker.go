@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,6 +86,7 @@ type Controller struct {
 // saved is what persists across runs.
 type saved struct {
 	CustomerID     string       `json:"customer_id"`
+	KlipyKey       string       `json:"klipy_key,omitempty"` // the user's own, from Settings → GIFs
 	Favorites      []klipy.Item `json:"favorites"`
 	RecentEmoji    []string     `json:"recent_emoji"`
 	RecentStickers []klipy.Item `json:"recent_stickers"`
@@ -110,8 +112,37 @@ func newAt(client *klipy.Client, path string) *Controller {
 		sem:    make(chan struct{}, maxParallel),
 	}
 	c.load()
+	if client != nil {
+		client.SetKey(c.saved.KlipyKey) // a key from the environment stays
+	}
 	return c
 }
+
+// SetKlipyKey is the user's own KLIPY key (Settings → GIFs): kept on this
+// device, used at once. "" removes it. A key in the environment
+// (KLIPY_API_KEY) is used instead while there is one.
+func (c *Controller) SetKlipyKey(key string) {
+	c.saved.KlipyKey = strings.TrimSpace(key)
+	c.save()
+	if c.client != nil {
+		c.client.SetKey(c.saved.KlipyKey)
+	}
+	// What the picker showed (or failed to) was without it: ask again.
+	c.catsLoaded, c.shown = false, false
+	c.gen++
+}
+
+// KlipyKey is the key the user entered ("" if none).
+func (c *Controller) KlipyKey() string { return c.saved.KlipyKey }
+
+// KlipyKeyFromEnvironment says the key in use comes from KLIPY_API_KEY, so
+// the one entered in Settings is not.
+func (c *Controller) KlipyKeyFromEnvironment() bool {
+	return c.client != nil && c.client.KeyFromEnvironment()
+}
+
+// HasKlipyKey says GIF and sticker search is available.
+func (c *Controller) HasKlipyKey() bool { return c.client != nil && c.client.HasKey() }
 
 // NewWithKey returns a controller over a KLIPY client of the environment's
 // key, with the install's anonymous customer ID.
@@ -124,6 +155,7 @@ func NewWithKey() *Controller {
 		c.save()
 	}
 	c.client = klipy.New(klipy.Config{CustomerID: c.saved.CustomerID})
+	c.client.SetKey(c.saved.KlipyKey)
 	return c
 }
 
@@ -328,7 +360,7 @@ func (c *Controller) fetch(gen int) {
 	}()
 }
 
-const noKeyNotice = "Add KLIPY_API_KEY to .env to load GIFs and stickers"
+const noKeyNotice = "Add your own KLIPY key in Settings → GIFs to search GIFs and stickers"
 
 func errorNotice(err error) string {
 	if errors.Is(err, klipy.ErrNoKey) {
