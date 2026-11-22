@@ -128,6 +128,7 @@ type App struct {
 	// confirmed.
 	accounts      *Accounts
 	detached      bool // the window moved on to another account's app
+	fileSeq       int  // numbers the files waiting in composers (their thumbnails)
 	removing      string
 	removeAccount kit.SheetState
 	picker       kit.PickerState

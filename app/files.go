@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"slopement/kit"
 	"slopement/model"
@@ -83,7 +84,57 @@ func (a *App) addPaths(room string, paths []string) {
 func (a *App) addFile(room string, f model.File) {
 	a.files[room] = append(a.files[room], f)
 	st := a.draft(room)
-	st.Files = append(st.Files, kit.ComposerFile{Name: f.Name, Size: sizeLabel(len(f.Data))})
+	a.fileSeq++
+	cf := kit.ComposerFile{Name: f.Name, Size: sizeLabel(len(f.Data)), ID: a.fileSeq, Image: isPicture(f)}
+	st.Files = append(st.Files, cf)
+	if cf.Image {
+		a.thumbnail(room, cf.ID, f.Data)
+	}
+}
+
+// isPicture says a file is one to show as a picture: by its bytes, else by
+// its name.
+func isPicture(f model.File) bool {
+	if f.Mime != "" {
+		return strings.HasPrefix(f.Mime, "image/") && f.Mime != "image/svg+xml"
+	}
+	head := f.Data
+	if len(head) > 512 {
+		head = head[:512]
+	}
+	if strings.HasPrefix(http.DetectContentType(head), "image/") {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(f.Name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
+		return true
+	}
+	return false
+}
+
+// thumbnail decodes a waiting picture to the thumbnail's size, off the UI
+// thread, and hands it to the file's tile once it is ready. A picture that
+// will not decode stays a placeholder (it still sends).
+func (a *App) thumbnail(room string, id int, data []byte) {
+	runUI := a.runUI
+	if runUI == nil {
+		return
+	}
+	go func() {
+		// Twice the tile for a sharp one on a dense screen.
+		bmp, err := ui.DecodeBitmapScaled(data, 160)
+		if err != nil || bmp == nil {
+			return
+		}
+		runUI(func() {
+			st := a.draft(room)
+			for i := range st.Files {
+				if st.Files[i].ID == id {
+					st.Files[i].Thumb = bmp
+				}
+			}
+		})
+	}()
 }
 
 // removeFile takes the i-th waiting file out.

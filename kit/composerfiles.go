@@ -10,7 +10,18 @@ import (
 // message: shown as a chip with its name and size, removable.
 type ComposerFile struct {
 	Name, Size string
+	// Image says the file is a picture: it waits as a thumbnail, not a chip.
+	// Thumb is that thumbnail once decoded (nil meanwhile: a placeholder of
+	// the same size holds its place, so nothing moves when it arrives).
+	Image bool
+	Thumb ui.ImageSource
+	// ID tells the file apart from the others waiting, for the decode that
+	// finishes later.
+	ID int
 }
+
+// thumbSide is the side of a waiting picture's thumbnail.
+const thumbSide = 72
 
 // fileTray shows the files waiting to be sent, above the text field, and
 // returns the one whose ✕ was pressed (-1: none). Nothing without files.
@@ -22,6 +33,27 @@ func fileTray(c *ui.Context, st *ComposerState) (removed int) {
 	p := Of(c)
 	ui.Row(c.Key("files")).Wrap().Gap(S1).Padding(S2, S2, 0, S2).Children(func() {
 		for i, f := range st.Files {
+			if f.Image {
+				// A picture shows as itself, with the ✕ on its corner and its
+				// name for the pointer and the screen reader.
+				tile := ui.Box(c.Key("file:"+strconv.Itoa(f.ID))).Size(thumbSide, thumbSide).Radius(RadiusSm + 2).Clip().
+					Background(p.BgInset).Border(1, p.Border).Tooltip(f.Name + " · " + f.Size).Label(f.Name)
+				tile.Children(func() {
+					if f.Thumb != nil {
+						ui.Image(c, f.Thumb).Fill().Fit(ui.Cover)
+					}
+					side := rowHeightFor(c, 22)
+					x := ui.ButtonBase(c).Size(side, side).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
+						Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(3).Left(-3).Background(ui.RGBA(10, 8, 20, 0.6)).
+						Label("Remove " + f.Name)
+					Pressable(x)
+					x.Children(func() { ui.Icon(c, IconX).Size(12, 12).TextColor(ui.Hex("#FFFFFF")) })
+					if x.Clicked() {
+						removed = i
+					}
+				})
+				continue
+			}
 			ui.Row(c.Key("file:"+f.Name)).Gap(S1).Padding(S1, S1, S1, S2).Radius(RadiusSm+2).Background(p.Raised).
 				Border(1, p.Border).AlignItems(ui.Center).MaxWidth(280).Children(func() {
 				ui.Icon(c, IconPaperclip).Size(14, 14).TextColor(p.TextMuted)
