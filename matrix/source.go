@@ -16,10 +16,15 @@ import (
 // fills in the rooms, the timeline and the people, changing everything
 // through SetUpdate's function, on the UI thread alone.
 type Source struct {
-	me     model.Person
-	rooms  map[string]*room
-	direct map[string]bool // the DM rooms (m.direct)
-	people map[string]*model.Person
+	me    model.Person
+	rooms map[string]*room
+	// spaceCache is spaceOf's answer, kept until something changes: Room(id)
+	// asks it for every room of every list in every frame, and computing it
+	// takes a pass over all the rooms each time. Dropped wherever the model
+	// changes (changed, the update runners, a room appearing).
+	spaceCache map[string]string
+	direct     map[string]bool // the DM rooms (m.direct)
+	people     map[string]*model.Person
 	// encrypted counts the messages still waiting for keys: the verify
 	// prompt shows while any are there and the session is unverified.
 	encrypted int
@@ -35,7 +40,7 @@ type Source struct {
 
 	// mu guards the batch: posts made while a sync response is processed
 	// are queued and applied together.
-	mu       sync.Mutex
+	mu        sync.Mutex
 	batching  int
 	queue     []func()
 	pendToken string   // the sync token of a batch that ended inside another
@@ -113,6 +118,7 @@ func (s *Source) OnChange(fn func()) { s.onChange = append(s.onChange, fn) }
 // changed runs what listens for changes on the UI thread, and redraws.
 // Call it inside a SetUpdate function, never from a goroutine.
 func (s *Source) changed() {
+	s.spaceCache = nil
 	for _, fn := range s.onChange {
 		fn()
 	}
@@ -131,6 +137,7 @@ func (s *Source) post(fn func()) {
 	}
 	s.mu.Unlock()
 	s.update(func() {
+		s.spaceCache = nil
 		fn()
 		s.changed()
 	})
@@ -172,6 +179,7 @@ func (s *Source) endBatch(token string, left []string) {
 		return
 	}
 	s.update(func() {
+		s.spaceCache = nil
 		for _, fn := range q {
 			fn()
 		}
@@ -317,7 +325,11 @@ func (s *Source) childIDs(r *room) []string {
 // it, and only a joined space's claim counts (an unjoined space must not
 // take a room out of Chats and give it nowhere to go).
 func (s *Source) spaceOf() map[string]string {
+	if s.spaceCache != nil {
+		return s.spaceCache // read only
+	}
 	out := map[string]string{}
+	defer func() { s.spaceCache = out }()
 	var spaceIDs []string
 	byID := map[string]*room{}
 	for id, r := range s.rooms {

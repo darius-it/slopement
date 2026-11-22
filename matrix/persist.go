@@ -152,6 +152,7 @@ func (s *Source) loadCache(ctx context.Context) bool {
 	_ = json.Unmarshal(snap.direct, &direct)
 
 	s.rooms = rooms
+	s.spaceCache = nil
 	for id, p := range people {
 		p := p
 		p.Presence = model.Offline // what it was is not what it is

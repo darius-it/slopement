@@ -244,6 +244,7 @@ func (s *Source) roomOf(roomID string) *room {
 	if !ok {
 		r = &room{id: roomID}
 		s.rooms[roomID] = r
+		s.spaceCache = nil
 	}
 	s.markDirty(roomID)
 	return r

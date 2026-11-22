@@ -182,7 +182,7 @@ func (a *App) rail(c *ui.Context) {
 func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 	ui.Column(c).Grow(1).Padding(kit.S2, 0, kit.S3, 0).Gap(kit.S2).BorderWidth(0, 1, 0, 0).BorderColor(p.Border).Children(func() {
 		mentions := 0
-		for _, r := range a.src.Rooms() {
+		for _, r := range a.roomList() {
 			if r.Community == "" {
 				mentions += r.Mentions
 			}
@@ -300,14 +300,12 @@ func (a *App) railColumn(c *ui.Context) {
 				a.switcher.Toggle()
 			}
 		})
-		ui.Scroll(c.Key("chats")).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() {
-			a.chatsList(c, true)
-		})
+		a.chatsListView(c, "chats", true)
 	})
 }
 
 func (a *App) communityOf(id string) (model.Community, bool) {
-	for _, cm := range a.src.Communities() {
+	for _, cm := range a.communityList() {
 		if cm.ID == id {
 			return cm, true
 		}
@@ -328,13 +326,11 @@ func (a *App) tabsColumn(c *ui.Context) {
 				a.switcher.Toggle()
 			}
 		})
-		ui.Scroll(c.Key("tab" + strconv.Itoa(a.tab))).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() {
-			if a.tab == 0 {
-				a.chatsList(c, true)
-				return
-			}
-			a.communitiesTab(c)
-		})
+		if a.tab == 0 {
+			a.chatsListView(c, "tab0", true)
+		} else {
+			ui.Scroll(c.Key("tab" + strconv.Itoa(a.tab))).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.communitiesTab(c) })
+		}
 		ui.Row(c).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Children(func() {
 			a.meButton(c, 28)
 			ui.Text(c, a.src.Me().Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).Grow(1).SingleLine()
@@ -372,7 +368,7 @@ func (a *App) inboxColumn(c *ui.Context, width float32) {
 				}
 			})
 		})
-		ui.Scroll(c.Key("inbox")).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.inboxList(c) })
+		a.inboxList(c)
 		if width > 0 {
 			ui.Row(c).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Children(func() {
 				a.meButton(c, 28)
@@ -429,7 +425,7 @@ func (a *App) phone(c *ui.Context) {
 						a.switcher.Toggle()
 					}
 				})
-				ui.Scroll(c.Key("chats")).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.chatsList(c, false) })
+				a.chatsListView(c, "chats", false)
 			}
 		})
 		names := []string{"Chats", "Communities", "People", "Settings"}

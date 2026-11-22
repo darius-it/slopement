@@ -88,6 +88,11 @@ type App struct {
 	previewsDirect   bool                                // which source previews were asked from
 	keysAsked        bool                                // the key status was asked for since the Security page opened
 	confirmLogs      func(answer func(include, ok bool)) // tests' answer to the export logs dialog
+	fc               frameCache                          // what this frame built from the lists (framecache.go)
+	sc               srcCache                            // the source's lists, kept while it does not change
+	srcGen           uint64                              // counts the source's changes
+	inboxLS          ui.ListState                        // One inbox's scroll
+	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
 	fwd              forwardDialog                       // "Forward" (forward.go)
 	trail            navHistory                          // back and forward (nav.go)
 	peopleAll        bool                                // People also lists other servers and bridges (convert.go)
@@ -251,6 +256,7 @@ func New(src model.Source, pick *picker.Controller) *App {
 		prefs:          defaultPrefs(),
 	}
 	a.pollDraft = kit.NewPollDraft()
+	src.OnChange(func() { a.srcGen++ }) // the source's lists are kept until it changes (framecache.go)
 	a.menuNav = a.nav
 	// Open the most recent chat, as a messenger does.
 	for _, r := range src.Rooms() {
@@ -325,6 +331,8 @@ func (a *App) open(id string) {
 
 // View is the window's content.
 func (a *App) View(c *ui.Context) {
+	a.frameStart()
+	defer a.frameEnd()
 	a.now = time.Now()
 	a.typingTick()
 	// Appearance settings: the tint, the timeline's density, the size.

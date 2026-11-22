@@ -97,10 +97,24 @@ func (a *App) contacts() []kit.Person {
 }
 
 func (a *App) contactsFor(all bool) (out []kit.Person, hidden int) {
+	// Once per frame: the sources list every person seen, thousands in a big
+	// account, and the list, its count and the header each ask.
+	i := 0
+	if all {
+		i = 1
+	}
+	if a.fc.on && a.fc.contactsOK[i] {
+		return a.fc.contacts[i], a.fc.hidden[i]
+	}
+	defer func() {
+		if a.fc.on {
+			a.fc.contacts[i], a.fc.contactsOK[i], a.fc.hidden[i] = out, true, hidden
+		}
+	}()
 	// When the user last chatted with each person: the last activity of
 	// their DM.
 	lastChat := map[string]time.Time{}
-	for _, r := range a.src.Rooms() {
+	for _, r := range a.roomList() {
 		if r.Kind == model.KindDM && r.Partner != "" && r.LastActivity.After(lastChat[r.Partner]) {
 			lastChat[r.Partner] = r.LastActivity
 		}

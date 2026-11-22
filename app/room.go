@@ -561,7 +561,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 			sub = strconv.Itoa(r.Members) + " members"
 		}
 		unread := 0
-		for _, o := range a.src.Rooms() {
+		for _, o := range a.roomList() {
 			if o.ID != r.ID && !o.Muted {
 				unread += o.Unread
 			}

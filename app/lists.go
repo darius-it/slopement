@@ -14,7 +14,7 @@ import (
 // community, most recent first.
 func (a *App) chats() []model.Room {
 	var out []model.Room
-	for _, r := range a.src.Rooms() {
+	for _, r := range a.roomList() {
 		if r.Community == "" {
 			out = append(out, r)
 		}
@@ -22,13 +22,44 @@ func (a *App) chats() []model.Room {
 	return out
 }
 
-// chatsList is the Chats list of every layout: People (on desktops), the
-// starred chats under Favourites, the rest by recency, low priority last.
-func (a *App) chatsList(c *ui.Context, people bool) {
-	if people {
-		a.peopleEntry(c)
+// listLine is one line of a long sidebar list. Only the lines in view are
+// drawn (ui.List): building an element for every chat, every frame, made
+// typing sluggish in accounts of a few hundred chats.
+type listLine struct {
+	key  string
+	draw func()
+}
+
+// showLines draws lines as a list that scrolls and builds only what shows.
+func (a *App) showLines(c *ui.Context, key string, ls *ui.ListState, lines []listLine) {
+	ls.Key = func(i int) any {
+		if i < len(lines) {
+			return lines[i].key
+		}
+		return i
 	}
-	a.invitesSection(c) // invitations waiting, above the chats
+	ui.List(c.Key(key), ls, len(lines), func(i int) {
+		if i < len(lines) {
+			lines[i].draw()
+		}
+	}).Grow(1).PaddingX(kit.S2).Gap(1)
+}
+
+// chatsListView is the Chats list of every layout, scrolling.
+func (a *App) chatsListView(c *ui.Context, key string, people bool) {
+	a.showLines(c, key, &a.chatsLS, a.chatLines(c, people))
+}
+
+// chatLines are the lines of Chats: People (on desktops), invitations, the
+// starred chats under Favourites, the rest by recency, low priority last.
+func (a *App) chatLines(c *ui.Context, people bool) []listLine {
+	var lines []listLine
+	if people {
+		lines = append(lines, listLine{"people", func() { a.peopleEntry(c) }})
+	}
+	if len(a.pendingInvites()) > 0 {
+		lines = append(lines, listLine{"invites", func() { a.invitesSection(c) }}) // waiting, above the chats
+	}
 	var favs, rest, low []model.Room
 	for _, r := range a.chats() {
 		switch {
@@ -40,23 +71,23 @@ func (a *App) chatsList(c *ui.Context, people bool) {
 			rest = append(rest, r)
 		}
 	}
-	a.section(c, "Favourites", kit.IconStar, favs)
-	a.section(c, "Chats", nil, rest)
-	a.section(c, "Low priority", nil, low)
+	section := func(title string, icon *ui.SVG, list []model.Room) {
+		if len(list) == 0 {
+			return
+		}
+		lines = append(lines, listLine{"sec:" + title, func() { a.sectionHeader(c, title, icon) }})
+		for _, r := range list {
+			r := r
+			lines = append(lines, listLine{"room:" + r.ID, func() { a.chatRow(c, r) }})
+		}
+	}
+	section("Favourites", kit.IconStar, favs)
+	section("Chats", nil, rest)
+	section("Low priority", nil, low)
 	if len(favs)+len(rest)+len(low) == 0 && len(a.pendingInvites()) == 0 {
-		emptyNote(c, "No chats yet. Start one from People.")
+		lines = append(lines, listLine{"empty", func() { emptyNote(c, "No chats yet. Start one from People.") }})
 	}
-}
-
-// section is a titled group of chat rows; nothing when empty.
-func (a *App) section(c *ui.Context, title string, icon *ui.SVG, list []model.Room) {
-	if len(list) == 0 {
-		return
-	}
-	a.sectionHeader(c, title, icon)
-	for _, r := range list {
-		a.chatRow(c, r)
-	}
+	return lines
 }
 
 // sectionHeader is a list's title: a small muted label with an icon.
@@ -100,13 +131,7 @@ func (a *App) peopleEntry(c *ui.Context) {
 			ui.Icon(c, kit.IconUsers).Size(18, 18).TextColor(fg)
 		})
 		ui.Text(c, "People").FontSize(kit.SizeBody).FontWeight(kit.WeightMedium).TextColor(fg).Grow(1)
-		on := 0
-		for _, ps := range a.contacts() {
-			if ps.Presence != kit.PresenceNone {
-				on++
-			}
-		}
-		ui.Text(c, strconv.Itoa(on)+" online").FontSize(kit.SizeCaption).TextColor(p.TextMuted)
+		ui.Text(c, strconv.Itoa(a.onlineContacts())+" online").FontSize(kit.SizeCaption).TextColor(p.TextMuted)
 	})
 	if b.Clicked() {
 		a.view = viewPeople
@@ -123,7 +148,7 @@ func emptyNote(c *ui.Context, text string) {
 // order.
 func (a *App) communities() []model.Community {
 	var all []model.Community
-	for _, cm := range a.src.Communities() {
+	for _, cm := range a.communityList() {
 		if cm.Parent == "" { // sub-spaces live inside their parent
 			all = append(all, cm)
 		}
@@ -359,10 +384,68 @@ func (a *App) communityCard(c *ui.Context, cm model.Community) {
 
 // ---- One inbox ------------------------------------------------------------
 
+// inboxEntry is a chat or a community in One inbox's list.
+type inboxEntry struct {
+	room *model.Room
+	comm *model.Community
+}
+
+// inboxData is what One inbox lists, for the filter chosen: kept while the
+// source does not change (it takes a pass over every room of every community).
+type inboxData struct {
+	filter   int
+	favs     []model.Room
+	favComms []model.Community
+	list     []inboxEntry
+}
+
 // inboxList is One inbox's list: starred chats under Favourites, then
-// chats and communities by recency; a community unfolds to its rooms.
+// chats and communities by recency; a community unfolds to its rooms. Only
+// the lines in view are built.
 func (a *App) inboxList(c *ui.Context) {
+	d := a.inboxModel()
 	p := kit.Of(c)
+	var lines []listLine
+	if len(d.favs) > 0 || len(d.favComms) > 0 {
+		lines = append(lines, listLine{"sec:Favourites", func() { a.sectionHeader(c, "Favourites", kit.IconStar) }})
+		for _, r := range d.favs {
+			r := r
+			lines = append(lines, listLine{"room:" + r.ID, func() { a.chatRow(c, r) }})
+		}
+		for _, cm := range d.favComms {
+			cm := cm
+			lines = append(lines, listLine{"comm:" + cm.ID, func() { a.inboxCommunity(c, cm) }})
+		}
+		lines = append(lines, listLine{"favs-end", func() {
+			ui.Box(c.Key("favs-end")).Height(1).Background(p.Border).Margin(kit.S1, kit.S2)
+		}})
+	}
+	for _, e := range d.list {
+		e := e
+		if e.room != nil {
+			lines = append(lines, listLine{"room:" + e.room.ID, func() { a.chatRow(c, *e.room) }})
+		} else {
+			lines = append(lines, listLine{"comm:" + e.comm.ID, func() { a.inboxCommunity(c, *e.comm) }})
+		}
+	}
+	if len(d.list) == 0 {
+		lines = append(lines, listLine{"empty", func() { emptyNote(c, "Nothing here.") }})
+	}
+	a.showLines(c, "inbox", &a.inboxLS, lines)
+}
+
+// inboxModel is the data of inboxList.
+func (a *App) inboxModel() *inboxData {
+	a.scEnsure()
+	if d := a.sc.inbox; d != nil && d.filter == a.filter {
+		return d
+	}
+	d := a.buildInbox()
+	a.sc.inbox = d
+	return d
+}
+
+func (a *App) buildInbox() *inboxData {
 	unread := func(r model.Room) bool { return r.Unread > 0 || r.Mentions > 0 }
 	keep := func(r model.Room) bool { return a.filter != 3 || unread(r) }
 	var favs []model.Room
@@ -385,21 +468,8 @@ func (a *App) inboxList(c *ui.Context) {
 			favComms = append(favComms, cm)
 		}
 	}
-	if len(favs) > 0 || len(favComms) > 0 {
-		a.sectionHeader(c, "Favourites", kit.IconStar)
-		for _, r := range favs {
-			a.chatRow(c, r)
-		}
-		for _, cm := range favComms {
-			a.inboxCommunity(c, cm)
-		}
-		ui.Box(c.Key("favs-end")).Height(1).Background(p.Border).Margin(kit.S1, kit.S2)
-	}
 	// Chats and communities together, by their latest activity.
-	type entry struct {
-		room *model.Room
-		comm *model.Community
-	}
+	type entry = inboxEntry
 	var list []entry
 	if a.filter != 2 {
 		for _, r := range a.chats() {
@@ -410,7 +480,7 @@ func (a *App) inboxList(c *ui.Context) {
 		}
 	}
 	if a.filter != 1 {
-		comms := a.src.Communities()
+		comms := append([]model.Community(nil), a.communityList()...)
 		for i := range comms {
 			if comms[i].Parent != "" {
 				continue // a sub-space is listed inside its parent
@@ -434,16 +504,7 @@ func (a *App) inboxList(c *ui.Context) {
 			list = append(list[:at], append([]entry{{comm: &comms[i]}}, list[at:]...)...)
 		}
 	}
-	for _, e := range list {
-		if e.room != nil {
-			a.chatRow(c, *e.room)
-		} else {
-			a.inboxCommunity(c, *e.comm)
-		}
-	}
-	if len(list) == 0 {
-		emptyNote(c, "Nothing here.")
-	}
+	return &inboxData{filter: a.filter, favs: favs, favComms: favComms, list: list}
 }
 
 func (a *App) latest(cm model.Community) (t time.Time) {

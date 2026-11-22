@@ -217,6 +217,21 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
+## Performance rules learned
+- The sidebar lists (Chats in every layout, One inbox) are `ui.List`s of
+  `listLine`s (`app/lists.go`, `showLines`): they used to be a `Scroll` with a
+  row built for every chat, every frame, which made typing sluggish on Linux
+  (a friend's frame log: GPU present 0.3 ms, our build 8–9 ms). Never build an
+  element per item of a long collection.
+- `app/framecache.go` keeps the source's room, community and online-count lists
+  while the source has not changed (`OnChange` bumps `srcGen`; at most 30 s),
+  and the contacts for one frame. A source that changes state must call its
+  change listeners, or the lists stay as they were.
+- Measure with `go test -tags goolm ./app -run XXX -bench TypingFrame
+  -cpuprofile <scratch>/cpu.prof` (a heavy account via `mock.AddBulk`), and a
+  user's `MYGO_FRAME_STATS=1` log: "build" is ours, "present" is the GPU.
+- Still not virtual: a community's room list (`communityRooms`), the People grid.
+
 ## Releases
 `.github/workflows/release.yml`: push a `v*` tag (e.g. `v0.1.0-alpha.1`) to
 build macOS, Windows and Linux with `mygo build` and publish the installers as

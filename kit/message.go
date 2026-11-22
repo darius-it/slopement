@@ -204,6 +204,10 @@ var QuickReactions = []string{"👍", "❤️", "😂"}
 // MessageGroupGap is the room above the first message of a group.
 const MessageGroupGap = S3
 
+// moreHalo is how far around the ⋯ button still counts as on it: a little,
+// so the pointer can drift, not so much that it grabs the buttons beside.
+const moreHalo = 4
+
 // toolbarPinned is the message whose hover toolbar is held open for its ⋯
 // menu (UI thread only, like the rest of the view).
 var (
@@ -439,15 +443,24 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						}
 					}
 					if !m.Menu.Off {
-						more := toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) })
-						MenuButton(c, more, func(mm *ui.Menu) {
-							ch := MessageMenu(mm, m.Menu)
-							if ch != MsgNone {
-								toolbarPinned = ""
-							}
-							a.chose(ch)
+						// A halo of a few pixels around ⋯ counts as being on it, so a
+						// pointer that drifts a little off the button on its way to
+						// the menu does not lose the toolbar (and the menu with it).
+						// Negative margin keeps the toolbar's layout as it was.
+						halo := ui.Row(c.Key("more-halo")).Padding(moreHalo).Margin(-moreHalo)
+						onMore := halo.Hovered()
+						halo.Children(func() {
+							more := toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) })
+							MenuButton(c, more, func(mm *ui.Menu) {
+								ch := MessageMenu(mm, m.Menu)
+								if ch != MsgNone {
+									toolbarPinned = ""
+								}
+								a.chose(ch)
+							})
+							onMore = onMore || more.Hovered()
 						})
-						if more.Hovered() {
+						if onMore {
 							toolbarPinned, toolbarPinnedAt = m.ID, time.Now()
 						} else if row.Hovered() && toolbarPinned == m.ID && time.Since(toolbarPinnedAt) > 2*time.Second {
 							// Back on the row, well after leaving ⋯: no menu is
