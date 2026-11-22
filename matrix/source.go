@@ -220,6 +220,7 @@ func (r *room) modelRoom() model.Room {
 		LastActivity: r.last,
 		Preview:      r.preview,
 		Typing:       r.typing,
+		ReadOnly:     r.cannotPost,
 	}
 	if r.markedUnread && m.Unread == 0 {
 		m.Unread = 1 // unread by the user's own mark: shown until it is opened
@@ -254,6 +255,7 @@ func (s *Source) Room(id string) (model.Room, bool) {
 	if !ok {
 		return model.Room{}, false
 	}
+	s.askPower(id) // whether the user may write here, once
 	m := r.modelRoom()
 	m.Community = s.spaceOf()[id]
 	return m, true

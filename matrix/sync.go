@@ -92,6 +92,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.EventRedaction, s.onRedaction)
 	syncer.OnEventType(event.EventEncrypted, s.onEncrypted)
 	syncer.OnEventType(event.StateMember, s.onMember)
+	syncer.OnEventType(event.StatePowerLevels, s.onPowerLevels)
 	syncer.OnEventType(event.StateRoomName, s.onRoomName)
 	syncer.OnEventType(event.StateTopic, s.onTopic)
 	syncer.OnEventType(event.StateRoomAvatar, s.onRoomAvatar)

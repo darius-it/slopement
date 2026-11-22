@@ -75,7 +75,7 @@ func (a *App) profile(id string) *kit.ProfileSpec {
 	p, _ := a.src.Person(id)
 	spec := &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
 		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID,
-		Recolor: true, ColorIndex: a.colorOf(p.ID)}
+		Recolor: true, ColorIndex: a.colorOf(p.ID), Picture: strings.HasPrefix(p.Avatar, "mxc://")}
 	if ig, ok := a.src.(model.Ignorer); ok {
 		spec.Ignorable, spec.Ignored = true, ig.IsIgnored(p.ID)
 	}

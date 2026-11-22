@@ -39,6 +39,10 @@ type room struct {
 	mutedUntil   time.Time
 	notify       model.NotifyLevel // the user's own level for the room (a room push rule)
 	markedUnread bool
+	// cannotPost: the room's power levels do not let the user send messages
+	// (an announcements room). powerAsked: they were asked for from the
+	// server once (power.go). Unknown counts as able: the server decides.
+	cannotPost, powerAsked bool
 	// polls are the votes and ends of the room's polls, by poll event
 	// (polls.go): kept apart from the events, which show the tally.
 	polls map[string]*pollState

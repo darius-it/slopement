@@ -379,6 +379,8 @@ func (a *App) profileActs(person string, act kit.ProfileAction) {
 	case act.Ignore, act.Unignore:
 		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
 		a.setIgnore(person, act.Ignore)
+	case act.OpenPicture:
+		a.openProfilePicture(person)
 	case act.Message:
 		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
 		a.openDM(person, a.open)
@@ -401,6 +403,13 @@ func (a *App) profileActs(person string, act kit.ProfileAction) {
 
 // composer is the message field with its picker: Enter sends.
 func (a *App) composer(c *ui.Context, r model.Room) {
+	if r.ReadOnly {
+		// The room's power levels do not let the user write: a bar says so
+		// instead of a field that would only fail to send.
+		a.picker.Open = false
+		kit.ReadOnlyBar(c, "You don't have permission to post in this room")
+		return
+	}
 	st := a.draft(r.ID)
 	place := "Message " + r.Name
 	if r.Kind == model.KindRoom {

@@ -225,11 +225,15 @@ type ProfileSpec struct {
 	ColorIndex int
 	// Ignorable shows Ignore (or Unignore, when Ignored) under the buttons.
 	Ignorable, Ignored bool
+	// Picture: they have a profile picture, which a click on it enlarges.
+	Picture bool
 }
 
 // ProfileAction is what the card asked for.
 type ProfileAction struct {
 	Message, Call, Verify, EditStatus bool
+	// OpenPicture: the profile picture was clicked, to see it enlarged.
+	OpenPicture bool
 	// Ignore and Unignore are explicit, not a toggle: a card may be built
 	// twice in a frame, and an action must do the same the second time.
 	Ignore, Unignore bool
@@ -247,7 +251,18 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 		ui.Row(c).Gap(S3).AlignItems(ui.Center).Children(func() {
 			av := s.Avatar
 			av.Size, av.Name, av.ID, av.Colors, av.Trust = 56, s.Name, s.MXID, colors, s.Trust
-			Avatar(c, av)
+			if s.Picture {
+				// A picture opens enlarged.
+				open := ui.ButtonBase(c.Key("avatar-open")).Radius(RadiusFull).Label("View profile picture").
+					Tooltip("View profile picture").Cursor(ui.CursorPointer)
+				open.Children(func() { Avatar(c, av) })
+				Pressable(open)
+				if open.Clicked() {
+					a.OpenPicture = true
+				}
+			} else {
+				Avatar(c, av)
+			}
 			ui.Column(c).MinWidth(0).Gap(1).Children(func() {
 				ui.Text(c, s.Name).FontSize(SizeTitle - 1).FontWeight(WeightSemibold).TextColor(colors.Color(p, s.MXID)).SingleLine()
 				sub := s.MXID

@@ -87,6 +87,9 @@ type Room struct {
 	Preview      string   // the last message, "Mira: hi"
 	Typing       []string // the names of who is typing
 	Call         bool     // a call is going on
+	// ReadOnly: the room's power levels do not let the user write in it (an
+	// announcements room): the app shows a bar in place of the composer.
+	ReadOnly bool
 }
 
 // Community is a space: a home and its rooms.
