@@ -294,6 +294,13 @@ func (s *Source) JoinRoom(target string, done func(room, err string)) {
 			return
 		}
 	}
+	if len(via) == 0 && strings.HasPrefix(t, "!") {
+		// A room ID joined from a listing: the server it lives on is the one
+		// to ask.
+		if i := strings.Index(t, ":"); i > 0 {
+			via = []string{t[i+1:]}
+		}
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()

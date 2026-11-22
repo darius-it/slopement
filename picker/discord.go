@@ -62,11 +62,13 @@ func parseDiscordFavorites(data []byte) ([]klipy.Item, error) {
 		}
 		sum := sha1.Sum([]byte(e.key))
 		r := klipy.Rendition{URL: u, Width: e.f.Width, Height: e.f.Height}
+		th := r
+		th.URL = thumbURL(u)
 		items = append(items, klipy.Item{
 			ID:    "discord:" + hex.EncodeToString(sum[:8]),
 			Title: titleOf(e.key),
 			Kind:  klipy.GIFs,
-			Thumb: r, Still: r, Full: r,
+			Thumb: th, Still: th, Full: r,
 		})
 	}
 	return items, nil
@@ -80,6 +82,7 @@ func discordGIF(key, src string) string {
 	if strings.HasPrefix(src, "//") {
 		src = "https:" + src
 	}
+	src = unproxy(src)
 	for _, u := range []string{src, key} {
 		if strings.HasSuffix(strings.ToLower(strings.SplitN(u, "?", 2)[0]), ".gif") {
 			return u
@@ -100,6 +103,46 @@ func discordGIF(key, src string) string {
 		return "https://" + p.Host + strings.TrimSuffix(p.Path, ".mp4") + ".gif"
 	}
 	return ""
+}
+
+// thumbURL is a small version of the GIF at u to show as a tile, where the
+// host has one: Tenor's tinygif (the media ID's last letter says which
+// rendition: C is the full GIF, M the tiny one, a seventh of the size).
+// Anything else is u itself.
+func thumbURL(u string) string {
+	p, err := url.Parse(u)
+	if err != nil || !strings.HasSuffix(strings.ToLower(p.Host), "tenor.com") {
+		return u
+	}
+	segs := strings.Split(strings.Trim(p.Path, "/"), "/")
+	if len(segs) != 2 || !strings.HasSuffix(segs[0], "AAAAC") || !strings.HasSuffix(segs[1], ".gif") {
+		return u
+	}
+	segs[0] = strings.TrimSuffix(segs[0], "C") + "M"
+	return "https://" + p.Host + "/" + strings.Join(segs, "/")
+}
+
+// unproxy undoes Discord's media proxy, which stores a link's picture as
+// images-ext-N.discordapp.net/external/<hash>/https/<the real address>: most
+// of a real export's Tenor favorites are that. Anything else is returned as is.
+func unproxy(src string) string {
+	p, err := url.Parse(src)
+	if err != nil || !strings.HasPrefix(strings.ToLower(p.Host), "images-ext-") || !strings.HasSuffix(strings.ToLower(p.Host), ".discordapp.net") {
+		return src
+	}
+	rest, ok := strings.CutPrefix(p.Path, "/external/")
+	if !ok {
+		return src
+	}
+	parts := strings.SplitN(rest, "/", 3) // hash, scheme, the address
+	if len(parts) != 3 || (parts[1] != "https" && parts[1] != "http") || parts[2] == "" {
+		return src
+	}
+	out := "https://" + parts[2]
+	if p.RawQuery != "" {
+		out += "?" + p.RawQuery
+	}
+	return out
 }
 
 // titleOf makes a title of a favorite's URL: "cat-funny-1234" → "cat funny".

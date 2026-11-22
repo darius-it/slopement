@@ -72,6 +72,14 @@ type Source struct {
 	// those it was told of.
 	notify   func(model.Notice)
 	notified map[string]bool
+	// ignored are the people the user ignores (ignore.go); dmMaking are the
+	// chats being made, by person, with who waits for each.
+	ignored  map[string]bool
+	dmMaking map[string][]func(string)
+	// railOrder is the order of the communities on the rail (spaces.go).
+	railOrder []string
+	// packs are the custom emoji and sticker packs (packs.go).
+	packs packState
 }
 
 // NewSource is the app's view of a signed-in account, before any sync.
@@ -208,6 +216,7 @@ func (r *room) modelRoom() model.Room {
 		LowPriority:  r.lowPriority,
 		Muted:        r.muted,
 		MutedUntil:   r.mutedUntil,
+		Notify:       r.notify,
 		LastActivity: r.last,
 		Preview:      r.preview,
 		Typing:       r.typing,
@@ -280,6 +289,7 @@ func (s *Source) Communities() []model.Community {
 		}
 		return out[i].ID < out[j].ID
 	})
+	s.sortCommunities(out) // then the order the user dragged them into
 	return out
 }
 
@@ -350,7 +360,7 @@ func (s *Source) Person(id string) (model.Person, bool) {
 
 func (s *Source) Timeline(room string) []model.Event {
 	if r, ok := s.rooms[room]; ok {
-		return r.timeline(s.me.ID)
+		return s.withoutIgnored(r.timeline(s.me.ID))
 	}
 	return nil
 }

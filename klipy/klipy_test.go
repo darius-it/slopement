@@ -46,6 +46,48 @@ func TestSearchNative(t *testing.T) {
 	}
 }
 
+// Sending an item registers the share: POST …/share/{slug} with the install's
+// anonymous ID and the search that led to it.
+func TestShare(t *testing.T) {
+	var method, path, ctype, body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, 512)
+		n, _ := r.Body.Read(b)
+		method, path, ctype, body = r.Method, r.URL.Path, r.Header.Get("Content-Type"), string(b[:n])
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	c := New(Config{Key: "k", BaseURL: srv.URL, CustomerID: "cust"})
+	if err := c.Share(context.Background(), Stickers, "a b", "cat"); err != nil {
+		t.Fatal(err)
+	}
+	if method != "POST" || path != "/api/v1/k/stickers/share/a b" || ctype != "application/json" ||
+		!strings.Contains(body, `"customer_id":"cust"`) || !strings.Contains(body, `"q":"cat"`) {
+		t.Fatalf("%s %s %s %s", method, path, ctype, body)
+	}
+	if err := c.Share(context.Background(), GIFs, "", ""); err == nil {
+		t.Fatal("shared without a slug")
+	}
+	if err := New(Config{Key: "k", BaseURL: "http://127.0.0.1:1", HTTP: &http.Client{Timeout: time.Second}}).Share(context.Background(), GIFs, "x", ""); err == nil || strings.Contains(err.Error(), "k/") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// A sticker is sent as its GIF where there is one: KLIPY's WebPs are animated,
+// which mygo cannot show, so one sent as WebP would be blank in this app.
+func TestStickerPrefersGIF(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"result":true,"data":{"data":[{"id":1,"slug":"s","title":"S","type":"sticker","file":{
+		 "md":{"gif":{"url":"https://s/md.gif","width":480,"height":164},"webp":{"url":"https://s/md.webp","width":480,"height":164},"png":{"url":"https://s/md.png","width":480,"height":164}},
+		 "xs":{"gif":{"url":"https://s/xs.gif","width":90,"height":31},"png":{"url":"https://s/xs.png","width":90,"height":31}}}}]}}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{Key: "k", BaseURL: srv.URL}).Trending(context.Background(), Stickers, 1, 1)
+	if err != nil || len(p.Items) != 1 || p.Items[0].Full.URL != "https://s/md.gif" {
+		t.Fatalf("items = %+v, err %v", p.Items, err)
+	}
+}
+
 func TestNoKey(t *testing.T) {
 	t.Setenv("KLIPY_API_KEY", "")
 	if _, err := New(Config{}).Trending(context.Background(), GIFs, 1, 0); !errors.Is(err, ErrNoKey) {

@@ -239,6 +239,34 @@ func sasOf(emoji []model.SASEmoji) []kit.SASEmoji {
 }
 
 // phoneSheets are the phone's sheets: a room's actions and its info.
+// panelSheetView shows the pins or the open thread in a sheet on phones: a
+// side panel has no room there. The panel that is set opens it (a thread chip,
+// the room sheet's Pinned messages); closing the sheet clears the panel.
+func (a *App) panelSheetView(c *ui.Context, r model.Room) {
+	want := a.panel == panelPins || a.panel == panelThread
+	if want && a.panelShown != a.panel {
+		a.panelSheet.Open, a.panelShown = true, a.panel
+	}
+	if !want && a.panelShown != panelNone {
+		a.panelSheet.Open, a.panelShown = false, panelNone
+	}
+	title := "Pinned messages"
+	if a.panelShown == panelThread {
+		title = "Thread"
+	}
+	kit.Sheet(c, &a.panelSheet, title, func() {
+		switch a.panelShown {
+		case panelThread:
+			ui.Column(c.Key("pthread")).Height(460).Children(func() { a.threadPanel(c, r) })
+		case panelPins:
+			ui.Scroll(c.Key("ppins:" + r.ID)).Height(460).Gap(kit.S3).Children(func() { a.pinsPanel(c, r) })
+		}
+	})
+	if !a.panelSheet.Open && a.panelShown != panelNone && want {
+		a.panel, a.panelShown = panelNone, panelNone // closed by the user
+	}
+}
+
 func (a *App) phoneSheets(c *ui.Context) {
 	if a.msgID != "" {
 		a.messageSheet(c)
@@ -256,7 +284,25 @@ func (a *App) phoneSheets(c *ui.Context) {
 			if st.Favourite {
 				fav = "Remove from favourites"
 			}
+			if r.ID == a.room {
+				// What wide windows have on the toolbar and in a side panel.
+				if _, ok := a.src.(model.Searcher); ok {
+					if kit.ChoiceRow(c, kit.IconSearch, "Find in chat", "").Clicked() {
+						a.openFind()
+						a.roomSheet.Open = false
+					}
+				}
+				if kit.ChoiceRow(c, kit.IconPin, "Pinned messages", "").Clicked() {
+					a.panel = panelPins
+					a.roomSheet.Open = false
+				}
+			}
 			row(kit.IconStar, fav, kit.RoomAction{ToggleFav: true})
+			for i, name := range kit.NotifyLevelNames {
+				if st.Level != i {
+					row(kit.IconBell, "Notify: "+name, kit.RoomAction{SetLevel: true, Level: i})
+				}
+			}
 			if st.Muted {
 				row(kit.IconBell, "Unmute", kit.RoomAction{Unmute: true})
 			} else if d := kit.MuteList(c, a.now); d != nil {
@@ -269,5 +315,6 @@ func (a *App) phoneSheets(c *ui.Context) {
 	}
 	if r, ok := a.src.Room(a.room); ok && kit.Compact(c) {
 		kit.Sheet(c, &a.roomInfo, "", func() { a.roomInfoBody(c, r) })
+		a.panelSheetView(c, r)
 	}
 }

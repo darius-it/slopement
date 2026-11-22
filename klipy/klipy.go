@@ -12,10 +12,12 @@
 package klipy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -135,11 +137,11 @@ type Category struct {
 }
 
 type apiItem struct {
-	ID          json.Number                      `json:"id"`
-	Slug        string                           `json:"slug"`
-	Title       string                           `json:"title"`
-	Type        string                           `json:"type"`
-	BlurPreview string                           `json:"blur_preview"`
+	ID          json.Number                     `json:"id"`
+	Slug        string                          `json:"slug"`
+	Title       string                          `json:"title"`
+	Type        string                          `json:"type"`
+	BlurPreview string                          `json:"blur_preview"`
 	File        map[string]map[string]rendition `json:"file"`
 }
 
@@ -224,7 +226,10 @@ func (c *Client) page(ctx context.Context, kind Kind, endpoint string, q url.Val
 		it.Thumb = pick(a.File, small, "gif")
 		if kind == Stickers {
 			it.Still = pick(a.File, small, "png", "webp")
-			it.Full = pick(a.File, []string{"md", "sm", "hd"}, "webp", "gif", "png")
+			// A GIF first: it animates everywhere and mygo can show it (it
+			// cannot decode KLIPY's animated WebPs, so a sticker sent as one
+			// would be blank here). WebP and PNG are the fallbacks.
+			it.Full = pick(a.File, []string{"md", "sm", "hd"}, "gif", "webp", "png")
 		} else {
 			it.Still = pick(a.File, small, "jpg")
 			it.Full = pick(a.File, []string{"md", "sm", "hd"}, "gif")
@@ -235,6 +240,37 @@ func (c *Client) page(ctx context.Context, kind Kind, endpoint string, q url.Val
 		p.Items = append(p.Items, it)
 	}
 	return p, nil
+}
+
+// Share tells KLIPY an item was sent (POST …/{gifs|stickers}/share/{slug}),
+// as its terms ask: it improves ranking. query is the search that led to it,
+// "" when it came from trending, recents or favorites. The user is only the
+// install's anonymous customer ID. A failure is returned but is not worth
+// more than a log line.
+func (c *Client) Share(ctx context.Context, kind Kind, slug, query string) error {
+	if c.cfg.Key == "" {
+		return ErrNoKey
+	}
+	if slug == "" {
+		return errors.New("klipy: nothing to share without a slug")
+	}
+	body, _ := json.Marshal(map[string]string{"customer_id": c.cfg.CustomerID, "q": query})
+	u := c.cfg.BaseURL + "/api/v1/" + url.PathEscape(c.cfg.Key) + "/" + kind.path() + "/share/" + url.PathEscape(slug)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.http.Do(req)
+	if err != nil {
+		return redact(err, c.cfg.Key)
+	}
+	defer res.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(res.Body, 1<<16))
+	if res.StatusCode/100 != 2 {
+		return fmt.Errorf("klipy: share: %s", res.Status)
+	}
+	return nil
 }
 
 // Trending returns the trending items of kind.

@@ -189,7 +189,7 @@ func profilePopover(c *ui.Context, anchor ui.Element, m MessageData, colors *Use
 			Shadow(0, 12, 32, -6, p.Shadow).Transition(PopIn())
 		a.ProfileAct = ProfileCard(c, *m.Profile, colors, time.Now())
 	})
-	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify || a.ProfileAct.EditStatus {
+	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify || a.ProfileAct.EditStatus || a.ProfileAct.Ignore || a.ProfileAct.Unignore {
 		a.ProfileClosed = true
 	}
 }
@@ -245,11 +245,11 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 	case m.FlashOut:
 		anim = flashOut
 	}
-	top := float32(S05)
+	top := rowPad()
 	if m.First {
-		top = MessageGroupGap
+		top = groupGap()
 	}
-	row.Padding(top, S4, S05, S4).Gap(S3).AlignItems(ui.Start).
+	row.Padding(top, S4, rowPad(), S4).Gap(S3).AlignItems(ui.Start).
 		Background(row.AnimateColor("bg", bg, anim))
 	row.Children(func() {
 		// The gutter.

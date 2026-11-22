@@ -16,6 +16,9 @@ type MessageMenuState struct {
 	// Thread offers "Reply in thread" (where the account has threads and
 	// there is room for the thread panel).
 	Thread bool
+	// Sticker offers "Add to my emoji": it is a sticker (or custom emoji)
+	// that can go in the user's own pack.
+	Sticker bool
 }
 
 // MessageChoice is what was chosen from a message's menu.
@@ -31,6 +34,8 @@ const (
 	MsgUnpin
 	MsgDelete
 	MsgThread // reply in (or open) the message's thread
+	// MsgAddToPack puts the message's sticker in the user's own pack.
+	MsgAddToPack
 	// MsgOpenSheet asks for the menu as a sheet (a long press on a phone).
 	MsgOpenSheet
 )
@@ -50,6 +55,9 @@ func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 	}
 	if m.Item("Copy message link").Icon(MenuIcon(IconLink)).Chosen() {
 		ch = MsgCopyLink
+	}
+	if s.Sticker && m.Item("Add to my emoji").Icon(MenuIcon(IconPlus)).Chosen() {
+		ch = MsgAddToPack
 	}
 	if s.Pinned {
 		if m.Item("Unpin").Icon(MenuIcon(IconPin)).Chosen() {

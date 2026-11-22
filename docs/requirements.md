@@ -551,12 +551,24 @@ so Element and FluffyChat messages look right too.
   and an anonymous per-install `customer_id`. Tiles animate the `xs` GIFs
   (~90 px), at most 96 kept, and pause off-screen. Favorites and recents
   persist in the user config dir (`slopement/picker.json`).
-- Sent items are uploaded to the media repo (never hotlinked). KLIPY's
-  register-share is called on send. "Powered by KLIPY" attribution is shown.
-- **Local folders as a source (v1.1):** the user adds folders (Settings →
-  GIFs) and their `.gif/.webp/.mp4/.png` files appear as a "My folder" row
-  and in search (by file name). They are indexed in the background,
-  thumbnailed once and watched for changes.
+- A GIF is sent as its link by default (it costs the homeserver nothing and
+  shows as the GIF here and in clients that preview links); **Settings →
+  Appearance → Send GIFs as files** uploads it instead. A **sticker** is
+  always uploaded and sent as an `m.sticker` (a pack's sticker, already on
+  the media repo, is sent by its `mxc://`). KLIPY's share trigger
+  (`POST …/{gifs|stickers}/share/{slug}` with the anonymous customer ID and
+  the search that found it) is called on send. "Powered by KLIPY"
+  attribution is shown.
+- Tiles load only while they are in the picker's view (a loading wave
+  shows meanwhile; at most 4 downloads at once; a failed one retries after
+  2, 6 and 18 s, then a tap retries it).
+- **Local folders as a source (v1.1, built):** the user adds folders
+  (Settings → GIFs) and their `.gif/.png/.apng/.jpg/.webp` files appear as a
+  "My folders" tile and in search (by file name, before KLIPY's results).
+  They are indexed in the background (4 levels deep, 3,000 files, newest
+  first) when set and when the picker opens after 30 s, and thumbnailed from
+  the file as each tile shows. Not watched live, and no `.mp4` (mygo plays
+  none). Sending one uploads the file, never a link to a local path.
 - **Custom emoji & sticker packs (v1.1):** MSC2545 image packs, as used by
   Cinny, FluffyChat and Nheko. These are personal packs in
   `im.ponies.user_emotes`, room/community packs in `im.ponies.room_emotes`
@@ -564,8 +576,15 @@ so Element and FluffyChat messages look right too.
   - They show as extra categories in Emoji and Stickers, and are sent as
     `<img data-mx-emoticon src="mxc://…" alt=":name:" height="32">`, with
     stickers as `m.sticker`.
-  - "Add to my pack" works on any custom emoji or sticker you see. Pack
-    editing UI is **later**.
+  - "Add to my pack" works on any custom emoji or sticker you see: the ＋
+    on a pack tile in the picker, and "Add to my emoji" in the menu of a
+    sticker message. Pack editing UI is **later**.
+  - Built (v1.1): the user's pack, the shown room's packs and the ones
+    enabled in `im.ponies.emote_rooms` load in the background; they are
+    sections of the Emoji and Sticker tabs; `:name:` in the composer
+    suggests them and sends `<img data-mx-emoticon>`; received ones draw
+    inline (`format.Emoji`, `kit.EmojiImage`). Custom emoji as *reactions*
+    are not built.
 
 ## Calls (MatrixRTC first, Jitsi as the fallback)
 Full research and design: [calls-research.md](calls-research.md)

@@ -42,6 +42,7 @@ type roomRecord struct {
 	Pinned    []string
 
 	MutedUntil   time.Time
+	Notify       model.NotifyLevel
 	MarkedUnread bool
 	Polls        map[string]*pollState
 }
@@ -61,7 +62,7 @@ func (r *room) record() roomRecord {
 		Favourite: r.favourite, LowPriority: r.lowPriority, Muted: r.muted,
 		Last: r.last, Preview: r.preview, Parent: r.parent,
 		Reactions: r.reactions, Reads: r.reads, Edits: r.edits, Pinned: r.pinned,
-		MutedUntil: r.mutedUntil, MarkedUnread: r.markedUnread, Polls: r.polls,
+		MutedUntil: r.mutedUntil, Notify: r.notify, MarkedUnread: r.markedUnread, Polls: r.polls,
 	}
 	events := r.events
 	if len(events) > timelineCap {
@@ -103,7 +104,7 @@ func (rec roomRecord) room() *room {
 		// page, which cut rooms' history short for good. A room whose
 		// history is all held asks once more a run and learns it again.
 		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, pinned: rec.Pinned,
-		mutedUntil: rec.MutedUntil, markedUnread: rec.MarkedUnread, polls: rec.Polls,
+		mutedUntil: rec.MutedUntil, notify: rec.Notify, markedUnread: rec.MarkedUnread, polls: rec.Polls,
 	}
 	for _, byID := range r.reactions {
 		for _, rr := range byID {

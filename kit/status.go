@@ -223,11 +223,16 @@ type ProfileSpec struct {
 	// one chosen now (-1 automatic).
 	Recolor    bool
 	ColorIndex int
+	// Ignorable shows Ignore (or Unignore, when Ignored) under the buttons.
+	Ignorable, Ignored bool
 }
 
 // ProfileAction is what the card asked for.
 type ProfileAction struct {
 	Message, Call, Verify, EditStatus bool
+	// Ignore and Unignore are explicit, not a toggle: a card may be built
+	// twice in a frame, and an action must do the same the second time.
+	Ignore, Unignore bool
 	// SetColor: the name's color was chosen (Color: an index of the
 	// palette, -1 for automatic).
 	SetColor bool
@@ -281,6 +286,21 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 			a.Message = Button(c, Primary, "Message", IconMessage).Grow(1).Clicked()
 			a.Call = IconButton(c, Secondary, IconPhone, "Call").Clicked()
 		})
+		if s.Ignorable && !s.Self {
+			label := "Ignore"
+			if s.Ignored {
+				label = "Unignore"
+			}
+			ui.Row(c).Justify(ui.Center).Children(func() {
+				if Button(c, Ghost, label, nil).Height(26).Clicked() {
+					if s.Ignored {
+						a.Unignore = true
+					} else {
+						a.Ignore = true
+					}
+				}
+			})
+		}
 	})
 	return a
 }

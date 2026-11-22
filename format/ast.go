@@ -42,6 +42,10 @@ const (
 	// matrix.to link of the user ("https://matrix.to/#/@robin:server");
 	// typed as "@name" or "@name:server".
 	Mention
+	// Emoji is a custom emoji (MSC2545): Text is its ":shortcode:", Href the
+	// mxc:// of its picture. It is sent as <img data-mx-emoticon> and shown
+	// as the picture in the sentence.
+	Emoji
 )
 
 // Node is a node of a message's tree.
@@ -74,7 +78,7 @@ func Plain(n *Node) string {
 	var walk func(n *Node, top bool)
 	walk = func(n *Node, top bool) {
 		switch n.Kind {
-		case Text, Code, Mention:
+		case Text, Code, Mention, Emoji:
 			b = append(b, n.Text...)
 		case CodeBlock:
 			b = append(b, n.Text...)

@@ -74,7 +74,7 @@ func (s *Source) localHits(q model.SearchQuery) []model.SearchHit {
 			continue
 		}
 		for _, e := range r.events {
-			if searchable(e) && s.matches(q, r.name, r.alias, e, true) {
+			if searchable(e) && !s.ignored[e.Sender] && s.matches(q, r.name, r.alias, e, true) {
 				out = append(out, model.SearchHit{Room: rid, Event: e.ID, Sender: e.Sender, Time: e.Time, Body: plainBody(e)})
 			}
 		}

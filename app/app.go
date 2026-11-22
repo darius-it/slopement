@@ -76,20 +76,21 @@ type App struct {
 	statePath        string
 	stateLast        string
 	statePending     bool
-	files            map[string][]model.File // per room, waiting in the composer (files.go)
+	gifFolders       []string                 // folders of pictures the GIF picker also offers (gifsettings.go)
+	files            map[string][]model.File  // per room, waiting in the composer (files.go)
 	previews         map[string]*previewState // link previews by URL (previews.go)
 	noPreview        map[string]bool          // messages whose preview the user dismissed
-	msgSheet         kit.SheetState          // phones: a message's menu (actions.go)
+	msgSheet         kit.SheetState           // phones: a message's menu (actions.go)
 	msgRoom, msgID   string
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)
 	jumpSince        time.Time         // when that jump was asked for (it pages history in until found)
 	jumpAt           time.Time         // the target's time when known (zero if not)
 	jumpLooking      bool              // the jump is paging history in, looking for it
-	flash            string       // the message just jumped to, in its blink's color
-	flashOut         string       // the one whose blink is fading out
-	rs               receiptState // the open room's, taken once a frame
-	receiptsApplied  bool         // the source was told the setting (receipts.go)
+	flash            string            // the message just jumped to, in its blink's color
+	flashOut         string            // the one whose blink is fading out
+	rs               receiptState      // the open room's, taken once a frame
+	receiptsApplied  bool              // the source was told the setting (receipts.go)
 	receiptsVal      bool
 	restoreRoom      string
 	restoreCommunity string
@@ -128,17 +129,17 @@ type App struct {
 	leaving      string
 	// The accounts of this device (nil on the mock) and the removal being
 	// confirmed.
-	accounts      *Accounts
-	detached      bool // the window moved on to another account's app
-	fileSeq       int  // numbers the files waiting in composers (their thumbnails)
+	accounts *Accounts
+	detached bool // the window moved on to another account's app
+	fileSeq  int  // numbers the files waiting in composers (their thumbnails)
 	// The display name being edited in Settings → Account, and whether it
 	// has been taken from the profile yet.
-	nameDraft     string
-	nameLoaded    bool
-	focused bool // the window is in front (notifications stay quiet for the room in view)
-	srch    searchState
-	find    findState // ⌘F: find in this chat (find.go)
-	typing  map[string]*typingRoom // typing notices told to rooms (typing.go)
+	nameDraft  string
+	nameLoaded bool
+	focused    bool // the window is in front (notifications stay quiet for the room in view)
+	srch       searchState
+	find       findState              // ⌘F: find in this chat (find.go)
+	typing     map[string]*typingRoom // typing notices told to rooms (typing.go)
 	// narrow: the window is phone-sized this frame (no side panels);
 	// thread is the open thread, inThread says one is being drawn.
 	narrow   bool
@@ -147,6 +148,8 @@ type App struct {
 	clips    map[string]*clip // audio messages played or being loaded, by event (audio.go)
 	// Join / create / explore, and inviting (rooms.go); a room to open as
 	// soon as the sync has it.
+	re            roomEdit              // editing a room or community (roomedit.go)
+	hier          map[string]*hierState // what each community's hierarchy offers (spaces.go)
 	rd            roomsDialog
 	inv           inviteDialog
 	pendingOpen   string
@@ -155,26 +158,28 @@ type App struct {
 	openURL       string // a page for the next frame to open in the browser
 	removing      string
 	removeAccount kit.SheetState
-	picker       kit.PickerState
-	pickerRoom   string
-	viewer       bool
-	viewerItems  []kit.MediaSpec
-	viewerAt     int
-	people       kit.PeopleState
-	call         kit.CallState
-	inCall       string // the room whose call the user is in
-	verify       kit.SheetState
-	verifyStep   int    // 0 the flow; 1 the Security Key entry
-	verifyKey    string // the key being typed
-	verifier     model.Verify
-	verifyAsked  bool // the once-a-run prompt has shown
-	toast        string
-	reactTo      string            // the message the picker reacts to
-	replyTo      map[string]string // per room: the event replied to
-	roomInfo     kit.SheetState    // phones: room info
-	roomSheet    kit.SheetState    // phones: a room's actions
-	roomSheetID  string
-	prefs        settingsPrefs
+	picker        kit.PickerState
+	pickerRoom    string
+	viewer        bool
+	viewerItems   []kit.MediaSpec
+	viewerAt      int
+	people        kit.PeopleState
+	call          kit.CallState
+	inCall        string // the room whose call the user is in
+	verify        kit.SheetState
+	verifyStep    int    // 0 the flow; 1 the Security Key entry
+	verifyKey     string // the key being typed
+	verifier      model.Verify
+	verifyAsked   bool // the once-a-run prompt has shown
+	toast         string
+	reactTo       string            // the message the picker reacts to
+	replyTo       map[string]string // per room: the event replied to
+	roomInfo      kit.SheetState    // phones: room info
+	roomSheet     kit.SheetState    // phones: a room's actions
+	panelSheet    kit.SheetState    // phones: the pins or a thread, where wide windows have a side panel
+	panelShown    panel             // the panel the sheet was opened for
+	roomSheetID   string
+	prefs         settingsPrefs
 
 	win *mygo.Window
 	// MenuChanged, set by main, rebuilds the menu bar when what it checks
@@ -189,24 +194,24 @@ type App struct {
 // picker, as in tests).
 func New(src model.Source, pick *picker.Controller) *App {
 	a := &App{
-		src:       src,
-		pick:      pick,
-		verifier:  src.Verify(),
-		now:       time.Now(),
-		nav:       kit.DefaultNavLayout(),
-		sidebar:   true,
-		settings:  "Account",
-		expanded:  map[string]bool{},
-		drafts:    map[string]*kit.ComposerState{},
-		lists:     map[string]*ui.ListState{},
-		scrolls:   map[string]*ui.ScrollState{},
-		reveals:   kit.Reveals{},
-		docs:      map[string]parsed{},
-		roomMenu:  map[string]bool{},
-		stills:    map[string]ui.ImageSource{},
-		stillBusy: map[string]bool{},
-		fulls:     map[string]*ui.Bitmap{},
-		fullBusy:  map[string]bool{},
+		src:        src,
+		pick:       pick,
+		verifier:   src.Verify(),
+		now:        time.Now(),
+		nav:        kit.DefaultNavLayout(),
+		sidebar:    true,
+		settings:   "Account",
+		expanded:   map[string]bool{},
+		drafts:     map[string]*kit.ComposerState{},
+		lists:      map[string]*ui.ListState{},
+		scrolls:    map[string]*ui.ScrollState{},
+		reveals:    kit.Reveals{},
+		docs:       map[string]parsed{},
+		roomMenu:   map[string]bool{},
+		stills:     map[string]ui.ImageSource{},
+		stillBusy:  map[string]bool{},
+		fulls:      map[string]*ui.Bitmap{},
+		fullBusy:   map[string]bool{},
 		readMarked: map[string]string{},
 		files:      map[string][]model.File{},
 		previews:   map[string]*previewState{},
@@ -215,9 +220,9 @@ func New(src model.Source, pick *picker.Controller) *App {
 		gifBusy:    map[string]bool{},
 		avatars:    map[string]*ui.Bitmap{},
 		avatarBusy: map[string]bool{},
-		call:      kit.NewCall(),
-		replyTo:   map[string]string{},
-		prefs:     defaultPrefs(),
+		call:       kit.NewCall(),
+		replyTo:    map[string]string{},
+		prefs:      defaultPrefs(),
 	}
 	a.pollDraft = kit.NewPollDraft()
 	a.menuNav = a.nav
@@ -295,6 +300,13 @@ func (a *App) open(id string) {
 func (a *App) View(c *ui.Context) {
 	a.now = time.Now()
 	a.typingTick()
+	// Appearance settings: the tint, the timeline's density, the size.
+	kit.SetAccent(a.prefs.accent)
+	kit.Dense = a.prefs.dense
+	kit.EmojiImage = a.emojiPicture // custom emoji in messages (packs.go)
+	if i := a.prefs.uiSize; i >= 0 && i < len(uiSizes) {
+		c.SetZoom(uiSizes[i].Zoom)
+	}
 	a.narrow = kit.Compact(c)
 	a.receiptsSync()
 	a.syncColors()
@@ -386,6 +398,13 @@ func (a *App) roomAction(id string, act kit.RoomAction) {
 		return
 	}
 	switch {
+	case act.SetLevel:
+		if nl, ok := a.src.(model.NotifyLevels); ok {
+			nl.SetNotifyLevel(id, model.NotifyLevel(act.Level))
+			a.toast = r.Name + ": notifications set to " + kit.NotifyLevelNames[act.Level]
+		} else {
+			a.toast = "This account can't change a room's notifications here"
+		}
 	case act.Mute != nil:
 		until := time.Time{}
 		if *act.Mute != 0 {
@@ -404,7 +423,11 @@ func (a *App) roomAction(id string, act kit.RoomAction) {
 	case act.MarkUnread:
 		a.src.MarkUnread(id)
 	case act.CopyLink:
-		a.toast = "Link copied"
+		target := r.Alias // the room's address, else its ID
+		if target == "" {
+			target = r.ID
+		}
+		a.copyToClipboard("https://matrix.to/#/"+target, "Link copied")
 	case act.Settings:
 		a.open(id)
 		a.panel = panelInfo

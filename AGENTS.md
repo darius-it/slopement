@@ -84,6 +84,27 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   `app/notify.go` (`showNotification` is a var for tests), `app/profile.go`.
   Edit tool gotcha: a `<` typed into a tool parameter is decoded before it
   reaches the file; write `\\u003c` inside an interpreted Go string.
+  Later stage-5 files: `app/roomedit.go` (edit name/topic/picture of a room or
+  community), `app/spaces.go` (drag-to-reorder on the rail, "More to join" from a
+  space's hierarchy), per-room notification level (`model.NotifyLevels`),
+  ignore a user (`model.Ignorer`, `matrix/ignore.go`, Privacy → Ignored
+  people), Appearance settings (accent tint `kit/accent.go`, interface size =
+  window zoom, compact timeline = `kit.Dense`), phone equivalents of find / pins
+  / thread (room sheet rows + `panelSheetView` in `app/overlays.go`), and
+  `model.CacheResetter` (Advanced → Reset local cache). Rail order is account
+  data `com.slopement.rail_order`. Picker work (step 7): tiles load only in view
+  with a 4-download limit, retry and a skeleton wave (`picker/picker.go`,
+  `picker/media.go`, `kit/gifpicker.go`), Discord import (`app/gifimport.go`,
+  `picker/discord.go`), KLIPY share (`klipy.Share`), stickers as `m.sticker`
+  (`model.StickerSender`, `matrix/sticker.go`, `app/stickers.go`), MSC2545 packs
+  (`model.Packs`, `matrix/packs.go`, `app/packs.go`, `kit/packpicker.go`,
+  `format.Emoji`), and GIF folders (`picker/folders.go`, `app/gifsettings.go`,
+  uiState `GifFolders`). Tests that build an `App` with `picker.New(nil)` must
+  `t.Setenv("HOME"/"XDG_CONFIG_HOME", t.TempDir())`, or they write the user's
+  real `picker.json`. Still "Soon": key backup/export, identity
+  reset, log export. Voice recording (and Opus/AAC decode) is in the
+  mobile-polish/device-pass scope (plan step 9), not stage 5: mygo has no
+  capture API yet.
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
 - `login/`: the sign-in screen over `matrix/` (probe a server, the MAS
@@ -174,6 +195,7 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   drop `devUrl`/`devCommand`/`buildCommand`/`frontendDist`/`bindings` from
   `mygo.config.ts`.
 - Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).
-- Delete `app/zz_probe_test.go` (an emptied one-off diagnostic).
+- Delete `app/zz_probe_test.go` and `app/zz_dbg_test.go` (emptied one-off
+  diagnostics).
 - Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
   edit itself is already in `matrix/sync_test.go`).

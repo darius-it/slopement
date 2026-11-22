@@ -2,6 +2,7 @@ package kit
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -24,6 +25,7 @@ const (
 	TileCategory
 	TileFavorites
 	TileTrending
+	TileFolders // the user's own folders (Settings → GIFs)
 )
 
 // PickerTile is a GIF, a sticker, or a category of the front page.
@@ -35,6 +37,13 @@ type PickerTile struct {
 	// show a quiet placeholder.
 	Player *ui.VideoPlayer
 	Still  ui.ImageSource
+	// Want starts loading the tile's animation; the tile calls it once it
+	// is near the view, so a long page doesn't load all at once. Failed
+	// says the load did not work: the tile shows a retry mark and a tap
+	// asks again (PickerResult.Retry).
+	Want   func()
+	Drop   func() // takes the request back: the tile scrolled out of view
+	Failed bool
 	// W and H are the item's size, for its aspect ratio.
 	W, H     float32
 	Favorite bool
@@ -51,6 +60,9 @@ type PickerModel struct {
 	// favorites, titled Title.
 	Results []PickerTile
 	Title   string
+	// EmojiPacks and StickerPacks are the custom packs on offer, sections
+	// of the emoji and sticker tabs.
+	EmojiPacks, StickerPacks []PickerPack
 	// RecentStickers lead the sticker tab.
 	RecentStickers []PickerTile
 	// RecentEmoji lead the emoji tab.
@@ -70,6 +82,8 @@ type PickerState struct {
 	// query, "favorites" or "trending"; empty for the front page.
 	Browse string
 	hover  string // the emoji under the pointer, for the footer
+	// hoverName is the shortcode of the pack image under the pointer.
+	hoverName string
 }
 
 // PickerResult is what the user did in the picker.
@@ -77,7 +91,11 @@ type PickerResult struct {
 	Emoji     string
 	Item      *PickerTile // a GIF or sticker to send
 	ToggleFav *PickerTile // its star toggled
-	More      bool        // the end of the results came into view
+	Retry     *PickerTile // a tile that failed to load, tapped
+	// From the packs: a custom emoji to put in the message, a sticker to
+	// send, an image to add to the user's own pack.
+	CustomEmoji, PackSticker, AddToPack *PackPick
+	More                                bool // the end of the results came into view
 	// ImportDiscord asks to import favorite GIFs exported from Discord.
 	ImportDiscord bool
 }
@@ -127,6 +145,8 @@ func Picker(c *ui.Context, anchor ui.Element, st *PickerState, m *PickerModel) (
 				if st.hover != "" {
 					ui.Text(c, st.hover).FontSize(18)
 					ui.Text(c, ":"+EmojiName(st.hover)+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
+				} else if st.hoverName != "" {
+					ui.Text(c, ":"+st.hoverName+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
 				}
 				return
 			}
@@ -138,7 +158,7 @@ func Picker(c *ui.Context, anchor ui.Element, st *PickerState, m *PickerModel) (
 			ui.Text(c, "Powered by KLIPY").FontSize(SizeCaption).FontWeight(WeightSemibold).TextColor(p.TextFaint)
 		})
 	})
-	if r.Emoji != "" || r.Item != nil {
+	if r.Emoji != "" || r.Item != nil || r.CustomEmoji != nil || r.PackSticker != nil {
 		st.Open = false
 	}
 	return r
@@ -150,6 +170,9 @@ func sectionLabel(c *ui.Context, text string) {
 }
 
 func emojiTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
+	st.hoverName = ""
+	// The packs' emoji lead (as a server's do in Discord), then the usual set.
+	packSections(c, st, m.EmojiPacks, st.Query, false, r)
 	if e := EmojiGrid(c, st.Query, m.RecentEmoji, &st.hover, 9); e != "" {
 		r.Emoji = e
 	}
@@ -257,6 +280,8 @@ func gifTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 						st.Browse = "favorites"
 					case TileTrending:
 						st.Browse = "trending"
+					case TileFolders:
+						st.Browse = "folders"
 					default:
 						st.Browse = t.Query
 					}
@@ -291,6 +316,8 @@ func gifTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 }
 
 func stickerTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
+	st.hoverName = ""
+	packSections(c, st, m.StickerPacks, st.Query, true, r)
 	if st.Query == "" && len(m.RecentStickers) > 0 {
 		sectionLabel(c, "Recently used")
 		ui.Grid(c.Key("recent-stickers")).Columns(4).Gap(S1).Children(func() {
@@ -364,7 +391,7 @@ func staggered(c *ui.Context, m *PickerModel, r *PickerResult, cols int) {
 	}
 	ui.Row(c.Key("results")).Gap(S1).AlignItems(ui.Start).Children(func() {
 		for k := range assigned {
-			ui.Column(c.Key("col"+strconv.Itoa(k))).Grow(1).Basis(0).MinWidth(0).Gap(S1).Children(func() {
+			ui.Column(c.Key("col" + strconv.Itoa(k))).Grow(1).Basis(0).MinWidth(0).Gap(S1).Children(func() {
 				for _, i := range assigned[k] {
 					t := &m.Results[i]
 					if itemTile(c, t, r, false).Clicked() {
@@ -402,6 +429,35 @@ func tileMedia(c *ui.Context, t *PickerTile, fit ui.Fit, tint bool) {
 	case tint:
 		ui.Box(c).Fill().Background(p.Users[HashIndex(t.ID)].Alpha(0.16).Over(p.BgInset))
 	}
+	if t.Failed && t.Player == nil {
+		// It could not load: a quiet mark that a tap tries again.
+		ui.Column(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).AlignItems(ui.Center).Justify(ui.Center).Gap(S1).PassThrough().Children(func() {
+			ui.Icon(c, IconRetry).Size(18, 18).TextColor(p.TextFaint)
+			ui.Text(c, "Tap to retry").FontSize(SizeCaption).TextColor(p.TextFaint)
+		})
+	}
+}
+
+// skeleton is a tile's loading state: a soft band of light sweeping across
+// it. It moves only while the tile loads and shows (so an idle picker draws
+// nothing), and stands still, a faint wash, when the system asks for less
+// motion.
+func skeleton(c *ui.Context) {
+	p := Of(c)
+	band := p.TextFaint.Alpha(0.2)
+	clear := band.Alpha(0)
+	b := ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).PassThrough()
+	if c.Preferences().ReduceMotion {
+		b.Background(p.TextFaint.Alpha(0.08))
+		return
+	}
+	// The band's center travels from before the left edge to past the right
+	// one every 1.4 s; stops are kept inside 0..1 and in order.
+	x := -0.3 + 1.6*b.Loop("wave", 1400*time.Millisecond, ui.Linear)
+	at := func(v float32) float32 { return min(max(v, 0), 1) }
+	b.LinearGradient(ui.LinearGradient{Angle: 100, Stops: []ui.GradientStop{
+		{Color: clear, At: 0}, {Color: clear, At: at(x - 0.25)}, {Color: band, At: at(x)}, {Color: clear, At: at(x + 0.25)}, {Color: clear, At: 1},
+	}})
 }
 
 // categoryTile is a tile of the GIF front page: a picture under a dark
@@ -435,6 +491,8 @@ func categoryTile(c *ui.Context, t *PickerTile) ui.Element {
 				ui.Icon(c, IconStar).Size(16, 16).TextColor(fg)
 			case TileTrending:
 				ui.Icon(c, IconTrending).Size(16, 16).TextColor(fg)
+			case TileFolders:
+				ui.Icon(c, IconFolder).Size(16, 16).TextColor(fg)
 			}
 			ui.Text(c, t.Label).FontSize(SizeBody).FontWeight(WeightSemibold).TextColor(fg).SingleLine()
 		})
@@ -460,12 +518,33 @@ func itemTile(c *ui.Context, t *PickerTile, r *PickerResult, sticker bool) ui.El
 	}
 	Pressable(b)
 	hov := b.Hovered() || b.FocusWithin()
+	// Only what shows loads: a tile in the view asks for its animation (a
+	// failed one waits its turn to try again), one scrolled out of it
+	// takes its request back, so a page of favorites doesn't load whole.
+	shown := b.InView()
+	loading := false
+	if t.Player == nil && t.Want != nil {
+		if shown {
+			t.Want()
+			loading = !t.Failed
+		} else if t.Drop != nil {
+			t.Drop()
+		}
+	}
+	defer func() {
+		if t.Failed && t.Player == nil && b.Clicked() {
+			r.Retry = t
+		}
+	}()
 	b.Children(func() {
 		fit := ui.Cover
 		if sticker {
 			fit = ui.Contain
 		}
 		tileMedia(c, t, fit, !sticker)
+		if loading && t.Still == nil {
+			skeleton(c)
+		}
 		// The star is a pointer-hover affordance (touch keeps it), not a
 		// permanent badge; a favorite is filled gold. Keyboard focus alone
 		// doesn't show it: a click leaves focus behind.

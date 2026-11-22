@@ -138,7 +138,7 @@ func (s *Source) fetchPinsTry(room string, try int) {
 		}
 		var ev model.Event
 		switch evt.Type {
-		case event.EventMessage:
+		case event.EventMessage, event.EventSticker:
 			c := evt.Content.AsMessage()
 			if c == nil || (c.MsgType == "" && c.Body == "") {
 				continue

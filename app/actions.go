@@ -22,6 +22,9 @@ func (a *App) msgMenu(ev model.Event) kit.MessageMenuState {
 	st.HasText = (ev.Kind == model.EventText || ev.Kind == model.EventNotice || ev.Kind == model.EventEmote) && strings.TrimSpace(ev.Body) != ""
 	st.Mine = ev.Sender == a.src.Me().ID
 	st.Thread = a.threadsOn()
+	if _, ok := a.src.(model.Packs); ok && !st.Off && len(ev.Media) > 0 && ev.Media[0].Sticker && strings.HasPrefix(ev.Media[0].URL, "mxc://") {
+		st.Sticker = true
+	}
 	if acts, ok := a.src.(model.Actions); ok {
 		st.Pinned = acts.IsPinned(ev.Room, ev.ID)
 	}
@@ -40,6 +43,12 @@ func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 		a.copyToClipboard(ev.Body, "Copied")
 	case kit.MsgCopyLink:
 		a.copyToClipboard("https://matrix.to/#/"+room+"/"+ev.ID, "Link copied")
+	case kit.MsgAddToPack:
+		if len(ev.Media) > 0 {
+			m := ev.Media[0]
+			name := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(m.Name)), "_"))
+			a.addToPack(model.PackEmoji{Shortcode: name, Body: m.Name, URL: m.URL, Mime: m.Mime, W: m.W, H: m.H, Emoticon: true, Sticker: true})
+		}
 	case kit.MsgEdit:
 		if canAct {
 			st := a.draft(room)
@@ -139,6 +148,9 @@ func (a *App) messageSheet(c *ui.Context) {
 			row(kit.IconCopy, "Copy text", kit.MsgCopyText)
 		}
 		row(kit.IconLink, "Copy message link", kit.MsgCopyLink)
+		if st.Sticker {
+			row(kit.IconPlus, "Add to my emoji", kit.MsgAddToPack)
+		}
 		if st.Pinned {
 			row(kit.IconPin, "Unpin", kit.MsgUnpin)
 		} else {

@@ -16,6 +16,7 @@ var settingsPages = []struct {
 }{
 	{"Account", kit.IconUser},
 	{"Appearance", kit.IconEye},
+	{"GIFs", kit.IconFolder},
 	{"Notifications", kit.IconBell},
 	{"Privacy", kit.IconLock},
 	{"Security", kit.IconShield},
@@ -37,7 +38,17 @@ type settingsPrefs struct {
 	// client animates, instead of as links (the default, which asks nothing
 	// of the homeserver's storage).
 	gifFiles bool
+	// accent is the tint (an index of kit.AccentPresets), uiSize the size of
+	// the interface (an index of uiSizes), dense the closer timeline.
+	accent, uiSize int
+	dense          bool
 }
+
+// uiSizes are the interface sizes to choose from: the window's zoom.
+var uiSizes = []struct {
+	Name string
+	Zoom float32
+}{{"Default", 1}, {"Small", 0.9}, {"Large", 1.12}, {"Larger", 1.25}}
 
 func defaultPrefs() settingsPrefs {
 	return settingsPrefs{notifyDesktop: true, notifySound: true, notifyMentions: true, typing: true,
@@ -183,6 +194,8 @@ func (a *App) settingsPage(c *ui.Context) {
 				}
 			}
 		})
+	case "GIFs":
+		a.gifsPage(c)
 	case "Appearance":
 		group(c, "Theme", "", func() {
 			ui.Column(c).Padding(kit.S2).Children(func() {
@@ -193,6 +206,25 @@ func (a *App) settingsPage(c *ui.Context) {
 			ui.Column(c).Padding(kit.S2).Children(func() {
 				kit.Tabs(c.Key("glass"), &a.prefs.glass, "Off", "Tinted", "Clear")
 			})
+		})
+		group(c, "Accent", "The one tint the app uses for selection, buttons and mentions.", func() {
+			ui.Row(c).Padding(kit.S3).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+				for i, pr := range kit.AccentPresets {
+					if accentSwatch(c, pr, i == a.prefs.accent).Clicked() {
+						a.prefs.accent = i
+					}
+				}
+			})
+		})
+		group(c, "Size", "Makes everything in the window larger or smaller. Compact timeline brings messages closer together.", func() {
+			ui.Column(c).Padding(kit.S2).Children(func() {
+				names := make([]string, len(uiSizes))
+				for i, s := range uiSizes {
+					names[i] = s.Name
+				}
+				kit.Tabs(c.Key("uisize"), &a.prefs.uiSize, names...)
+			})
+			switchRow(c, "Compact timeline", "Less space between messages", &a.prefs.dense)
 		})
 		group(c, "Layout", "How Chats and Communities are laid out. At phone widths the rail shows as tabs.", func() {
 			ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
@@ -224,6 +256,7 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Read receipts", "Show who has read your messages, and let others see what you've read. Off: nothing is shown, and your receipts stay private.", &a.prefs.receipts)
 			switchRow(c, "Send typing notifications", "Others in a chat see \"… is typing\" while you write", &a.prefs.typing)
 		})
+		a.ignoredGroup(c)
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)
 			a.soonSwitch(c, "Fetch previews from this device", "")
@@ -260,7 +293,11 @@ func (a *App) settingsPage(c *ui.Context) {
 			if kit.ChoiceRowSoon(c, kit.IconDownload, "Export logs", "Without message contents or tokens").Clicked() {
 				a.toast = soonMsg
 			}
-			if kit.ChoiceRowSoon(c, kit.IconTrash, "Reset local cache", "Syncs everything again").Clicked() {
+			if cr, ok := a.src.(model.CacheResetter); ok {
+				if kit.ChoiceRow(c, kit.IconTrash, "Reset local cache", "Syncs everything again the next time the app starts").Clicked() {
+					cr.ResetCache(func() { a.toast = "Cache cleared. Restart the app to sync everything again." })
+				}
+			} else if kit.ChoiceRowSoon(c, kit.IconTrash, "Reset local cache", "Syncs everything again").Clicked() {
 				a.toast = soonMsg
 			}
 		})
@@ -273,6 +310,59 @@ func (a *App) settingsPage(c *ui.Context) {
 		}
 		ui.Text(c, "slopement 0.1 · mock data").FontSize(kit.SizeSmall).TextColor(p.TextFaint).PaddingStart(kit.S1)
 	}
+}
+
+// accentSwatch is one tint to choose: a disc of its color, ringed while it is
+// the one in use. Its color is the tint's in the appearance shown.
+func accentSwatch(c *ui.Context, pr kit.AccentPreset, selected bool) ui.Element {
+	p := kit.Of(c)
+	col := ui.Oklch(0.575+pr.Light, 0.165, pr.Hue).SRGB()
+	if p.Dark {
+		col = ui.Oklch(0.78+pr.Dark, 0.115, pr.Hue).SRGB()
+	}
+	b := ui.ButtonBase(c.Key("accent:" + pr.Name)).Size(34, 34).Radius(kit.RadiusFull).AlignItems(ui.Center).Justify(ui.Center).
+		Label(pr.Name + " accent").Tooltip(pr.Name).AccessSelected(selected)
+	ring := ui.Transparent
+	switch {
+	case selected:
+		ring = p.Text
+	case b.Hovered():
+		ring = p.BorderStrong
+	}
+	b.Border(2, b.AnimateColor("ring", ring, kit.Color))
+	kit.Pressable(b)
+	b.Children(func() { ui.Box(c).Size(24, 24).Radius(kit.RadiusFull).Background(col) })
+	return b
+}
+
+// ignoredGroup lists the people ignored, each with a way to stop (nothing
+// where the account cannot ignore, or no one is).
+func (a *App) ignoredGroup(c *ui.Context) {
+	ig, ok := a.src.(model.Ignorer)
+	if !ok {
+		return
+	}
+	p := kit.Of(c)
+	list := ig.IgnoredUsers()
+	if len(list) == 0 {
+		return
+	}
+	group(c, "Ignored people", "Their messages and invitations are hidden. Ignore someone from their profile.", func() {
+		for _, id := range list {
+			id := id
+			pe, _ := a.src.Person(id)
+			ui.Row(c.Key("ign:"+id)).Padding(kit.S2, kit.S3).Gap(kit.S3).AlignItems(ui.Center).Children(func() {
+				kit.Avatar(c, a.avatar(pe, 28))
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, pe.Name).FontSize(kit.SizeBody).SingleLine()
+					ui.Text(c, id).FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
+				})
+				if kit.Button(c, kit.Ghost, "Unignore", nil).Label("Unignore "+pe.Name).Clicked() {
+					a.setIgnore(id, false)
+				}
+			})
+		}
+	})
 }
 
 // sessionLine is a device's second line: what is known of it, joined.

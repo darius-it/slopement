@@ -152,9 +152,19 @@ func (a *App) communityMenu(cm model.Community, m *ui.Menu) {
 	if m.Item(fav).Checked(cm.Favourite).Chosen() {
 		a.src.SetCommunityFavourite(cm.ID, !cm.Favourite)
 	}
+	if _, ok := a.src.(model.CommunityOrder); ok {
+		ids := a.communityIDs()
+		first, last := len(ids) > 0 && ids[0] == cm.ID, len(ids) > 0 && ids[len(ids)-1] == cm.ID
+		if m.Item("Move up").Disabled(first).Chosen() {
+			a.moveCommunityBy(cm.ID, -1)
+		}
+		if m.Item("Move down").Disabled(last).Chosen() {
+			a.moveCommunityBy(cm.ID, 1)
+		}
+	}
 	m.Separator()
-	if m.Item("Community settings").Trailing("Soon").Chosen() {
-		a.toast = soonMsg
+	if m.Item("Community settings").Chosen() {
+		a.openRoomEdit(cm.ID)
 	}
 }
 
@@ -194,6 +204,7 @@ func (a *App) communityHome(c *ui.Context, cm model.Community) {
 // communityRooms lists a community's rooms.
 func (a *App) communityRooms(c *ui.Context, cm model.Community) {
 	a.communityRoomsAt(c, cm, 0)
+	a.joinableRooms(c, cm) // what it offers that the user is not in
 }
 
 // communityRoomsAt lists a community's rooms, then each sub-space as a

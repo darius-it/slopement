@@ -18,21 +18,22 @@ import (
 // uiState is what is written. Only what means something after a restart:
 // not the open dialogs, scroll offsets or the person's card that was open.
 type uiState struct {
-	Theme     int
-	Nav       int
-	Sidebar   bool
-	Panel     int
-	Room      string
-	Community string
-	Pushed    bool
-	Tab       int
-	Filter    int
-	PhoneTab  int
-	Settings  string
-	Expanded  map[string]bool
-	LastRooms []string
-	Drafts    map[string]string
-	Prefs     prefsState
+	Theme      int
+	Nav        int
+	Sidebar    bool
+	Panel      int
+	Room       string
+	Community  string
+	Pushed     bool
+	Tab        int
+	Filter     int
+	PhoneTab   int
+	Settings   string
+	Expanded   map[string]bool
+	LastRooms  []string
+	Drafts     map[string]string
+	Prefs      prefsState
+	GifFolders []string
 }
 
 // prefsState is settingsPrefs with its fields exported, for JSON.
@@ -45,20 +46,24 @@ type prefsState struct {
 	PeopleSub                                                  int
 	Glass                                                      int
 	GifFiles                                                   bool
+	Accent, UISize                                             int
+	Dense                                                      bool
 }
 
 func (p settingsPrefs) state() prefsState {
 	return prefsState{p.notifyDesktop, p.notifySound, p.notifyMentions, p.notifyKeywords,
 		p.receipts, p.typing, p.previewsE2EE, p.previewsDirect,
 		p.gifAutoplay, p.animatedAvatars, p.hideJoins,
-		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass, p.gifFiles}
+		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass, p.gifFiles,
+		p.accent, p.uiSize, p.dense}
 }
 
 func (p prefsState) prefs() settingsPrefs {
 	return settingsPrefs{p.NotifyDesktop, p.NotifySound, p.NotifyMentions, p.NotifyKeywords,
 		p.Receipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
 		p.GifAutoplay, p.AnimatedAvatars, p.HideJoins,
-		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass, p.GifFiles}
+		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass, p.GifFiles,
+		p.Accent, p.UISize, p.Dense}
 }
 
 // stateWriter writes the file one write at a time, newest wins.
@@ -108,6 +113,10 @@ func (a *App) applyState(st uiState) {
 		}
 	}
 	a.prefs = st.Prefs.prefs()
+	a.gifFolders = st.GifFolders
+	if a.pick != nil {
+		a.pick.SetFolders(a.gifFolders)
+	}
 	// Where the user was is applied when that room is there: from the
 	// cache it is at once, on a first sync it arrives with the rooms.
 	a.restoreRoom, a.restoreCommunity, a.restorePushed = st.Room, st.Community, st.Pushed
@@ -138,7 +147,7 @@ func (a *App) state() uiState {
 		Room: a.room, Community: a.community, Pushed: a.pushed,
 		Tab: a.tab, Filter: a.filter, PhoneTab: a.phoneTab, Settings: a.settings,
 		Expanded: map[string]bool{}, LastRooms: a.lastRooms, Drafts: map[string]string{},
-		Prefs: a.prefs.state(),
+		Prefs: a.prefs.state(), GifFolders: a.gifFolders,
 	}
 	// A room or community not restored yet stays what it was.
 	if a.restoreRoom != "" {

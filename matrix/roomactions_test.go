@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -151,14 +152,22 @@ func TestMuteIsAPushRule(t *testing.T) {
 	if m := r.modelRoom(); !m.Muted || !m.MutedUntil.Equal(until) {
 		t.Fatalf("the list does not show the mute: %+v", m)
 	}
-	waitFor(t, "the push rule", func() bool { _, ok := fake.has("PUT", "/pushrules/global/room/!a"); return ok })
-	body, _ := fake.has("PUT", "/pushrules/global/room/!a")
+	// Element's way: an override rule matching the room, doing nothing —
+	// which beats the mention rules, so nothing notifies.
+	waitFor(t, "the push rule", func() bool { _, ok := fake.has("PUT", "/pushrules/global/override/!a"); return ok })
+	body, _ := fake.has("PUT", "/pushrules/global/override/!a")
 	var rule struct {
-		Actions []any `json:"actions"`
+		Actions    []any `json:"actions"`
+		Conditions []struct {
+			Kind, Key, Pattern string
+		} `json:"conditions"`
 	}
 	_ = json.Unmarshal([]byte(body), &rule)
 	if rule.Actions == nil || len(rule.Actions) != 0 {
 		t.Fatalf("a mute is a rule with empty actions, got %s", body)
+	}
+	if len(rule.Conditions) != 1 || rule.Conditions[0].Kind != "event_match" || rule.Conditions[0].Key != "room_id" || rule.Conditions[0].Pattern != "!a" {
+		t.Fatalf("a mute matches the room's ID: %s", body)
 	}
 	waitFor(t, "the mute's end in account data", func() bool {
 		b, ok := fake.has("PUT", "/account_data/com.slopement.mutes")
@@ -169,21 +178,97 @@ func TestMuteIsAPushRule(t *testing.T) {
 	if r.muted || !r.mutedUntil.IsZero() {
 		t.Fatal("still muted")
 	}
-	waitFor(t, "the rule deleted", func() bool { _, ok := fake.has("DELETE", "/pushrules/global/room/!a"); return ok })
+	waitFor(t, "the rule deleted", func() bool { _, ok := fake.has("DELETE", "/pushrules/global/override/!a"); return ok })
 }
 
-// What the server says of push rules decides which rooms show as muted:
-// from another client's mute too.
-func TestPushRulesMarkRoomsMuted(t *testing.T) {
+// What the server says of push rules decides how each room shows: muted by
+// an override rule of the room's ID (another client's mute too), and the
+// user's own level by a room rule — nothing to do is "mentions only", a
+// notifying one "all messages".
+func TestPushRulesMarkRoomsMutedAndTheirLevel(t *testing.T) {
 	s, _ := testSynced()
 	a := s.roomOf("!a")
 	b := s.roomOf("!b")
-	b.muted = true
-	raw := `{"global":{"room":[{"rule_id":"!a","enabled":true,"actions":[]},{"rule_id":"!b","enabled":true,"actions":["notify"]}]}}`
+	c := s.roomOf("!c")
+	d := s.roomOf("!d")
+	b.muted = true // was muted, no longer
+	raw := `{"global":{"override":[` +
+		`{"rule_id":"!a","enabled":true,"actions":[],"conditions":[{"kind":"event_match","key":"room_id","pattern":"!a"}]},` +
+		`{"rule_id":".m.rule.master","enabled":true,"actions":[]}],` +
+		`"room":[{"rule_id":"!c","enabled":true,"actions":[]},{"rule_id":"!d","enabled":true,"actions":["notify"]}]}}`
 	evt := &event.Event{Content: event.Content{VeryRaw: json.RawMessage(raw)}}
 	s.onPushRules(nil, evt)
-	if !a.muted || b.muted {
-		t.Fatalf("muted: a %v, b %v", a.muted, b.muted)
+	if !a.muted || b.muted || c.muted || d.muted {
+		t.Fatalf("muted: a %v b %v c %v d %v", a.muted, b.muted, c.muted, d.muted)
+	}
+	if a.notify != model.NotifyDefault || c.notify != model.NotifyMentions || d.notify != model.NotifyAll {
+		t.Fatalf("levels: a %v c %v d %v", a.notify, c.notify, d.notify)
+	}
+	if m := c.modelRoom(); m.Notify != model.NotifyMentions {
+		t.Fatalf("the list does not show the level: %+v", m)
+	}
+}
+
+// Choosing a level writes (or removes) the room's rule, shows at once, and
+// is undone with a quiet line if the server refuses.
+func TestSetNotifyLevel(t *testing.T) {
+	fake := &actionServer{}
+	s, r := actionSetup(t, fake)
+
+	s.SetNotifyLevel("!a", model.NotifyMentions)
+	if r.notify != model.NotifyMentions {
+		t.Fatal("not shown at once")
+	}
+	waitFor(t, "the mentions rule", func() bool {
+		b, ok := fake.has("PUT", "/pushrules/global/room/!a")
+		return ok && strings.Contains(b, `"actions":[]`)
+	})
+	s.SetNotifyLevel("!a", model.NotifyAll)
+	waitFor(t, "the all-messages rule", func() bool {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		for i, q := range fake.reqs {
+			if strings.HasPrefix(q, "PUT ") && strings.Contains(q, "/pushrules/global/room/!a") && strings.Contains(fake.bodies[i], `"notify"`) {
+				return true
+			}
+		}
+		return false
+	})
+	s.SetNotifyLevel("!a", model.NotifyDefault)
+	if r.notify != model.NotifyDefault {
+		t.Fatal("default not shown")
+	}
+	waitFor(t, "the rule removed", func() bool { _, ok := fake.has("DELETE", "/pushrules/global/room/!a"); return ok })
+}
+
+// What notifies follows the level: mentions only means a chat with a person
+// stays quiet for the rest; all messages means a room tells of every one.
+func TestNotifyLevelDecidesWhatNotifies(t *testing.T) {
+	s, _ := testSynced()
+	var got []model.Notice
+	s.OnNotify(func(n model.Notice) { got = append(got, n) })
+	dm := s.roomOf("!dm")
+	dm.dm, dm.partner, dm.name = true, "@kai:example.org", "Kai"
+	grp := s.roomOf("!grp")
+	grp.name = "Club"
+	ctx := context.Background()
+	say := func(room, id, text string) {
+		s.onMessage(ctx, liveMessage(room, id, "@kai:example.org", text, 0, nil))
+	}
+	say("!dm", "$1", "default chat")
+	say("!grp", "$2", "default room")
+	if len(got) != 1 || got[0].Room != "!dm" {
+		t.Fatalf("defaults: %+v", got)
+	}
+	dm.notify = model.NotifyMentions
+	say("!dm", "$3", "mentions only: not this")
+	if len(got) != 1 {
+		t.Fatalf("a chat set to mentions only notified: %+v", got[1:])
+	}
+	grp.notify = model.NotifyAll
+	say("!grp", "$4", "everything in this room")
+	if len(got) != 2 || got[1].Room != "!grp" {
+		t.Fatalf("a room set to all messages: %+v", got)
 	}
 }
 
@@ -265,5 +350,36 @@ func TestOpenDM(t *testing.T) {
 	r := s.rooms["!dm:example.org"]
 	if r == nil || !r.dm || r.partner != "@new:example.org" || !r.encrypted {
 		t.Fatalf("the new DM room = %+v", r)
+	}
+}
+
+// Asked twice for the same person while the chat is being made, one chat is
+// made and both callers get it.
+func TestOpenDMTwiceMakesOneChat(t *testing.T) {
+	fake := &actionServer{newRoom: "!once:example.org"}
+	s, _ := actionSetup(t, fake)
+	got := make(chan string, 2)
+	s.OpenDMAsync("@twice:example.org", func(room string) { got <- room })
+	s.OpenDMAsync("@twice:example.org", func(room string) { got <- room })
+	for i := 0; i < 2; i++ {
+		select {
+		case room := <-got:
+			if room != "!once:example.org" {
+				t.Fatalf("caller %d got %q", i, room)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("a caller was never answered")
+		}
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	n := 0
+	for _, r := range fake.reqs {
+		if strings.HasSuffix(r, "/createRoom") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("%d chats were made, want 1", n)
 	}
 }

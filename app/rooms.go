@@ -77,6 +77,7 @@ func (a *App) pendingStep() {
 
 // roomsOverlays draws the dialogs (call it with the other overlays).
 func (a *App) roomsOverlays(c *ui.Context) {
+	a.roomEditView(c)
 	a.roomsDialogView(c)
 	a.inviteDialogView(c)
 }

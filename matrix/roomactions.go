@@ -166,12 +166,73 @@ func (s *Source) reportLeaveFailure(room string, err error) {
 
 // ---- Mute -------------------------------------------------------------
 
-// A muted room is a room push rule with no actions: the server stops
-// notifying, as every client does for it (Element's "Mute"). A timed mute
-// also writes its end to account data (com.slopement.mutes), which this
-// client honors when it is open, on any session.
+// How a room notifies is push rules, as in Element, so every client follows:
+//
+//   - Muted: an override rule matching the room's ID with no actions. It
+//     beats the mention rules, so nothing notifies.
+//   - Mentions only: a room rule with no actions. The mention rules (override)
+//     still notify; the rest of the room does not.
+//   - All messages: a room rule that notifies.
+//   - Default: no rule of the room's.
+//
+// A timed mute also writes its end to account data (com.slopement.mutes),
+// which this client honors when it is open, on any session.
 
 const mutesData = "com.slopement.mutes"
+
+// muteRule is the override rule that mutes a room.
+func muteRule(room string) *mautrix.ReqPutPushRule {
+	return &mautrix.ReqPutPushRule{
+		Actions: []*pushrules.PushAction{},
+		Conditions: []*pushrules.PushCondition{
+			{Kind: pushrules.KindEventMatch, Key: "room_id", Pattern: room},
+		},
+	}
+}
+
+// SetNotifyLevel chooses how much of a room notifies: all of it, mentions
+// only, or the default (a chat with a person notifying for all, a room for
+// mentions). Shows at once.
+func (s *Source) SetNotifyLevel(room string, level model.NotifyLevel) {
+	r, ok := s.rooms[room]
+	if !ok || s.cli == nil {
+		return
+	}
+	prev := r.notify
+	r.notify = level
+	s.markDirty(room)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var err error
+		switch level {
+		case model.NotifyAll:
+			err = s.cli.PutPushRule(ctx, "global", pushrules.RoomRule, room, &mautrix.ReqPutPushRule{Actions: []*pushrules.PushAction{
+				{Action: pushrules.ActionNotify},
+				{Action: pushrules.ActionSetTweak, Tweak: pushrules.TweakSound, Value: "default"},
+			}})
+		case model.NotifyMentions:
+			err = s.cli.PutPushRule(ctx, "global", pushrules.RoomRule, room, &mautrix.ReqPutPushRule{Actions: []*pushrules.PushAction{}})
+		default:
+			err = s.cli.DeletePushRule(ctx, "global", pushrules.RoomRule, room)
+			var he mautrix.HTTPError
+			if errors.As(err, &he) && he.RespError != nil && he.RespError.ErrCode == "M_NOT_FOUND" {
+				err = nil // there was none: it is the default already
+			}
+		}
+		if err != nil {
+			s.post(func() {
+				if rr, ok := s.rooms[room]; ok {
+					rr.notify = prev
+					s.markDirty(room)
+				}
+			})
+			s.notice(room, "Could not change the room's notifications: "+plain(err))
+		}
+	}()
+}
+
+var _ model.NotifyLevels = (*Source)(nil)
 
 // Mute mutes a room until a time (zero: until turned back on).
 func (s *Source) Mute(room string, until time.Time) {
@@ -185,7 +246,7 @@ func (s *Source) Mute(room string, until time.Time) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		err := s.cli.PutPushRule(ctx, "global", pushrules.RoomRule, room, &mautrix.ReqPutPushRule{Actions: []*pushrules.PushAction{}})
+		err := s.cli.PutPushRule(ctx, "global", pushrules.OverrideRule, room, muteRule(room))
 		if err != nil {
 			s.post(func() {
 				if r, ok := s.rooms[room]; ok {
@@ -215,7 +276,7 @@ func (s *Source) Unmute(room string) {
 func (s *Source) unmuteRemote(room string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := s.cli.DeletePushRule(ctx, "global", pushrules.RoomRule, room); err != nil {
+	if err := s.cli.DeletePushRule(ctx, "global", pushrules.OverrideRule, room); err != nil {
 		var he mautrix.HTTPError
 		if !errors.As(err, &he) || he.RespError == nil || he.RespError.ErrCode != "M_NOT_FOUND" {
 			s.notice(room, "Could not unmute the room: "+plain(err))
@@ -262,32 +323,63 @@ func (s *Source) watchMute(room string, until time.Time) {
 // onPushRules is the account's push rules: a room rule with no actions is a
 // muted room.
 func (s *Source) onPushRules(ctx context.Context, evt *event.Event) {
+	type rule struct {
+		RuleID     string            `json:"rule_id"`
+		Enabled    bool              `json:"enabled"`
+		Actions    []json.RawMessage `json:"actions"`
+		Conditions []struct {
+			Kind    string `json:"kind"`
+			Key     string `json:"key"`
+			Pattern string `json:"pattern"`
+		} `json:"conditions"`
+	}
 	var content struct {
 		Global struct {
-			Room []struct {
-				RuleID  string            `json:"rule_id"`
-				Enabled bool              `json:"enabled"`
-				Actions []json.RawMessage `json:"actions"`
-			} `json:"room"`
+			Override []rule `json:"override"`
+			Room     []rule `json:"room"`
 		} `json:"global"`
 	}
 	if json.Unmarshal(evt.Content.VeryRaw, &content) != nil {
 		return
 	}
 	muted := map[string]bool{}
-	for _, rule := range content.Global.Room {
-		if rule.Enabled && len(rule.Actions) == 0 {
-			muted[rule.RuleID] = true
+	// Muted: an override rule matching one room's ID, doing nothing.
+	for _, ru := range content.Global.Override {
+		if !ru.Enabled || len(ru.Actions) != 0 {
+			continue
+		}
+		for _, cond := range ru.Conditions {
+			if cond.Kind == "event_match" && cond.Key == "room_id" && cond.Pattern != "" {
+				muted[cond.Pattern] = true
+			}
+		}
+	}
+	// The user's own level: a room rule that notifies (all messages) or
+	// does nothing (mentions only, which the mention rules still beat).
+	level := map[string]model.NotifyLevel{}
+	for _, ru := range content.Global.Room {
+		if !ru.Enabled {
+			continue
+		}
+		if len(ru.Actions) == 0 {
+			level[ru.RuleID] = model.NotifyMentions
+		} else {
+			level[ru.RuleID] = model.NotifyAll
 		}
 	}
 	s.post(func() {
 		for id, r := range s.rooms {
-			m := muted[id]
-			if r.muted != m {
-				r.muted = m
+			changed := false
+			if m := muted[id]; r.muted != m {
+				r.muted, changed = m, true
 				if !m {
 					r.mutedUntil = time.Time{}
 				}
+			}
+			if l := level[id]; r.notify != l {
+				r.notify, changed = l, true
+			}
+			if changed {
 				s.markDirty(id)
 			}
 		}
@@ -347,6 +439,22 @@ func (s *Source) OpenDMAsync(person string, done func(room string)) {
 		done("")
 		return
 	}
+	// One chat is made per person: whoever asks while it is being made waits
+	// for that one (a button pressed twice, a card built twice in a frame).
+	if waiting, making := s.dmMaking[person]; making {
+		s.dmMaking[person] = append(waiting, done)
+		return
+	}
+	if s.dmMaking == nil {
+		s.dmMaking = map[string][]func(string){}
+	}
+	s.dmMaking[person] = []func(string){done}
+	finish := func(room string) { // UI thread
+		for _, fn := range s.dmMaking[person] {
+			fn(room)
+		}
+		delete(s.dmMaking, person)
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -360,7 +468,7 @@ func (s *Source) OpenDMAsync(person string, done func(room string)) {
 			}},
 		})
 		if err != nil {
-			s.post(func() { done("") })
+			s.post(func() { finish("") })
 			return
 		}
 		room := resp.RoomID.String()
@@ -380,7 +488,7 @@ func (s *Source) OpenDMAsync(person string, done func(room string)) {
 			s.direct[room] = true
 			s.dirtyMeta = true
 			s.markDirty(room)
-			done(room)
+			finish(room)
 		})
 	}()
 }

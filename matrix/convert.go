@@ -45,8 +45,19 @@ func textEvent(me string, evt *event.Event) model.Event {
 			e.ThreadRoot = root.String()
 		}
 	}
-	switch c.MsgType {
-	case event.MsgImage, event.MsgVideo, event.MsgAudio, event.MsgFile:
+	switch {
+	case evt.Type == event.EventSticker:
+		// An m.sticker has no msgtype: its body is the words for those who
+		// can't see it.
+		e.Kind = model.EventMedia
+		if m, ok := mediaOf(c); ok {
+			m.Sticker = true
+			if m.Mime == "image/gif" {
+				m.Kind = model.MediaGIF
+			}
+			e.Media = []model.Media{m}
+		}
+	case c.MsgType == event.MsgImage, c.MsgType == event.MsgVideo, c.MsgType == event.MsgAudio, c.MsgType == event.MsgFile:
 		e.Kind = model.EventMedia
 		if m, ok := mediaOf(c); ok {
 			e.Media = []model.Media{m}

@@ -47,6 +47,8 @@ type MediaSpec struct {
 	// Paused shows a GIF's first frame without playing it (the app's
 	// "Animate GIFs" setting).
 	Paused bool
+	// Sticker shows at its own size, never enlarged, as a GIF does.
+	Sticker bool
 }
 
 // fit returns w×h scaled into maxW×maxH, keeping the aspect ratio, never
@@ -75,7 +77,7 @@ func fit(w, h, maxW, maxH float32) (float32, float32) {
 // it uploads. Clicked opens the viewer (or reveals a spoiler first).
 func MediaPreview(c *ui.Context, m MediaSpec, maxW, maxH float32, rv Reveals) ui.Element {
 	w, h := fit(m.W, m.H, maxW, maxH)
-	if m.Kind == MediaGIF && m.W > 0 && m.H > 0 {
+	if (m.Kind == MediaGIF || m.Sticker) && m.W > 0 && m.H > 0 {
 		// A GIF shows at its own size (never enlarged), shrunk only to fit.
 		s := min(1, maxW/m.W, maxH/m.H)
 		w, h = m.W*s, m.H*s

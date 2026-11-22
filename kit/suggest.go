@@ -6,9 +6,12 @@ import "github.com/egoist/mygo/ui"
 // mention or an emoji to complete. Insert is what replaces the word being
 // typed.
 type SuggestItem struct {
-	Label  string // "Alex Rivera", "smile"
-	Sub    string // "@alex:example.org", ":smile:"
-	Emoji  string // set for an emoji: shown in place of an avatar
+	Label string // "Alex Rivera", "smile"
+	Sub   string // "@alex:example.org", ":smile:"
+	Emoji string // set for an emoji: shown in place of an avatar
+	// Image, set for a custom emoji, gives its picture (nil while it
+	// loads): shown in place of an avatar.
+	Image  func() ui.ImageSource
 	Avatar AvatarSpec
 	Insert string
 	// ID is the app's own: who a mention is of.
@@ -45,6 +48,12 @@ func suggestPopup(c *ui.Context, st *ComposerState) (pick int) {
 			b.Children(func() {
 				if it.Emoji != "" {
 					ui.Text(c, it.Emoji).FontSize(20).Width(24).TextAlign(ui.Center)
+				} else if it.Image != nil {
+					if src := it.Image(); src != nil {
+						ui.Image(c, src).Size(24, 24).Fit(ui.Contain)
+					} else {
+						ui.Box(c).Size(24, 24).Radius(RadiusSm).Background(p.BgInset)
+					}
 				} else {
 					av := it.Avatar
 					av.Size, av.Presence, av.Trust = 24, PresenceNone, TrustUnknown

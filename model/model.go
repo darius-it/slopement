@@ -80,7 +80,8 @@ type Room struct {
 	Favourite        bool
 	LowPriority      bool
 	Muted            bool
-	MutedUntil       time.Time // zero while Muted: until turned back on
+	MutedUntil       time.Time   // zero while Muted: until turned back on
+	Notify           NotifyLevel // how much of the room notifies, when not muted
 
 	LastActivity time.Time
 	Preview      string   // the last message, "Mira: hi"
@@ -135,13 +136,13 @@ type Event struct {
 	ThreadRoot string
 	Thread     *Thread
 	Reactions  []Reaction
-	Edited    bool
-	Pending   bool
+	Edited     bool
+	Pending    bool
 	// Failed: the user's message could not be sent; Error says why. Until
 	// then a message shows as sent — only a failure is ever marked.
 	Failed bool
 	Error  string
-	Poll      *Poll
+	Poll   *Poll
 	// Mentions is set when it mentions the user.
 	Mentions bool
 	// ReadBy are the others (MXIDs) whose read marker sits at this event:
@@ -190,6 +191,76 @@ type Actions interface {
 	Pin(room, event string, on bool)
 	IsPinned(room, event string) bool
 	Pinned(room string) []string
+}
+
+// CacheResetter is what a Source may offer: forgetting the room cache, so
+// the next launch syncs everything again. Keys, sessions and settings stay.
+type CacheResetter interface {
+	ResetCache(done func())
+}
+
+// SpaceBrowser is what a Source may offer: the rooms a community lists,
+// including those the user is not in (the space's hierarchy), so they can be
+// joined from its home. done gets them with Joined set for the ones the user is
+// in, or why not.
+type SpaceBrowser interface {
+	SpaceRooms(space string, done func(rooms []PublicRoom, err string))
+}
+
+// CommunityOrder is what a Source may offer: the order of the communities on
+// the rail, chosen by dragging, kept with the account. Communities lists them
+// in that order.
+type CommunityOrder interface {
+	SetCommunityOrder(ids []string)
+}
+
+// Ignorer is what a Source may offer: ignoring people. Someone ignored has
+// their messages and invitations hidden (the homeserver stops sending them,
+// and the ones already held are not shown); it is kept with the account, so
+// every client follows.
+type Ignorer interface {
+	IsIgnored(mxid string) bool
+	SetIgnored(mxid string, on bool, done func(err string))
+	IgnoredUsers() []string
+}
+
+// RoomPerms says what the user may change of a room (by its power levels).
+type RoomPerms struct {
+	Name, Topic, Avatar bool
+}
+
+// RoomEditor is what a Source may offer: changing a room's (or community's)
+// name, topic and picture, where the user has the power to. Each shows at
+// once; done is called on the UI thread with "" or why it did not work (and
+// the old value is back).
+type RoomEditor interface {
+	// RoomPermissions asks what the user may change here (it reads the room's
+	// power levels); done is called with the answer.
+	RoomPermissions(room string, done func(RoomPerms))
+	SetRoomName(room, name string, done func(err string))
+	SetRoomTopic(room, topic string, done func(err string))
+	// SetRoomAvatar sets the picture from an image file (the middle square,
+	// scaled down, as a profile picture is).
+	SetRoomAvatar(room string, f File, done func(err string))
+	RemoveRoomAvatar(room string, done func(err string))
+}
+
+// NotifyLevel is how much of a room notifies: Default is a chat with a person
+// notifying for everything and a room for mentions only; All and Mentions
+// are the user's own choice for the room. (A muted room is Room.Muted.)
+type NotifyLevel int
+
+const (
+	NotifyDefault NotifyLevel = iota
+	NotifyAll
+	NotifyMentions
+)
+
+// NotifyLevels is what a Source may offer: choosing how much of a room
+// notifies, kept with the account (a room push rule), so every client
+// follows it.
+type NotifyLevels interface {
+	SetNotifyLevel(room string, l NotifyLevel)
 }
 
 // Typist is what a Source may offer: telling a room the user is typing (or
@@ -317,6 +388,57 @@ type Uploader interface {
 	SendFile(room string, f File, replyTo string)
 }
 
+// Sticker is what is sent as an m.sticker: a picture with its words (the
+// alt text clients without stickers show). Data is uploaded first; with URL
+// set (an mxc:// of a pack's sticker) nothing is uploaded.
+type Sticker struct {
+	Body string
+	Mime string
+	W, H int
+	Data []byte
+	URL  string
+}
+
+// StickerSender is what a Source may offer: sending a sticker to a room as
+// an m.sticker event (as a reply when replyTo is set). It shows at once; a
+// failure marks the message as the failure of any send.
+type StickerSender interface {
+	SendSticker(room string, s Sticker, replyTo string)
+}
+
+// PackEmoji is one image of an emoji or sticker pack (MSC2545): a shortcode
+// for ":wave:", a picture on the media repo and what it may be used as.
+type PackEmoji struct {
+	Shortcode string
+	Body      string // the words for it (the sticker's alt text)
+	URL       string // mxc://
+	Mime      string
+	W, H      int
+	Emoticon  bool // may be used as a custom emoji in text
+	Sticker   bool // may be sent as a sticker
+}
+
+// EmojiPack is a set of them: the user's own, a room's, or one the user
+// turned on from a room they are in.
+type EmojiPack struct {
+	ID     string // stable: "user", or the room and the pack's key
+	Name   string
+	Avatar string // mxc://, the pack's picture, if it has one
+	Room   string // the room it belongs to; "" for the user's own
+	Mine   bool   // the user's own pack: it can be added to
+	Emoji  []PackEmoji
+}
+
+// Packs is what a Source may offer: custom emoji and sticker packs
+// (MSC2545): the user's, the room's and the ones turned on. EmojiPacks is
+// what is on offer in room (the room's own packs are asked for the first
+// time it is called, so it may grow as they arrive); AddToPack puts an image
+// in the user's own pack (done gets "" or why not).
+type Packs interface {
+	EmojiPacks(room string) []EmojiPack
+	AddToPack(e PackEmoji, done func(problem string))
+}
+
 // History is what a Source may offer: paging a room's older messages in
 // above what it holds. HasOlder says there may be more; LoadOlder asks for
 // a page (one at a time per room, a no-op when there is none), whose
@@ -354,6 +476,7 @@ type Media struct {
 	Secret  string // the source's own key material for an encrypted attachment; opaque
 	Mime    string // its media type, as the sender said ("image/gif")
 	Audio   bool   // an audio or voice message: it plays (Kind is still MediaFile, for a download)
+	Sticker bool   // an m.sticker: shown small, as itself, not as a picture message
 	// Local is the picture's own bytes while it is being sent: it shows at
 	// once, before the server has it. Never stored.
 	Local []byte `json:"-"`

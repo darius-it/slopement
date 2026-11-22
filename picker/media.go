@@ -2,6 +2,7 @@ package picker
 
 import (
 	"container/list"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -12,17 +13,33 @@ type mediaCache struct {
 	max     int
 	order   *list.List // of string URLs, newest first
 	entries map[string]*mediaEntry
+	now     func() time.Time // a test's clock
 }
 
 type mediaEntry struct {
 	player  *ui.VideoPlayer
 	loading bool
 	failed  bool
+	tries   int       // failed loads in a row
+	retryAt time.Time // when a failed load may start again
 	el      *list.Element
 }
 
+// autoRetries is how many times a failed load starts again by itself; after
+// that it waits for a tap on the tile.
+const autoRetries = 3
+
+// backoff is the wait before the nth failed load starts again: 2 s, 6 s, 18 s.
+func backoff(tries int) time.Duration {
+	d := 2 * time.Second
+	for i := 1; i < tries; i++ {
+		d *= 3
+	}
+	return d
+}
+
 func newMediaCache(max int) *mediaCache {
-	return &mediaCache{max: max, order: list.New(), entries: map[string]*mediaEntry{}}
+	return &mediaCache{max: max, order: list.New(), entries: map[string]*mediaEntry{}, now: time.Now}
 }
 
 // get returns the loaded entry of url, marking it as used.
@@ -35,20 +52,62 @@ func (m *mediaCache) get(url string) (*mediaEntry, bool) {
 	return e, true
 }
 
-// start reports whether url should load now: not loading, loaded or
-// failed already.
+// failed reports whether url's load failed and is not loading again.
+func (m *mediaCache) failed(url string) bool {
+	e, ok := m.entries[url]
+	return ok && e.failed && !e.loading
+}
+
+// start reports whether url should load now: not loading or loaded
+// already, and, when it failed, past its wait.
 func (m *mediaCache) start(url string) bool {
-	if _, ok := m.entries[url]; ok {
+	e, ok := m.entries[url]
+	if !ok {
+		m.entries[url] = &mediaEntry{loading: true}
+		return true
+	}
+	if e.player != nil || e.loading {
 		return false
 	}
-	m.entries[url] = &mediaEntry{loading: true}
+	if e.tries > autoRetries || m.now().Before(e.retryAt) {
+		return false
+	}
+	e.loading = true
 	return true
 }
 
-func (m *mediaCache) fail(url string) {
-	if e, ok := m.entries[url]; ok {
-		e.loading, e.failed = false, true
+// fail records a failed load and says how long until it may start again
+// by itself (0: it won't, it waits for a tap).
+func (m *mediaCache) fail(url string) time.Duration {
+	e, ok := m.entries[url]
+	if !ok {
+		return 0
 	}
+	e.loading, e.failed = false, true
+	e.tries++
+	if e.tries > autoRetries {
+		return 0
+	}
+	wait := backoff(e.tries)
+	e.retryAt = m.now().Add(wait)
+	return wait
+}
+
+// cancel forgets a load that never began, so it can start afresh.
+func (m *mediaCache) cancel(url string) {
+	if e, ok := m.entries[url]; ok && e.player == nil && e.loading {
+		delete(m.entries, url)
+	}
+}
+
+// retry lets a failed url load again now, as a tap on its tile asks.
+func (m *mediaCache) retry(url string) bool {
+	e, ok := m.entries[url]
+	if !ok || !e.failed || e.loading {
+		return false
+	}
+	e.tries, e.retryAt = 0, time.Time{}
+	return true
 }
 
 func (m *mediaCache) put(url string, p *ui.VideoPlayer) {
@@ -57,7 +116,7 @@ func (m *mediaCache) put(url string, p *ui.VideoPlayer) {
 		e = &mediaEntry{}
 		m.entries[url] = e
 	}
-	e.player, e.loading = p, false
+	e.player, e.loading, e.failed, e.tries = p, false, false, 0
 	e.el = m.order.PushFront(url)
 	for m.order.Len() > m.max {
 		last := m.order.Back()

@@ -108,6 +108,46 @@ func TestParsePlain(t *testing.T) {
 
 // HTML as other clients write it — Element puts a newline between a list's
 // items — reads as the same tree: no stray text between the bullets.
+// A custom emoji (MSC2545) is an image of Matrix media marked as one: it is
+// kept as an emoji node and written back as the same tag; an unmarked image,
+// or one that is not on the media repo, is its alt text.
+func TestCustomEmoji(t *testing.T) {
+	in := `<p>hi <img data-mx-emoticon src="mxc://x/wave" alt=":wave:" title=":wave:" height="32" /> there</p>`
+	doc := ParseHTML(in)
+	var em *Node
+	for _, n := range doc.Children[0].Children {
+		if n.Kind == Emoji {
+			em = n
+		}
+	}
+	if em == nil || em.Text != ":wave:" || em.Href != "mxc://x/wave" {
+		t.Fatalf("doc = %+v", doc.Children[0].Children)
+	}
+	if got := Plain(doc); got != "hi :wave: there" {
+		t.Fatalf("plain = %q", got)
+	}
+	if got := HTML(doc); got != `hi <img data-mx-emoticon src="mxc://x/wave" alt=":wave:" title=":wave:" height="32" /> there` {
+		t.Fatalf("html = %s", got)
+	}
+	if !NeedsHTML(ParseHTML(in)) {
+		t.Fatal("an emoji needs the formatted body")
+	}
+	for _, img := range []string{
+		`<img src="mxc://x/wave" alt=":wave:">`,
+		`<img data-mx-emoticon src="https://evil.example/x.png" alt=":wave:">`,
+	} {
+		d := ParseHTML("<p>" + img + "</p>")
+		for _, n := range d.Children[0].Children {
+			if n.Kind == Emoji {
+				t.Errorf("%s became an emoji", img)
+			}
+		}
+		if got := Plain(d); got != ":wave:" {
+			t.Errorf("%s plain = %q", img, got)
+		}
+	}
+}
+
 func TestParseHTMLAsClientsWriteIt(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
 		{"<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n", "<ul><li>a</li><li>b</li></ul>"},

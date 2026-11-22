@@ -34,9 +34,40 @@ func (a *App) suggestions(room string, st *kit.ComposerState) []kit.SuggestItem 
 	case strings.HasPrefix(word, "#"):
 		return a.roomSuggestions(room, strings.ToLower(word[1:]))
 	case strings.HasPrefix(word, ":") && len(word) >= 3 && !strings.Contains(word[1:], ":"):
-		return emojiSuggestions(word[1:])
+		out := append(a.packSuggestions(room, strings.ToLower(word[1:])), emojiSuggestions(word[1:])...)
+		return out[:min(len(out), suggestMax)] // custom emoji lead
 	}
 	return nil
+}
+
+// packSuggestions are custom emoji (of the packs on offer in the room) whose
+// shortcode contains the word after the colon, those it starts with first.
+// Picking one writes ":shortcode:", which the source sends as the picture.
+func (a *App) packSuggestions(room, query string) []kit.SuggestItem {
+	ps, ok := a.src.(model.Packs)
+	if !ok {
+		return nil
+	}
+	var starts, contains []kit.SuggestItem
+	for _, p := range ps.EmojiPacks(room) {
+		for _, e := range p.Emoji {
+			code := strings.ToLower(e.Shortcode)
+			if !e.Emoticon || !strings.Contains(code, query) {
+				continue
+			}
+			it := kit.SuggestItem{Label: e.Shortcode, Sub: p.Name, Insert: ":" + e.Shortcode + ":", Image: a.packImage(e)}
+			if strings.HasPrefix(code, query) {
+				starts = append(starts, it)
+			} else {
+				contains = append(contains, it)
+			}
+		}
+	}
+	out := append(starts, contains...)
+	if len(out) > suggestMax {
+		out = out[:suggestMax]
+	}
+	return out
 }
 
 // roomSuggestions are the rooms (not chats with a person, nor communities)

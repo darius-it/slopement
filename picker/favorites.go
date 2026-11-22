@@ -38,7 +38,9 @@ func (c *Controller) SetFavoriteURL(url string, w, h int, on bool) {
 	} else {
 		sum := sha1.Sum([]byte(url))
 		r := klipy.Rendition{URL: url, Width: w, Height: h}
-		it := klipy.Item{ID: "url:" + hex.EncodeToString(sum[:8]), Title: titleOf(url), Kind: klipy.GIFs, Thumb: r, Still: r, Full: r}
+		th := r
+		th.URL = thumbURL(url)
+		it := klipy.Item{ID: "url:" + hex.EncodeToString(sum[:8]), Title: titleOf(url), Kind: klipy.GIFs, Thumb: th, Still: th, Full: r}
 		c.saved.Favorites = append([]klipy.Item{it}, c.saved.Favorites...)
 		c.items[it.ID] = it
 	}

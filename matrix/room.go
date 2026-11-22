@@ -37,6 +37,7 @@ type room struct {
 	// mutedUntil is when a timed mute ends (zero while muted for good);
 	// markedUnread is m.marked_unread: unread by the user's own choice.
 	mutedUntil   time.Time
+	notify       model.NotifyLevel // the user's own level for the room (a room push rule)
 	markedUnread bool
 	// polls are the votes and ends of the room's polls, by poll event
 	// (polls.go): kept apart from the events, which show the tally.

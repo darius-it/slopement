@@ -55,6 +55,21 @@ func TestFavoriteURL(t *testing.T) {
 	}
 }
 
+// Discord's media proxy wraps the real address; Tenor's MP4 behind it still
+// becomes its GIF.
+func TestDiscordProxiedTenor(t *testing.T) {
+	src := "https://images-ext-1.discordapp.net/external/fhJm/https/media.tenor.com/zVPv-paCuVMAAAPo/otter.mp4"
+	if got, want := unproxy(src), "https://media.tenor.com/zVPv-paCuVMAAAPo/otter.mp4"; got != want {
+		t.Fatalf("unproxy %q", got)
+	}
+	if got, want := discordGIF("https://tenor.com/view/otter-gif-1", src), "https://media.tenor.com/zVPv-paCuVMAAAAC/otter.gif"; got != want {
+		t.Fatalf("gif %q", got)
+	}
+	if other := "https://example.com/a.mp4"; unproxy(other) != other {
+		t.Fatal("changed a plain address")
+	}
+}
+
 func TestImportDiscordFavorites(t *testing.T) {
 	c := newAt(nil, filepath.Join(t.TempDir(), "picker.json"))
 	n, err := c.ImportDiscordFavorites([]byte(discordExport))

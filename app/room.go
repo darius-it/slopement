@@ -376,6 +376,9 @@ func (a *App) profileActs(person string, act kit.ProfileAction) {
 	switch {
 	case act.SetColor: // the card stays open: the name changes under it
 		a.chooseColor(person, act.Color)
+	case act.Ignore, act.Unignore:
+		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
+		a.setIgnore(person, act.Ignore)
 	case act.Message:
 		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
 		a.openDM(person, a.open)
@@ -453,7 +456,15 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 			anchor = res.EmojiButton
 		}
 		m := a.pick.Model(&a.picker)
-		ch := a.pick.Handle(&a.picker, kit.Picker(c, anchor, &a.picker, m))
+		if a.reactTo == "" {
+			a.fillPacks(r.ID, m) // a reaction is not a custom emoji (yet)
+		}
+		pr := kit.Picker(c, anchor, &a.picker, m)
+		if pr.ImportDiscord {
+			a.importDiscordGIFs()
+		}
+		a.packAct(r.ID, st, pr)
+		ch := a.pick.Handle(&a.picker, pr)
 		switch {
 		case ch.Emoji != "" && a.reactTo != "":
 			a.src.React(r.ID, a.reactTo, ch.Emoji)
@@ -463,7 +474,7 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 		case ch.Item != nil:
 			// A GIF or sticker is uploaded as a picture (its link where
 			// that cannot be).
-			a.sendGIF(r.ID, ch.Item.Full.URL)
+			a.sendPicked(r.ID, *ch.Item)
 			a.picker.Open = false
 		}
 	}
@@ -528,6 +539,9 @@ func (a *App) phoneRoom(c *ui.Context) {
 			}
 		case h.More:
 			a.roomSheet.Open, a.roomSheetID = true, r.ID
+		}
+		if a.find.Open && a.find.Room == r.ID {
+			a.findBar(c) // the same bar as wide windows, under the header
 		}
 		if a.inCall == r.ID {
 			a.callArea(c, r)

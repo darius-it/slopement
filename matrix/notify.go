@@ -22,12 +22,22 @@ var _ model.Notifier = (*Source)(nil)
 // that is told of once (an echo, or a late decrypt arriving again) is not
 // told of twice. UI thread.
 func (s *Source) noticeOf(r *room, e model.Event, senderName string) {
-	if s.notify == nil || e.Sender == s.me.ID || r.muted || e.Kind == model.EventUndecryptable ||
+	if s.notify == nil || e.Sender == s.me.ID || r.muted || s.ignored[e.Sender] || e.Kind == model.EventUndecryptable ||
 		e.Kind == model.EventSystem || time.Since(e.Time) > notifyWindow {
 		return
 	}
-	if !r.dm && !e.Mentions {
-		return
+	// The room's level: the user's own choice, else a chat with a person
+	// notifies for everything and a room for mentions.
+	switch r.notify {
+	case model.NotifyAll:
+	case model.NotifyMentions:
+		if !e.Mentions {
+			return
+		}
+	default:
+		if !r.dm && !e.Mentions {
+			return
+		}
 	}
 	if s.notified[e.ID] {
 		return

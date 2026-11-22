@@ -83,10 +83,18 @@ type RoomMenuState struct {
 	Favourite  bool
 	LowPrio    bool
 	Unread     bool
+	// Level is the room's notification level: 0 default, 1 all messages,
+	// 2 mentions only (model.NotifyLevel).
+	Level int
 }
+
+// NotifyLevelNames are the levels of a room's notifications, by NotifyLevel.
+var NotifyLevelNames = [3]string{"Default", "All messages", "Mentions only"}
 
 // RoomAction is what the room menu chose.
 type RoomAction struct {
+	SetLevel   bool // a notification level was chosen: Level
+	Level      int
 	Mute       *MuteFor // set to mute, for its duration
 	Unmute     bool
 	ToggleFav  bool
@@ -115,6 +123,13 @@ func RoomMenu(m *ui.Menu, s RoomMenuState, now time.Time) (a RoomAction) {
 	if m.Item(fav).Checked(s.Favourite).Chosen() {
 		a.ToggleFav = true
 	}
+	m.Submenu("Notifications", func(m *ui.Menu) {
+		for i, name := range NotifyLevelNames {
+			if m.Item(name).Radio(s.Level == i).Chosen() {
+				a.SetLevel, a.Level = true, i
+			}
+		}
+	})
 	if s.Muted {
 		if m.Item("Unmute").Subtitle(MutedUntilText(s.MutedUntil, now)).Chosen() {
 			a.Unmute = true

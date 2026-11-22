@@ -109,6 +109,9 @@ func writeHTML(b *strings.Builder, n *Node) {
 		}
 	case Break:
 		b.WriteString("<br>")
+	case Emoji:
+		b.WriteString(`<img data-mx-emoticon src="` + html.EscapeString(n.Href) + `" alt="` + html.EscapeString(n.Text) +
+			`" title="` + html.EscapeString(n.Text) + `" height="32" />`)
 	default:
 		wrap("", "")
 	}
@@ -189,8 +192,18 @@ func convert(n *xhtml.Node) []*Node {
 	case atom.Script, atom.Style, atom.Head, atom.Title, atom.Iframe, atom.Object, atom.Embed:
 		return nil
 	case atom.Img:
-		// Inline images: only Matrix media, shown by their alt text here.
-		if alt, ok := attr(n, "alt"); ok && alt != "" {
+		// A custom emoji: an image of Matrix media marked as one is shown as
+		// the picture; any other image by its alt text.
+		alt, hasAlt := attr(n, "alt")
+		if _, emoticon := attr(n, "data-mx-emoticon"); emoticon {
+			if src, _ := attr(n, "src"); strings.HasPrefix(src, "mxc://") && len(src) < 512 {
+				if alt == "" {
+					alt = ":emoji:"
+				}
+				return []*Node{{Kind: Emoji, Text: alt, Href: src}}
+			}
+		}
+		if hasAlt && alt != "" {
 			return []*Node{{Kind: Text, Text: alt}}
 		}
 		return nil

@@ -97,11 +97,22 @@ func (a *App) roomInfoBody(c *ui.Context, r model.Room) {
 				}
 			})
 		}
+		id := r.ID
+		kit.MenuButton(c, actionTile(c, kit.IconBell, "Notify"), func(m *ui.Menu) {
+			for i, name := range kit.NotifyLevelNames {
+				if m.Item(name).Radio(int(r.Notify) == i).Chosen() {
+					a.roomAction(id, kit.RoomAction{SetLevel: true, Level: i})
+				}
+			}
+		})
 		if actionTile(c, kit.IconLink, "Copy link").Clicked() {
-			a.toast = "Link copied"
+			a.roomAction(id, kit.RoomAction{CopyLink: true})
 		}
 		if actionTile(c, kit.IconUser, "Invite").Clicked() {
 			a.openInvite(r.ID)
+		}
+		if r.Kind != model.KindDM && a.canEditRooms() && actionTile(c, kit.IconPencil, "Edit").Clicked() {
+			a.openRoomEdit(r.ID)
 		}
 	})
 	ui.Column(c).Radius(kit.RadiusMd).Background(p.Raised).Border(1, p.Border).Padding(kit.S1).Children(func() {

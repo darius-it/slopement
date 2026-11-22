@@ -87,6 +87,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	})
 
 	syncer.OnEventType(event.EventMessage, s.onMessage)
+	syncer.OnEventType(event.EventSticker, s.onMessage)
 	syncer.OnEventType(event.EventReaction, s.onReaction)
 	syncer.OnEventType(event.EventRedaction, s.onRedaction)
 	syncer.OnEventType(event.EventEncrypted, s.onEncrypted)
@@ -109,6 +110,11 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.AccountDataPushRules, s.onPushRules)
 	syncer.OnEventType(mutesType, s.onMutes)
 	syncer.OnEventType(userColorsType, s.onUserColors)
+	syncer.OnEventType(event.AccountDataIgnoredUserList, s.onIgnored)
+	syncer.OnEventType(railOrderType, s.onRailOrder)
+	syncer.OnEventType(userEmotesType, s.onUserEmotes)
+	syncer.OnEventType(emoteRoomsType, s.onEmoteRooms)
+	syncer.OnEventType(roomPackType, s.onRoomEmotes)
 	for _, t := range pollStartTypes {
 		syncer.OnEventType(t, s.onPollStart)
 	}
@@ -817,6 +823,16 @@ func (s *Source) sendMessage(room, markdown, replyTo, threadRoot string) {
 		return
 	}
 	content := contentOf(markdown)
+	if shortcodeRE.MatchString(content.Body) {
+		// ":wave:" of a custom emoji pack goes as its picture.
+		html := content.FormattedBody
+		if html == "" {
+			html = format.HTML(format.Parse(markdown))
+		}
+		if withEmoji := s.withCustomEmoji(room, html); withEmoji != html {
+			content.FormattedBody, content.Format = withEmoji, event.FormatHTML
+		}
+	}
 	if threadRoot != "" {
 		fallback := threadRoot
 		if r, ok := s.rooms[room]; ok {

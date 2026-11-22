@@ -180,7 +180,7 @@ func (s *Source) historyEvent2(ctx context.Context, evt *event.Event) {
 		return
 	}
 	switch evt.Type {
-	case event.EventMessage:
+	case event.EventMessage, event.EventSticker:
 		s.onMessage(ctx, evt)
 	case event.EventReaction:
 		s.onReaction(ctx, evt)

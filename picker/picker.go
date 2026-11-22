@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -34,6 +35,13 @@ const maxMedia = 96
 // What matters is that an over-limit body fails loudly instead of being
 // cut short: a truncated GIF cannot be decoded at all.
 const maxDownload = 32 << 20
+
+// maxParallel is how many animations download at once. A page of favorites
+// asks for dozens; all at once they starve each other until each times out.
+const maxParallel = 4
+
+// downloadTimeout bounds one animation's whole download.
+const downloadTimeout = 40 * time.Second
 
 // Controller is the picker's model and its loading.
 type Controller struct {
@@ -60,6 +68,18 @@ type Controller struct {
 
 	items map[string]klipy.Item // by tile ID, to send and favorite
 	media *mediaCache
+	sem   chan struct{} // a slot per download running
+
+	wantMu sync.Mutex
+	wanted map[string]bool // URLs something shows or waits for
+
+	// Local folders as a source (folders.go).
+	folders     []string
+	local       []klipy.Item
+	scanned     time.Time
+	scanning    bool
+	rescanAgain bool
+	wasOpen     bool
 }
 
 // saved is what persists across runs.
@@ -83,10 +103,11 @@ func New(client *klipy.Client) *Controller {
 func newAt(client *klipy.Client, path string) *Controller {
 	c := &Controller{
 		client: client,
-		http:   &http.Client{Timeout: 15 * time.Second},
+		http:   &http.Client{Timeout: downloadTimeout},
 		path:   path,
 		items:  map[string]klipy.Item{},
 		media:  newMediaCache(maxMedia),
+		sem:    make(chan struct{}, maxParallel),
 	}
 	c.load()
 	return c
@@ -120,6 +141,11 @@ func (c *Controller) load() {
 	if err == nil {
 		json.Unmarshal(b, &c.saved)
 	}
+	for i := range c.saved.Favorites {
+		if f := &c.saved.Favorites[i]; f.Thumb.URL == f.Full.URL {
+			f.Thumb.URL = thumbURL(f.Full.URL) // imported before thumbnails: the full GIF is no tile
+		}
+	}
 }
 
 func (c *Controller) save() {
@@ -135,7 +161,12 @@ func (c *Controller) save() {
 // asks for. Call it in the view, before kit.Picker.
 func (c *Controller) Model(st *kit.PickerState) *kit.PickerModel {
 	if !st.Open {
+		c.wasOpen = false
 		return &c.gifs
+	}
+	if !c.wasOpen {
+		c.wasOpen = true
+		c.rescanIfStale() // a file added since is looked for as the picker opens
 	}
 	if !c.shown || st.Tab != c.shownTab || st.Query != c.shownQuery || st.Browse != c.browse {
 		queryChanged := st.Query != c.shownQuery && c.shown && st.Tab == c.shownTab
@@ -171,19 +202,18 @@ func (c *Controller) refresh(typed bool) {
 	if m == nil {
 		return
 	}
-	if c.client == nil || !c.client.HasKey() {
-		m.Notice = "Add KLIPY_API_KEY to .env to load GIFs and stickers"
-		m.Loading = false
-		return
-	}
+	hasKey := c.client != nil && c.client.HasKey()
 	m.Notice = ""
 	if c.shownTab == kit.TabGIFs && c.shownQuery == "" {
-		if !c.catsLoaded {
+		if hasKey && !c.catsLoaded {
 			c.fetchCategories()
 		}
 		switch c.browse {
 		case "":
 			m.Results, m.Loading = nil, false
+			if !hasKey && len(c.saved.Favorites) == 0 && len(c.local) == 0 {
+				m.Notice = noKeyNotice
+			}
 			return
 		case "favorites":
 			m.Title, m.Results, m.HasMore, m.Loading = "Favorites", c.tiles(c.saved.Favorites), false, false
@@ -191,7 +221,23 @@ func (c *Controller) refresh(typed bool) {
 				m.Notice = "Star a GIF to keep it here"
 			}
 			return
+		case "folders":
+			m.Results, m.HasMore, m.Loading = nil, false, false
+			c.refreshLocalViews()
+			return
 		}
+	}
+	if !hasKey {
+		// Without a key there is KLIPY to search no more, but the folders
+		// still are.
+		m.Results, m.HasMore, m.Loading = nil, false, false
+		if c.shownTab == kit.TabGIFs && c.shownQuery != "" {
+			m.Title, m.Results = "My folders", c.tiles(c.localMatches(c.shownQuery, 60))
+		}
+		if len(m.Results) == 0 {
+			m.Notice = noKeyNotice
+		}
+		return
 	}
 	m.Loading = true
 	if typed {
@@ -266,6 +312,10 @@ func (c *Controller) fetch(gen int) {
 				tiles = append(tiles, c.tile(it))
 			}
 			if page == 1 {
+				if kind == klipy.GIFs && query != "" && c.shownQuery == query {
+					// The user's own files lead the search, found by name.
+					tiles = append(c.tiles(c.localMatches(query, 12)), tiles...)
+				}
 				m.Results = tiles
 			} else {
 				m.Results = append(m.Results, tiles...)
@@ -275,9 +325,11 @@ func (c *Controller) fetch(gen int) {
 	}()
 }
 
+const noKeyNotice = "Add KLIPY_API_KEY to .env to load GIFs and stickers"
+
 func errorNotice(err error) string {
 	if errors.Is(err, klipy.ErrNoKey) {
-		return "Add KLIPY_API_KEY to .env to load GIFs and stickers"
+		return noKeyNotice
 	}
 	return "Couldn't reach KLIPY. Check your connection."
 }
@@ -305,17 +357,27 @@ func (c *Controller) fetchCategories() {
 
 // front is the GIF tab's front page: favorites, trending, categories.
 func (c *Controller) front() []kit.PickerTile {
-	if c.client == nil || !c.client.HasKey() {
+	hasKey := c.client != nil && c.client.HasKey()
+	if !hasKey && len(c.saved.Favorites) == 0 && len(c.local) == 0 {
 		return nil
 	}
-	out := make([]kit.PickerTile, 0, len(c.cats)+2)
+	out := make([]kit.PickerTile, 0, len(c.cats)+3)
 	fav := kit.PickerTile{ID: "front:favorites", Label: "Favorites", Kind: kit.TileFavorites}
 	if len(c.saved.Favorites) > 0 {
 		fav.Player, fav.Still = c.mediaOf(c.saved.Favorites[0].Thumb.URL)
 	}
+	out = append(out, fav)
+	if len(c.local) > 0 {
+		folders := kit.PickerTile{ID: "front:folders", Label: "My folders", Kind: kit.TileFolders}
+		folders.Player, folders.Still = c.mediaOf(c.local[0].Thumb.URL)
+		out = append(out, folders)
+	}
+	if !hasKey {
+		return out
+	}
 	trend := kit.PickerTile{ID: "front:trending", Label: "Trending GIFs", Kind: kit.TileTrending}
 	trend.Player, trend.Still = c.mediaOf(c.trendPreview)
-	out = append(out, fav, trend)
+	out = append(out, trend)
 	for _, cat := range c.cats {
 		t := kit.PickerTile{ID: "cat:" + cat.Query, Label: cat.Name, Query: cat.Query, Kind: kit.TileCategory}
 		t.Player, t.Still = c.mediaOf(cat.Preview)
@@ -336,7 +398,16 @@ func (c *Controller) tiles(items []klipy.Item) []kit.PickerTile {
 func (c *Controller) tile(it klipy.Item) kit.PickerTile {
 	t := kit.PickerTile{ID: it.ID, Label: it.Title, W: float32(it.Thumb.Width), H: float32(it.Thumb.Height),
 		Favorite: c.isFavorite(it.ID)}
-	t.Player, t.Still = c.mediaOf(it.Thumb.URL)
+	// A tile starts loading when it scrolls near the view (Want), not when
+	// the page is built: a page of favorites would otherwise ask for every
+	// one at once.
+	url := it.Thumb.URL
+	if e, ok := c.media.get(url); ok {
+		t.Player = e.player
+	}
+	t.Failed = c.media.failed(url)
+	t.Want = func() { c.mediaOf(url) }
+	t.Drop = func() { c.setWanted(url, false) }
 	return t
 }
 
@@ -348,31 +419,86 @@ func (c *Controller) mediaOf(url string) (*ui.VideoPlayer, ui.ImageSource) {
 	if e, ok := c.media.get(url); ok {
 		return e.player, nil
 	}
+	c.setWanted(url, true)
 	if !c.media.start(url) {
 		return nil, nil
 	}
 	go func() {
-		data, err := c.download(url)
+		c.sem <- struct{}{} // at most maxParallel downloads at once
+		if !c.isWanted(url) {
+			// Its tile scrolled away while it waited its turn: don't
+			// download what nobody sees. (It starts over if it comes back.)
+			<-c.sem
+			c.post(func() { c.media.cancel(url); c.refreshTiles() })
+			return
+		}
+		var data []byte
+		var err error
+		if IsLocalURL(url) {
+			data, err = readLocal(url)
+		} else {
+			data, err = c.download(url)
+		}
+		<-c.sem
 		var d ui.VideoDecoder
 		if err == nil {
-			d, err = ui.NewGIFDecoder(data)
+			d, err = newDecoder(data)
 		}
 		c.post(func() {
-			if err != nil {
-				c.media.fail(url)
-				return
+			if err == nil {
+				var pl *ui.VideoPlayer
+				if pl, err = ui.NewVideoPlayer(d); err == nil {
+					pl.SetLoop(true).SetMuted(true)
+					c.media.put(url, pl)
+					c.refreshTiles()
+					return
+				}
 			}
-			pl, err := ui.NewVideoPlayer(d)
-			if err != nil {
-				c.media.fail(url)
-				return
-			}
-			pl.SetLoop(true).SetMuted(true)
-			c.media.put(url, pl)
-			c.refreshTiles()
+			c.failed(url)
 		})
 	}()
 	return nil, nil
+}
+
+// setWanted says whether something still shows url's animation: a tile in
+// the view, or a message. A load that has not begun when nothing wants it
+// any more is dropped.
+func (c *Controller) setWanted(url string, on bool) {
+	c.wantMu.Lock()
+	defer c.wantMu.Unlock()
+	if c.wanted == nil {
+		c.wanted = map[string]bool{}
+	}
+	if on {
+		c.wanted[url] = true
+	} else {
+		delete(c.wanted, url)
+	}
+}
+
+func (c *Controller) isWanted(url string) bool {
+	c.wantMu.Lock()
+	defer c.wantMu.Unlock()
+	return c.wanted[url]
+}
+
+// failed notes a failed load: the tile says so, and a tile or message
+// still on screen tries again after a wait.
+func (c *Controller) failed(url string) {
+	wait := c.media.fail(url)
+	c.refreshTiles()
+	if wait > 0 {
+		time.AfterFunc(wait, func() { c.post(c.refreshTiles) }) // wakes the view, which asks again
+	}
+}
+
+// Retry loads a tile's animation again at once: a tap on a tile that
+// could not load.
+func (c *Controller) Retry(t *kit.PickerTile) {
+	if it, ok := c.items[t.ID]; ok && c.media.retry(it.Thumb.URL) {
+		c.mediaOf(it.Thumb.URL)
+		c.refreshTiles()
+	}
 }
 
 // Animation returns the looping animation of a GIF's URL once loaded
@@ -387,12 +513,11 @@ func (c *Controller) refreshTiles() {
 	for _, m := range []*kit.PickerModel{&c.gifs, &c.stickers} {
 		for i := range m.Results {
 			t := &m.Results[i]
-			if t.Player == nil {
-				if it, ok := c.items[t.ID]; ok {
-					if e, ok := c.media.get(it.Thumb.URL); ok {
-						t.Player = e.player
-					}
+			if it, ok := c.items[t.ID]; ok {
+				if e, ok := c.media.get(it.Thumb.URL); ok {
+					t.Player = e.player
 				}
+				t.Failed = c.media.failed(it.Thumb.URL)
 			}
 		}
 	}
@@ -438,6 +563,9 @@ type Chosen struct {
 // Handle applies the picker's result: favorites, recents, paging. It
 // returns what to send, if anything.
 func (c *Controller) Handle(st *kit.PickerState, r kit.PickerResult) (out Chosen) {
+	if r.Retry != nil {
+		c.Retry(r.Retry)
+	}
 	if r.More {
 		if m := c.model(); m != nil && m.HasMore && !m.Loading {
 			c.page++
@@ -466,17 +594,33 @@ func (c *Controller) Handle(st *kit.PickerState, r kit.PickerResult) (out Chosen
 		c.save()
 		out.Emoji = r.Emoji
 	}
-	if r.Item != nil {
+	if r.Item != nil && r.Retry == nil { // a tap on a tile that failed to load retries it
 		if it, ok := c.items[r.Item.ID]; ok {
 			if it.Kind == klipy.Stickers {
 				c.saved.RecentStickers = pushItem(c.saved.RecentStickers, it, 8)
 				c.save()
 			}
 			out.Item = &it
+			c.registerShare(it, st.Query)
 		}
 		st.Query, st.Browse = "", ""
 	}
 	return out
+}
+
+// registerShare tells KLIPY an item of its was sent, with the search that led
+// to it (KLIPY's terms ask for it, and it improves the results). Items that
+// are not KLIPY's (Discord imports, GIFs starred from a message) have no
+// slug and are not reported. It runs in the background and never fails the send.
+func (c *Controller) registerShare(it klipy.Item, query string) {
+	if c.client == nil || !c.client.HasKey() || it.Slug == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = c.client.Share(ctx, it.Kind, it.Slug, query)
+	}()
 }
 
 func pushItem(list []klipy.Item, it klipy.Item, max int) []klipy.Item {

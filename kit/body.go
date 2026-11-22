@@ -69,6 +69,33 @@ type bodyBuilder struct {
 	// dust draws, and paraID its identity.
 	para   ui.Element
 	paraID string
+	// emoji are the custom emoji of the paragraph being built (mxc urls),
+	// in the order they were placed.
+	emoji []string
+}
+
+// EmojiImage gives the picture of a custom emoji by its mxc:// URL (nil
+// while it is fetched): set by the app, drawn inline in the text.
+var EmojiImage func(mxc string) ui.ImageSource
+
+// A custom emoji is an inline object a little taller than the text. The
+// text can only say how wide an object is, so each emoji of a paragraph is
+// told apart by a width a hundredth of a DIP different from the next.
+const emojiStep = 0.02
+
+func emojiBox(size float32) (w, above, below float32) {
+	return size * 1.3, size * 1.1, size * 0.2
+}
+
+func drawEmoji(p *ui.Painter, r ui.Rect, size float32, emoji []string) {
+	w, _, _ := emojiBox(size)
+	i := int((r.W-w)/emojiStep + 0.5)
+	if i < 0 || i >= len(emoji) || EmojiImage == nil {
+		return
+	}
+	if src := EmojiImage(emoji[i]); src != nil {
+		p.Image(src, r, ui.Contain)
+	}
 }
 
 func (b *bodyBuilder) textColor() ui.Color {
@@ -142,11 +169,18 @@ func (b *bodyBuilder) paragraph(inl []*format.Node, size float32, weight int, pa
 	}
 	prev, prevID := b.para, b.paraID
 	b.para, b.paraID = para, b.key+"|"+path
+	prevEmoji := b.emoji
+	b.emoji = nil
 	para.Children(func() {
 		for i, n := range inl {
 			b.inline(n, path+":"+strconv.Itoa(i))
 		}
 	})
+	if emoji := b.emoji; len(emoji) > 0 {
+		size := b.s.Size
+		para.DrawObjects(func(p *ui.Painter, at int, r ui.Rect) { drawEmoji(p, r, size, emoji) })
+	}
+	b.emoji = prevEmoji
 	playDust(para, b.paraID) // revealed spoilers' dust, over the text
 	b.para, b.paraID = prev, prevID
 }
@@ -209,6 +243,13 @@ func (b *bodyBuilder) inline(n *format.Node, path string) {
 		}
 		ui.RichText(c, ui.Span{Text: n.Text, Weight: WeightMedium, Color: fg,
 			Background: bg, Radius: RadiusSm, PaddingX: 4})
+	case format.Emoji:
+		// The picture is drawn over an inline object of its size; the
+		// text says its name, for the screen reader.
+		w, above, below := emojiBox(b.s.Size)
+		i := min(len(b.emoji), 199)
+		b.emoji = append(b.emoji, n.Href)
+		ui.RichText(c, ui.Span{Text: "￼", ObjectWidth: w + float32(i)*emojiStep, ObjectHeight: above, ObjectDescent: below})
 	case format.Spoiler:
 		key := b.key + "#" + path
 		open := b.rv != nil && b.rv[key]

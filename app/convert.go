@@ -73,9 +73,13 @@ func (a *App) contacts() []kit.Person {
 
 func (a *App) profile(id string) *kit.ProfileSpec {
 	p, _ := a.src.Person(id)
-	return &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
+	spec := &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
 		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID,
 		Recolor: true, ColorIndex: a.colorOf(p.ID)}
+	if ig, ok := a.src.(model.Ignorer); ok {
+		spec.Ignorable, spec.Ignored = true, ig.IsIgnored(p.ID)
+	}
+	return spec
 }
 
 // fullTime is a moment in full, for a tooltip: "Sunday 7th October, 12:02",
@@ -161,7 +165,7 @@ func (a *App) row(r model.Room) kit.RoomRowData {
 
 func (a *App) menuState(r model.Room) kit.RoomMenuState {
 	return kit.RoomMenuState{Muted: r.Muted, MutedUntil: r.MutedUntil, Favourite: r.Favourite, LowPrio: r.LowPriority,
-		Unread: r.Unread > 0 || r.Mentions > 0}
+		Unread: r.Unread > 0 || r.Mentions > 0, Level: int(r.Notify)}
 }
 
 // pollData is a poll as the kit's card shows it.
@@ -253,6 +257,15 @@ func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, 
 					spec.W, spec.H = float32(w), float32(h)
 				}
 			}
+		}
+		if m.Sticker {
+			// A sticker is small, as itself: at most stickerSize a side.
+			w, h := spec.W, spec.H
+			if w <= 0 || h <= 0 {
+				w, h = stickerSize, stickerSize
+			}
+			s := min(1, stickerSize/max(w, h))
+			spec.W, spec.H, spec.Sticker = w*s, h*s, true
 		}
 		spec.Still = a.still(m)
 		if m.Kind == model.MediaImage && !isGIFFile(m) {
