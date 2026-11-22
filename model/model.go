@@ -149,12 +149,21 @@ type Event struct {
 	Failed bool
 	Error  string
 	Poll   *Poll
+	// Location is a shared place (m.location), shown as a card.
+	Location *Location
 	// Mentions is set when it mentions the user.
 	Mentions bool
 	// ReadBy are the others (MXIDs) whose read marker sits at this event:
 	// each person is on the last event they have read, never on every
 	// one before it.
 	ReadBy []string
+}
+
+// Location is a place someone shared: a geo: URI read into its numbers, and
+// the sender's words for it, if any.
+type Location struct {
+	Lat, Lon    float64
+	Description string
 }
 
 // Thread sums up a thread on its root message.
@@ -368,6 +377,15 @@ type SessionManager interface {
 // made).
 type DMCreator interface {
 	OpenDMAsync(person string, done func(room string))
+}
+
+// EventSourcer is what a Source may offer: an event's JSON as the server
+// holds it and, for an encrypted one, as it reads once decrypted — for bug
+// reports. done is called on the UI thread: decrypted is "" when the event
+// is not encrypted (or is still locked, which err says); err is "" or why
+// nothing could be shown.
+type EventSourcer interface {
+	EventSource(room, id string, done func(original, decrypted, err string))
 }
 
 // Pins is what a Source may offer beyond Actions: the pinned messages

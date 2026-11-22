@@ -1,0 +1,11 @@
+{
+  "_from": "mautrix-discord / matrix-appservice-discord, a message with a mention and a custom emoji",
+  "event_id": "$dc1", "room_id": "!fix:example.org", "sender": "@_discord_123:example.org",
+  "origin_server_ts": 1700000016000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.text", "body": "hey @me:example.org look :party:",
+    "format": "org.matrix.custom.html",
+    "formatted_body": "hey <a href=\"https://matrix.to/#/@me:example.org\">me</a> look <img data-mx-emoticon height=\"32\" src=\"mxc://example.org/party\" alt=\":party:\" title=\":party:\">",
+    "m.mentions": {"user_ids": ["@me:example.org"]}
+  }
+}

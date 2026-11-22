@@ -1,0 +1,4 @@
+kind: system
+sender: @mira:example.org
+body: "Mira joined"
+membership: join

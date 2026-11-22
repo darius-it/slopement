@@ -1,0 +1,9 @@
+{
+  "_from": "Element X, current location: only the fallback body",
+  "event_id": "$loc2", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000008000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.location", "body": "Location: 48.137154,11.576124",
+    "geo_uri": "geo:48.137154,11.576124"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "_from": "Element Web poll, unstable prefix (MSC3381)",
+  "event_id": "$poll1", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000005000, "type": "org.matrix.msc3381.poll.start",
+  "content": {
+    "org.matrix.msc3381.poll.start": {
+      "kind": "org.matrix.msc3381.poll.disclosed", "max_selections": 1,
+      "question": {"org.matrix.msc1767.text": "Pizza or pasta?", "body": "Pizza or pasta?", "msgtype": "m.text"},
+      "answers": [
+        {"id": "a1", "org.matrix.msc1767.text": "Pizza"},
+        {"id": "a2", "org.matrix.msc1767.text": "Pasta"}
+      ]
+    },
+    "org.matrix.msc1767.text": "Pizza or pasta?\n1. Pizza\n2. Pasta"
+  }
+}

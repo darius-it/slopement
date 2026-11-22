@@ -1,0 +1,10 @@
+{
+  "_from": "Element Web, the HTML its composer makes: list, quote, code block, spoiler, heading, link",
+  "event_id": "$html1", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000018000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.text", "body": "# Plan\n- one\n- two\n> quoted\n```go\nfmt.Println(1)\n```\nsecret https://example.org/page",
+    "format": "org.matrix.custom.html",
+    "formatted_body": "<h1>Plan</h1><ul><li>one</li><li>two</li></ul><blockquote>quoted</blockquote><pre><code class=\"language-go\">fmt.Println(1)\n</code></pre><span data-mx-spoiler=\"why\">secret</span> <a href=\"https://example.org/page\">https://example.org/page</a><script>alert(1)</script>"
+  }
+}

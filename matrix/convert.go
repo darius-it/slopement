@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,9 @@ func textEvent(me string, evt *event.Event) model.Event {
 		Body:   c.Body,
 	}
 	e.Formatted, e.Plain = formattedOf(c)
+	if c.RelatesTo != nil && c.RelatesTo.GetNonFallbackReplyTo() != "" {
+		e.Body = stripReplyFallback(e.Body) // an older client's "> <@who> quoted" lines
+	}
 	if c.Mentions != nil && c.Mentions.Has(id.UserID(me)) {
 		e.Mentions = true
 	}
@@ -62,10 +66,116 @@ func textEvent(me string, evt *event.Event) model.Event {
 		if m, ok := mediaOf(c); ok {
 			e.Media = []model.Media{m}
 		}
+	case c.MsgType == event.MsgLocation:
+		e.Kind = model.EventText
+		if loc, ok := locationOf(evt, c); ok {
+			e.Location = &loc
+		}
+	case c.MsgType == event.MsgEmote:
+		e.Kind = model.EventEmote
+	case c.MsgType == event.MsgNotice:
+		e.Kind = model.EventNotice
 	default:
 		e.Kind = model.EventText
 	}
 	return e
+}
+
+// stripReplyFallback takes off the fallback a reply carried for clients that
+// cannot show replies: lines that begin "> ", then one blank line.
+func stripReplyFallback(body string) string {
+	if !strings.HasPrefix(body, "> ") {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	i := 0
+	for i < len(lines) && strings.HasPrefix(lines[i], ">") {
+		i++
+	}
+	if i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+		i++
+	}
+	if i >= len(lines) {
+		return body // nothing but quote: keep it, rather than show nothing
+	}
+	return strings.Join(lines[i:], "\n")
+}
+
+// locationOf reads a shared place out of an m.location: its geo_uri (or, in
+// older clients, org.matrix.msc3488.location's uri) and the words with it.
+// Pure, for the tests.
+func locationOf(evt *event.Event, c *event.MessageEventContent) (model.Location, bool) {
+	uri, words := c.GeoURI, ""
+	if old, ok := contentMap(evt)["org.matrix.msc3488.location"].(map[string]any); ok {
+		if uri == "" {
+			uri, _ = old["uri"].(string)
+		}
+		words, _ = old["description"].(string)
+	}
+	lat, lon, ok := parseGeo(uri)
+	if !ok {
+		return model.Location{}, false
+	}
+	if strings.TrimSpace(words) == "" {
+		words = locationWords(c.Body)
+	}
+	return model.Location{Lat: lat, Lon: lon, Description: strings.TrimSpace(words)}, true
+}
+
+// parseGeo reads "geo:48.2,16.3" (RFC 5870, with its ";u=" parameters and an
+// optional altitude) into a latitude and a longitude.
+func parseGeo(uri string) (lat, lon float64, ok bool) {
+	rest, found := strings.CutPrefix(strings.TrimSpace(uri), "geo:")
+	if !found {
+		return 0, 0, false
+	}
+	rest, _, _ = strings.Cut(rest, ";")
+	parts := strings.Split(rest, ",")
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	var err1, err2 error
+	lat, err1 = strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	lon, err2 = strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if err1 != nil || err2 != nil || lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+		return 0, 0, false
+	}
+	return lat, lon, true
+}
+
+// locationWords is what the sender called the place: the body of an
+// m.location, unless it is only the fallback clients write ("Location",
+// "Location: 48.2,16.3", the coordinates, or a geo: link).
+func locationWords(body string) string {
+	b := strings.TrimSpace(body)
+	if len(b) >= 8 && strings.EqualFold(b[:8], "location") {
+		tail := b[8:]
+		rest := strings.TrimSpace(strings.TrimLeft(tail, ": "))
+		switch {
+		case rest == "" || looksLikeCoords(rest):
+			return ""
+		case strings.HasPrefix(tail, ":"):
+			return rest // "Location: Brandenburger Tor"
+		}
+		// otherwise the sender's own words that happen to start so
+	}
+	if strings.HasPrefix(b, "geo:") || looksLikeCoords(b) {
+		return ""
+	}
+	return b
+}
+
+func looksLikeCoords(s string) bool {
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' || r == ';' })
+	if len(parts) < 2 {
+		return false
+	}
+	for _, p := range parts[:2] {
+		if _, err := strconv.ParseFloat(p, 64); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // mediaOf is one attachment of a message: its mxc URL and size, never

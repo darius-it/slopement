@@ -28,6 +28,7 @@ func (a *App) msgMenu(ev model.Event) kit.MessageMenuState {
 	if acts, ok := a.src.(model.Actions); ok {
 		st.Pinned = acts.IsPinned(ev.Room, ev.ID)
 	}
+	_, st.Source = a.src.(model.EventSourcer)
 	return st
 }
 
@@ -43,6 +44,8 @@ func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 		a.copyToClipboard(ev.Body, "Copied")
 	case kit.MsgCopyLink:
 		a.copyToClipboard("https://matrix.to/#/"+room+"/"+ev.ID, "Link copied")
+	case kit.MsgViewSource:
+		a.openSource(room, ev.ID)
 	case kit.MsgAddToPack:
 		if len(ev.Media) > 0 {
 			m := ev.Media[0]
@@ -155,6 +158,9 @@ func (a *App) messageSheet(c *ui.Context) {
 			row(kit.IconPin, "Unpin", kit.MsgUnpin)
 		} else {
 			row(kit.IconPin, "Pin", kit.MsgPin)
+		}
+		if st.Source {
+			row(kit.IconCode, "View source", kit.MsgViewSource)
 		}
 		if st.Mine {
 			if st.HasText {

@@ -67,6 +67,7 @@ func (a *App) overlays(c *ui.Context) {
 	kit.MediaViewer(c, &a.viewer, a.viewerItems, &a.viewerAt)
 	a.verifyDialog(c)
 	a.keysDialogView(c)
+	a.sourceDialogView(c)
 	a.phoneSheets(c)
 }
 

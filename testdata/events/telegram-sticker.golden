@@ -1,0 +1,4 @@
+kind: media
+sender: @telegram_1234:example.org
+body: "Sticker"
+media: kind=0 name="Sticker" mime=image/webp 256x256 size=20480 audio=false sticker=true url=mxc://example.org/sticker

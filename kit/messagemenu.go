@@ -19,6 +19,8 @@ type MessageMenuState struct {
 	// Sticker offers "Add to my emoji": it is a sticker (or custom emoji)
 	// that can go in the user's own pack.
 	Sticker bool
+	// Source offers "View source": the source can show the event's JSON.
+	Source bool
 }
 
 // MessageChoice is what was chosen from a message's menu.
@@ -36,6 +38,8 @@ const (
 	MsgThread // reply in (or open) the message's thread
 	// MsgAddToPack puts the message's sticker in the user's own pack.
 	MsgAddToPack
+	// MsgViewSource shows the event's JSON, for a bug report.
+	MsgViewSource
 	// MsgOpenSheet asks for the menu as a sheet (a long press on a phone).
 	MsgOpenSheet
 )
@@ -65,6 +69,9 @@ func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 		}
 	} else if m.Item("Pin").Icon(MenuIcon(IconPin)).Chosen() {
 		ch = MsgPin
+	}
+	if s.Source && m.Item("View source").Icon(MenuIcon(IconCode)).Chosen() {
+		ch = MsgViewSource
 	}
 	if s.Mine {
 		m.Separator()

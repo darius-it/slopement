@@ -1,0 +1,11 @@
+{
+  "_from": "Element Web, an image with a caption (filename kept apart from body)",
+  "event_id": "$img2", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000013000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.image", "body": "look at this cat", "filename": "cat.jpg",
+    "format": "org.matrix.custom.html", "formatted_body": "look at <em>this</em> cat",
+    "url": "mxc://example.org/cat2",
+    "info": {"mimetype": "image/jpeg", "w": 1024, "h": 768, "size": 98765}
+  }
+}

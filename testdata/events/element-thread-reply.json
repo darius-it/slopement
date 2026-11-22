@@ -1,0 +1,12 @@
+{
+  "_from": "Element Web, a reply inside a thread (with the thread's reply fallback)",
+  "event_id": "$thread1", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000003000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.text", "body": "agreed, let's do it",
+    "m.relates_to": {
+      "rel_type": "m.thread", "event_id": "$root",
+      "is_falling_back": true, "m.in_reply_to": {"event_id": "$latest"}
+    }
+  }
+}

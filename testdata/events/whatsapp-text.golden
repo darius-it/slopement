@@ -1,0 +1,4 @@
+kind: text
+sender: @whatsapp_4915100000000:example.org
+body: "*bold* _italic_ ~gone~ `code`"
+text: "bold italic gone code"

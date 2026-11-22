@@ -1,0 +1,17 @@
+{
+  "_from": "Element X poll, stable m.poll.start (a multiple-choice, undisclosed one)",
+  "event_id": "$poll2", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000006000, "type": "m.poll.start",
+  "content": {
+    "m.poll": {
+      "kind": "m.poll.undisclosed", "max_selections": 2,
+      "question": {"m.text": [{"body": "Which days?"}]},
+      "answers": [
+        {"m.id": "mon", "m.text": [{"body": "Monday"}]},
+        {"m.id": "wed", "m.text": [{"body": "Wednesday"}]},
+        {"m.id": "fri", "m.text": [{"body": "Friday"}]}
+      ]
+    },
+    "m.text": [{"body": "Which days?\n1. Monday\n2. Wednesday\n3. Friday"}]
+  }
+}

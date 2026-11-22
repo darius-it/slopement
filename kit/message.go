@@ -74,7 +74,11 @@ type MessageData struct {
 	// Media, File and Embed are attachments and a link's preview.
 	Media []MediaSpec
 	File  *FileSpec
-	Embed *LinkCard
+	// Location is a shared place, a card.
+	Location *LocationSpec
+	// Notice (m.notice, from bots) is shown in the quiet color.
+	Notice bool
+	Embed  *LinkCard
 	// YouTube is a YouTube link's card, in place of Embed.
 	YouTube *YouTubeSpec
 	// Reveals keeps the message's spoilers open once clicked.
@@ -319,6 +323,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					}
 					mm.EditItems()
 				}
+				if m.Notice {
+					fg = p.TextMuted // a bot's notice is quieter than a person's words
+				}
 				body := func() {
 					if m.Doc != nil {
 						// Selected with the rest of the timeline (the list is Selectable).
@@ -359,6 +366,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				}
 				if m.File != nil && FileCard(c, *m.File).Clicked() {
 					a.Download = true
+				}
+				if m.Location != nil {
+					LocationCard(c, *m.Location)
 				}
 				if m.Poll != nil {
 					pd := *m.Poll
@@ -546,6 +556,26 @@ func SystemEvent(c *ui.Context, text string) {
 	ui.Row(c).Padding(S05, S4, S05, S4+36+S3).Children(func() {
 		ui.Text(c, text).FontSize(SizeSmall).TextColor(p.TextMuted)
 	})
+}
+
+// BrokenEvent is the tile of a message that could not be shown: a quiet line
+// and, where the source can show it, a View source for the bug report. It
+// reports a press on that.
+func BrokenEvent(c *ui.Context, id string, canViewSource bool) (viewSource bool) {
+	p := Of(c)
+	ui.Row(c.Key("broken:"+id)).Padding(S1, S4, S1, S4+36+S3).Gap(S2).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, IconAlert).Size(14, 14).TextColor(p.TextMuted)
+		ui.Text(c, "Couldn't show this message").FontSize(SizeSmall).TextColor(p.TextMuted)
+		if canViewSource {
+			b := ui.ButtonBase(c.Key("broken-src")).Height(22).PaddingX(S2).Radius(RadiusSm).AlignItems(ui.Center).Label("View source")
+			if b.Hovered() {
+				b.Background(p.Hover)
+			}
+			b.Children(func() { ui.Text(c, "View source").FontSize(SizeSmall).TextColor(p.AccentStrong) })
+			viewSource = b.Clicked()
+		}
+	})
+	return viewSource
 }
 
 // TypingLine says who is typing, under the timeline.

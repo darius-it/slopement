@@ -281,6 +281,36 @@ func FileCard(c *ui.Context, f FileSpec) ui.Element {
 	return b
 }
 
+// LocationSpec is a shared place: a static card, never a live map, with a
+// link that opens it in the user's maps.
+type LocationSpec struct {
+	ID          string
+	Title       string // what the sender called it ("" for "Shared location")
+	Coordinates string // "52.5200, 13.4050"
+	URL         string // where "Open in maps" goes
+}
+
+// LocationCard shows a LocationSpec.
+func LocationCard(c *ui.Context, l LocationSpec) ui.Element {
+	p := Of(c)
+	title := l.Title
+	if title == "" {
+		title = "Shared location"
+	}
+	card := ui.Row(c.Key("loc:"+l.ID)).Gap(S3).Padding(S2, S3, S2, S2).Radius(RadiusMd).
+		Background(p.Raised).Border(1, p.Border).AlignItems(ui.Center).MaxWidth(360).Label("Location: " + title)
+	card.Children(func() {
+		ui.Box(c).Size(40, 40).Radius(RadiusSm + 2).Background(p.AccentSubtle).AlignItems(ui.Center).Justify(ui.Center).
+			Children(func() { ui.Icon(c, IconMapPin).Size(20, 20).TextColor(p.AccentStrong) })
+		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium).MaxLines(2)
+			ui.Text(c, l.Coordinates).FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
+			ui.Link(c, "Open in maps", l.URL).FontSize(SizeSmall).TextColor(p.AccentStrong)
+		})
+	})
+	return card
+}
+
 // LinkCard is a link's preview from OpenGraph: a neutral edge, the site,
 // the title as a link, two lines of description, and a thumbnail at the
 // side (small pictures) or below (large ones). Dismissed reports the ×.

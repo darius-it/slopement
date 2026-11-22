@@ -1,0 +1,6 @@
+{
+  "_from": "a future or custom msgtype: shown by its body, never dropped",
+  "event_id": "$unk1", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000019000, "type": "m.room.message",
+  "content": {"msgtype": "com.example.widget", "body": "A widget was shared (open it in another client)"}
+}

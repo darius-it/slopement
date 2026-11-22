@@ -1,0 +1,6 @@
+{
+  "_from": "FluffyChat, /me",
+  "event_id": "$emote1", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000010000, "type": "m.room.message",
+  "content": {"msgtype": "m.emote", "body": "waves at everyone"}
+}

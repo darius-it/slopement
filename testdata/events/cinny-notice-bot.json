@@ -1,0 +1,9 @@
+{
+  "_from": "a bot's m.notice with HTML (the shape Cinny and most bots send)",
+  "event_id": "$notice1", "room_id": "!fix:example.org", "sender": "@bot:example.org",
+  "origin_server_ts": 1700000011000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.notice", "body": "Build 42 passed",
+    "format": "org.matrix.custom.html", "formatted_body": "<b>Build 42</b> passed"
+  }
+}

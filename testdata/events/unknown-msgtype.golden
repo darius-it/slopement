@@ -1,0 +1,3 @@
+kind: text
+sender: @sam:example.org
+body: "A widget was shared (open it in another client)"

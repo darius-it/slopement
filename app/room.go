@@ -133,7 +133,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 		ui.Column(c.Key("tlarea:"+r.ID)).Grow(1).Children(func() {
 			// 24 under the last message before the composer, as Meetup's and
 			// Fresha's web chats leave (Mobbin); it scrolls with the messages.
-			ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.timelineRow(c, r, rows[i]) }).
+			ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.timelineRow(c, r, rows[i]) }) }).
 				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).
 				Selectable(). // one selection over the messages built: a drag crosses them
 				Children(func() {
@@ -328,6 +328,10 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	if ev.Kind != model.EventUndecryptable {
 		m.Doc, m.Media, m.YouTube = a.content(ev)
 		m.File = a.fileSpec(ev)
+		m.Location, m.Notice = a.locationSpec(ev), ev.Kind == model.EventNotice
+		if m.Location != nil {
+			m.Doc = nil // the card says what the message does
+		}
 		if am, ok := audioOf(ev); ok {
 			m.Audio = a.audioData(ev, am) // it plays; the file card stays for saving it
 		}
@@ -588,7 +592,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 		// edge: it takes no room, so nothing above it moves when it comes
 		// and goes.
 		ui.Column(c.Key("ptlarea:"+r.ID)).Grow(1).Children(func() {
-			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.bubbleRow(c, r, rows, i) }).
+			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.bubbleRow(c, r, rows, i) }) }).
 				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
 			if len(r.Typing) > 0 && r.Kind == model.KindDM {
 				pp, _ := a.src.Person(r.Partner)
@@ -631,6 +635,10 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 		var yt *kit.YouTubeSpec
 		b.Doc, b.Media, yt = a.content(ev)
 		b.File = a.fileSpec(ev)
+		b.Location, b.Notice = a.locationSpec(ev), ev.Kind == model.EventNotice
+		if b.Location != nil {
+			b.Doc = nil // the card says what the message does
+		}
 		if yt == nil && len(b.Media) == 0 {
 			b.Embed = a.linkCard(ev, b.Doc)
 		}

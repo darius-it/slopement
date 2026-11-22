@@ -1,0 +1,4 @@
+kind: media
+sender: @signal_abc:example.org
+body: "diagram.svg"
+media: kind=3 name="diagram.svg" mime=image/svg+xml 0x0 size=4096 audio=false sticker=false url=mxc://example.org/svg

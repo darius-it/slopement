@@ -1,0 +1,6 @@
+kind: poll
+sender: @ada:example.org
+body: ""
+poll: "Pizza or pasta?" multiple=false hidden=false
+answer: a1="Pizza"
+answer: a2="Pasta"

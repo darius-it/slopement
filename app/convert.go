@@ -1,6 +1,7 @@
 package app
 
 import (
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -213,11 +214,24 @@ func (a *App) doc(ev model.Event) *format.Node {
 	} else if ev.Plain {
 		key = "plain:" + ev.Body
 	}
+	// An emote ("/me waves") reads as "* Mira waves": the sender's name leads.
+	actor := ""
+	if ev.Kind == model.EventEmote {
+		p, _ := a.src.Person(ev.Sender)
+		if actor = p.Name; actor == "" {
+			actor = ev.Sender
+		}
+		key = "emote:" + actor + ":" + key
+	}
 	if d, ok := a.docs[ev.ID]; ok && d.body == key {
 		return d.doc
 	}
 	var n *format.Node
 	switch {
+	case actor != "" && ev.Formatted != "":
+		n = format.ParseHTML("<em>" + html.EscapeString(actor) + "</em> " + ev.Formatted)
+	case actor != "":
+		n = format.ParsePlain("* " + actor + " " + ev.Body)
 	case ev.Formatted != "":
 		n = format.ParseHTML(ev.Formatted)
 	case ev.Plain:
@@ -232,6 +246,24 @@ func (a *App) doc(ev model.Event) *format.Node {
 type parsed struct {
 	body string
 	doc  *format.Node
+}
+
+// locationSpec is the card of a shared place, or nil. "Open in maps" goes to
+// OpenStreetMap, which needs no account and is shown the place only if the
+// user follows the link.
+func (a *App) locationSpec(ev model.Event) *kit.LocationSpec {
+	l := ev.Location
+	if l == nil {
+		return nil
+	}
+	lat := strconv.FormatFloat(l.Lat, 'f', 5, 64)
+	lon := strconv.FormatFloat(l.Lon, 'f', 5, 64)
+	return &kit.LocationSpec{
+		ID:          ev.ID,
+		Title:       l.Description,
+		Coordinates: strconv.FormatFloat(l.Lat, 'f', 4, 64) + ", " + strconv.FormatFloat(l.Lon, 'f', 4, 64),
+		URL:         "https://www.openstreetmap.org/?mlat=" + lat + "&mlon=" + lon + "#map=16/" + lat + "/" + lon,
+	}
 }
 
 // fileSpec is the card of a message that is a file (a document, audio), or

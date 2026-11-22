@@ -1,0 +1,11 @@
+{
+  "_from": "mautrix-whatsapp, a text with WhatsApp formatting turned to HTML",
+  "event_id": "$wa1", "room_id": "!fix:example.org", "sender": "@whatsapp_4915100000000:example.org",
+  "origin_server_ts": 1700000015000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.text", "body": "*bold* _italic_ ~gone~ `code`",
+    "format": "org.matrix.custom.html",
+    "formatted_body": "<strong>bold</strong> <em>italic</em> <del>gone</del> <code>code</code>",
+    "com.beeper.linkpreviews": []
+  }
+}

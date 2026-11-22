@@ -1,0 +1,4 @@
+kind: media
+sender: @sam:example.org
+body: "Voice message"
+media: kind=3 name="Voice message" mime=audio/ogg 0x0 size=21345 audio=true sticker=false url=mxc://example.org/voice

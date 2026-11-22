@@ -1,0 +1,10 @@
+{
+  "_from": "an older client's plain reply: only the '> ' fallback in the body, no HTML",
+  "event_id": "$reply2", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000001000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.text",
+    "body": "> <@sam:example.org> are we still on for friday?\n> maybe 7?\n\nyes, at 7",
+    "m.relates_to": {"m.in_reply_to": {"event_id": "$orig"}}
+  }
+}

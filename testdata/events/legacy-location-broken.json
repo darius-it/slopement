@@ -1,0 +1,6 @@
+{
+  "_from": "a client that sent an m.location with no usable place (must not break)",
+  "event_id": "$loc3", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000009000, "type": "m.room.message",
+  "content": {"msgtype": "m.location", "body": "somewhere nice", "geo_uri": "geo:not,numbers"}
+}

@@ -1,0 +1,4 @@
+kind: text
+sender: @ada:example.org
+body: "Location: Brandenburger Tor"
+location: 52.516275,13.377704 "Brandenburger Tor"

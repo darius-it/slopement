@@ -1,0 +1,6 @@
+{
+  "_from": "a message after redaction: its content is gone",
+  "event_id": "$red1", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000022000, "type": "m.room.message",
+  "content": {}
+}

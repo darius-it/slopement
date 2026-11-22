@@ -1,0 +1,4 @@
+kind: notice
+sender: @bot:example.org
+body: "Build 42 passed"
+text: "Build 42 passed"

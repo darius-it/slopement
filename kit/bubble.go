@@ -32,6 +32,10 @@ type BubbleData struct {
 	Media   []MediaSpec
 	Sticker *MediaSpec
 	File    *FileSpec
+	// Location is a shared place, a card.
+	Location *LocationSpec
+	// Notice (m.notice, from bots) is shown in the quiet color.
+	Notice bool
 	// Embed is a link's preview under the text.
 	Embed *LinkCard
 	// First and Last place it in a run of one sender's messages.
@@ -222,6 +226,9 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 				}
 			})
 		}
+		if b.Location != nil {
+			ui.Box(c).Padding(S1).Children(func() { LocationCard(c, *b.Location) })
+		}
 		if b.Reply != nil || hasText || b.Embed != nil {
 			ui.Column(c).Padding(S2, S3, S2+1, S3).Gap(S15).Children(func() {
 				if q := b.Reply; q != nil {
@@ -250,6 +257,9 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 					}
 				}
 				if hasText {
+					if b.Notice {
+						fg = fg.Alpha(0.7)
+					}
 					MessageBody(c, b.ID, b.Doc, rv, BodyStyle{Size: SizeBodyTouch - 0.5, Color: fg, OnAccent: b.Out})
 				}
 				if b.Embed != nil {

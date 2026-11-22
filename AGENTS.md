@@ -120,6 +120,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   `app.rows`), animated GIF avatars (`kit.AvatarSpec.Anim`, `app/avataranim.go`:
   original fetched lazily when it would play). Only the call settings are still
   "Soon" in settings.
+  Compatibility: `testdata/events/` holds raw events per client/bridge with
+  `.golden` dumps (`matrix/fixtures_test.go` via `matrix.ConvertEvent`; render
+  check in `app/fixtures_test.go`). A test process cannot write files here, so
+  `UPDATE_GOLDEN=1` prints the dumps and they are saved with Write. Location
+  cards (`m.location`, `kit.LocationCard`, opens OpenStreetMap), emote/notice
+  kinds, View source (`model.EventSourcer`, `matrix/eventsource.go`,
+  `app/source.go`) and the per-row crash guard (`app/saferow.go`: a panicking
+  row becomes a "Couldn't show this message" tile; tests assert
+  `a.rowPanics` empty).
   File dialogs go through `app/dialogs.go` (tests replace `pickFileFn` /
   `saveFileFn`). Voice recording (and Opus/AAC decode) is in the
   mobile-polish/device-pass scope (plan step 9), not stage 5: mygo has no

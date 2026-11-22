@@ -1,0 +1,4 @@
+kind: text
+sender: @ada:example.org
+body: "# Plan\n- one\n- two\n> quoted\n```go\nfmt.Println(1)\n```\nsecret https://example.org/page"
+text: "Plan one two quoted fmt.Println(1) (spoiler) https://example.org/page"

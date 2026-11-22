@@ -1,0 +1,4 @@
+kind: text
+sender: @ada:example.org
+body: "yes, at 7"
+reply-to: $orig

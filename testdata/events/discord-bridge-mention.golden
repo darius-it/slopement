@@ -1,0 +1,5 @@
+kind: text
+sender: @_discord_123:example.org
+body: "hey @me:example.org look :party:"
+text: "hey @me look :party:"
+mentions-me: true

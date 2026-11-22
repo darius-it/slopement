@@ -1,0 +1,4 @@
+kind: media
+sender: @sam:example.org
+body: "cat.png"
+media: kind=0 name="cat.png" mime=image/png 800x600 size=123456 audio=false sticker=false url=mxc://example.org/cat

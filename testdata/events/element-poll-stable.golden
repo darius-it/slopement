@@ -1,0 +1,7 @@
+kind: poll
+sender: @ada:example.org
+body: ""
+poll: "Which days?" multiple=true hidden=true
+answer: mon="Monday"
+answer: wed="Wednesday"
+answer: fri="Friday"

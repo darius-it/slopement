@@ -1,0 +1,9 @@
+{
+  "_from": "Nheko, an image with a caption-less body",
+  "event_id": "$img1", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000012000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.image", "body": "cat.png", "url": "mxc://example.org/cat",
+    "info": {"mimetype": "image/png", "w": 800, "h": 600, "size": 123456}
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "_from": "Synapse, a user joining",
+  "event_id": "$join1", "room_id": "!fix:example.org", "sender": "@mira:example.org",
+  "state_key": "@mira:example.org", "origin_server_ts": 1700000021000, "type": "m.room.member",
+  "content": {"membership": "join", "displayname": "Mira"}
+}

@@ -1,0 +1,4 @@
+kind: text
+sender: @sam:example.org
+body: "agreed, let's do it"
+thread-root: $root

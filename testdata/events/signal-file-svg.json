@@ -1,0 +1,10 @@
+{
+  "_from": "mautrix-signal / Element, an SVG sent as a file (must be a card, never drawn inline)",
+  "event_id": "$svg1", "room_id": "!fix:example.org", "sender": "@signal_abc:example.org",
+  "origin_server_ts": 1700000017000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.file", "body": "diagram.svg", "filename": "diagram.svg",
+    "url": "mxc://example.org/svg",
+    "info": {"mimetype": "image/svg+xml", "size": 4096}
+  }
+}

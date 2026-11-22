@@ -1,0 +1,12 @@
+{
+  "_from": "Element Web/X voice message (MSC3245) with an MSC1767 waveform",
+  "event_id": "$voice1", "room_id": "!fix:example.org", "sender": "@sam:example.org",
+  "origin_server_ts": 1700000004000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.audio", "body": "Voice message",
+    "url": "mxc://example.org/voice",
+    "info": {"mimetype": "audio/ogg", "size": 21345, "duration": 7800},
+    "org.matrix.msc3245.voice": {},
+    "org.matrix.msc1767.audio": {"duration": 7800, "waveform": [0, 120, 340, 512, 800, 1023, 700, 300]}
+  }
+}

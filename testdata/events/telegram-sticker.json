@@ -1,0 +1,9 @@
+{
+  "_from": "mautrix-telegram, a sticker (m.sticker with a webp)",
+  "event_id": "$stk1", "room_id": "!fix:example.org", "sender": "@telegram_1234:example.org",
+  "origin_server_ts": 1700000014000, "type": "m.sticker",
+  "content": {
+    "body": "Sticker", "url": "mxc://example.org/sticker",
+    "info": {"mimetype": "image/webp", "w": 256, "h": 256, "size": 20480}
+  }
+}

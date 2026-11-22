@@ -1,0 +1,11 @@
+{
+  "_from": "Element Web, share location (static pin) with the MSC3488 fields",
+  "event_id": "$loc1", "room_id": "!fix:example.org", "sender": "@ada:example.org",
+  "origin_server_ts": 1700000007000, "type": "m.room.message",
+  "content": {
+    "msgtype": "m.location", "body": "Location: Brandenburger Tor",
+    "geo_uri": "geo:52.516275,13.377704;u=30",
+    "org.matrix.msc3488.location": {"uri": "geo:52.516275,13.377704;u=30", "description": "Brandenburger Tor"},
+    "org.matrix.msc3488.asset": {"type": "m.pin"}
+  }
+}
