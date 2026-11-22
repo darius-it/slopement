@@ -379,6 +379,14 @@ type DMCreator interface {
 	OpenDMAsync(person string, done func(room string))
 }
 
+// Forwarder is what a Source may offer: sending a copy of a message to
+// another room. The copy has the message's content (words, formatting,
+// attachments), not its replies, thread, edits or mentions. done is called on
+// the UI thread with "" or why it could not be sent.
+type Forwarder interface {
+	Forward(room, eventID, to string, done func(err string))
+}
+
 // EventSourcer is what a Source may offer: an event's JSON as the server
 // holds it and, for an encrypted one, as it reads once decrypted — for bug
 // reports. done is called on the UI thread: decrypted is "" when the event

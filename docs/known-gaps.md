@@ -32,6 +32,28 @@ push notifications are not built.
   an account service, have only run against fakes.
 - Sign-in uses the classic `/sync`; sliding sync is not used.
 
+## Linux performance
+The UI can feel sluggish on some Linux setups (reported while typing). The
+cause is not known yet. The AppImage and the `.deb` use the same binary and
+your system's GTK 3 and graphics drivers, so they draw the same. To try other
+renderers, set these before starting the app:
+
+```sh
+MYGO_GPU=0 ./slopement-x86_64.AppImage    # draw on the CPU
+MYGO_GPU=1 ./slopement-x86_64.AppImage    # force OpenGL, even if it runs in software
+GDK_BACKEND=wayland ./slopement-x86_64.AppImage   # or x11, to compare
+```
+
+To report it, run with frame timing on while typing and send the output, with
+your distro and whether it is a virtual machine:
+
+```sh
+MYGO_FRAME_STATS=1 ./slopement-x86_64.AppImage
+```
+
+Each slow frame says how long building, layout, painting and presenting took,
+and whether it was drawn on the GPU or the CPU.
+
 ## Builds
 - **Not signed or notarized.** macOS, Windows and Linux builds make your
   system warn you once (see the release notes for how to open them).

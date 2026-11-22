@@ -119,7 +119,23 @@ func (a *App) topBar(c *ui.Context) {
 	ui.Row(c).Height(max(topBarHeight, bar.Height)).Shrink(0).Padding(0, bar.Right+kit.S3, 0, bar.Left+kit.S3).
 		AlignItems(ui.Center).Justify(ui.Center).Background(a.sideBg(c)).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).
 		DragWindow().Children(func() {
-		ui.Text(c, a.placeName()).FontSize(kit.SizeCaption).FontWeight(kit.WeightMedium).TextColor(p.TextMuted).SingleLine().Shrink(1)
+		// Back and forward through the places visited, as a browser's: the
+		// arrows at the left, the place's name still in the middle (an equal
+		// space at the right keeps it there). The mouse's side buttons and
+		// ⌘[ ⌘] / Alt+←→ do the same (nav.go).
+		const arrows = 2*26 + 2
+		ui.Row(c.Key("navarrows")).Width(arrows).Shrink(0).Gap(2).AlignItems(ui.Center).Children(func() {
+			if kit.IconButton(c, kit.Ghost, kit.IconArrowLeft, "Back").Size(26, 26).Disabled(!a.canGoBack()).Clicked() {
+				a.navGo(-1)
+			}
+			if kit.IconButton(c, kit.Ghost, kit.IconArrowRight, "Forward").Size(26, 26).Disabled(!a.canGoForward()).Clicked() {
+				a.navGo(1)
+			}
+		})
+		ui.Row(c.Key("placename")).Grow(1).MinWidth(0).Justify(ui.Center).Children(func() {
+			ui.Text(c, a.placeName()).FontSize(kit.SizeCaption).FontWeight(kit.WeightMedium).TextColor(p.TextMuted).SingleLine().Shrink(1)
+		})
+		ui.Box(c).Width(arrows).Shrink(0)
 	})
 }
 

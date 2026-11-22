@@ -68,6 +68,31 @@ func TestBackAndForward(t *testing.T) {
 	}
 }
 
+// The top bar has Back and Forward arrows, disabled at the ends of the history.
+func TestTopBarArrows(t *testing.T) {
+	a, tt := navApp(t)
+	tt.SetTitleBar(ui.TitleBar{Height: 32, Left: 80})
+	a.open("!crit")
+	settle(tt)
+	a.open("!dm-alex")
+	settle(tt)
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if a.room != "!crit" {
+		t.Fatalf("Back went to %q", a.room)
+	}
+	if err := tt.Click("Forward"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if a.room != "!dm-alex" {
+		t.Fatalf("Forward went to %q", a.room)
+	}
+	snap(t, "app-toparrows", tt)
+}
+
 // A room that is gone is passed over, and the ends of the history do nothing.
 func TestBackSkipsGoneRooms(t *testing.T) {
 	a, tt := navApp(t)
