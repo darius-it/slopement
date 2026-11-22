@@ -35,6 +35,12 @@ var EaseDrawer = ui.CubicBezier(0.32, 0.72, 0, 1)
 // Color is how hover and press colors change.
 var Color = ui.Animation{Duration: DurPress, Ease: ui.EaseOut}
 
+// The blink of a message jumped to: in at once, out slowly.
+var (
+	flashIn  = ui.Animation{Duration: 120 * time.Millisecond, Ease: ui.EaseOut}
+	flashOut = ui.Animation{Duration: 1100 * time.Millisecond, Ease: ui.EaseOut}
+)
+
 // SheetSpring settles a sheet without bouncing; it keeps the finger's
 // velocity when let go.
 var SheetSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 350 * time.Millisecond}}

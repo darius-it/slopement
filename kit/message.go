@@ -41,7 +41,10 @@ type MessageData struct {
 	First bool
 	// Highlight is set when the message mentions the user.
 	Highlight bool
-	Edited    bool
+	// Flash is the blink of a message just jumped to (a pin, a quoted
+	// reply): its color in at once; FlashOut while it fades out slowly.
+	Flash, FlashOut bool
+	Edited          bool
 	// Unverified marks a message from a device not verified.
 	Unverified bool
 	// Pending is set while it is being sent: it shows as any sent message
@@ -185,12 +188,22 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 	if hov {
 		bg = p.Hover.Over(bg.Over(p.Bg))
 	}
+	// The blink: the accent comes in fast and goes out slowly, over the
+	// hover gray.
+	anim := Color
+	switch {
+	case m.Flash:
+		bg = p.Accent.Alpha(0.32).Over(p.Bg)
+		anim = flashIn
+	case m.FlashOut:
+		anim = flashOut
+	}
 	top := float32(S05)
 	if m.First {
 		top = MessageGroupGap
 	}
 	row.Padding(top, S4, S05, S4).Gap(S3).AlignItems(ui.Start).
-		Background(row.AnimateColor("bg", bg, Color))
+		Background(row.AnimateColor("bg", bg, anim))
 	row.Children(func() {
 		// The gutter.
 		ui.Box(c).Width(36).Shrink(0).AlignItems(ui.End).Children(func() {

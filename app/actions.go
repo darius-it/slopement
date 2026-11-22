@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"slopement/format"
 	"slopement/kit"
 	"slopement/model"
 )
@@ -180,7 +181,11 @@ func pinText(ev model.Event) string {
 	if ev.Kind == model.EventUndecryptable {
 		return "Encrypted message, loading…"
 	}
-	if text := strings.Join(strings.Fields(ev.Body), " "); text != "" {
+	body := ev.Body
+	if ev.Formatted != "" {
+		body = format.Plain(format.ParseHTML(ev.Formatted)) // what it says, not how it was typed
+	}
+	if text := strings.Join(strings.Fields(body), " "); text != "" {
 		return text
 	}
 	return "Attachment"
@@ -202,58 +207,77 @@ func (a *App) pinsPanel(c *ui.Context, r model.Room) {
 	acts, _ := a.src.(model.Actions)
 	for i := len(pins) - 1; i >= 0; i-- { // newest pin first
 		ev := pins[i]
-		sender, _ := a.src.Person(ev.Sender)
-		text := pinText(ev)
-		card := ui.ButtonBase(c.Key("pin:"+ev.ID)).Padding(kit.S3).Gap(kit.S1).Radius(kit.RadiusMd).Background(p.Bg).
-			Border(1, p.Border).Label("Go to pinned message from " + sender.Name)
-		if card.Hovered() {
-			card.Background(p.Hover)
-		}
-		card.Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(kit.S1).Children(func() {
-				ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
-					kit.Avatar(c, a.avatar(sender, 20))
-					ui.Text(c, sender.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).TextColor(a.colors.Color(p, ev.Sender)).SingleLine().Shrink(1)
-					ui.Text(c, timeLabel(ev.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine()
-				})
-				ui.Text(c, text).FontSize(kit.SizeSmall).TextColor(p.Text).MaxLines(4)
-			})
-		})
-		if card.Clicked() {
-			a.jumpToEvent(r.ID, ev)
-		}
-		if acts != nil {
-			ui.Row(c).Justify(ui.End).Children(func() {
-				if kit.Button(c, kit.Ghost, "Unpin", kit.IconPin).Height(24).Clicked() {
-					acts.Pin(r.ID, ev.ID, false)
-				}
-			})
-		}
+		a.pinCard(c, r, ev, acts)
 	}
 }
 
-// pinBar is the line under a room's header when messages are pinned in it:
-// the one shown, newest pin first, and a press that goes to it and on to
-// the next older one. The pin shown is kept by its ID, not its place: the
-// pins the server is asked for arrive one by one, and a place would point
-// at another message each time one lands.
-func (a *App) pinBar(c *ui.Context, room string) {
-	pins := a.pinnedEvents(room)
-	if len(pins) == 0 {
-		return
-	}
-	at := 0 // newest first: pins are in the order pinned
-	for i := range pins {
-		if pins[len(pins)-1-i].ID == a.pinAt[room] {
-			at = i
-			break
-		}
-	}
-	ev := pins[len(pins)-1-at]
+// pinCard is one pinned message in the panel: a card with the sender, the
+// message as the timeline draws it (formatting, pictures, GIFs, files), a
+// press that goes to it, and Unpin in its corner, shown while the pointer
+// is on the card.
+func (a *App) pinCard(c *ui.Context, r model.Room, ev model.Event, acts model.Actions) {
+	p := kit.Of(c)
 	sender, _ := a.src.Person(ev.Sender)
-	text := pinText(ev)
-	if kit.PinBar(c, at, len(pins), sender.Name, text) {
-		a.jumpToEvent(room, ev)
-		a.pinAt[room] = pins[len(pins)-1-(at+1)%len(pins)].ID
+	card := ui.Column(c.Key("pin:" + ev.ID)).Padding(kit.S3).Gap(kit.S2).Radius(kit.RadiusMd).
+		Border(1, p.Border).Label("Pinned message from " + sender.Name)
+	hov := card.Hovered()
+	bg := p.Bg
+	if hov {
+		bg = p.Hover.Over(p.Bg)
+	}
+	card.Background(card.AnimateColor("bg", bg, kit.Color)).Cursor(ui.CursorPointer)
+	var unpin, opened bool
+	card.Children(func() {
+		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Height(24).Children(func() {
+			kit.Avatar(c, a.avatar(sender, 20))
+			ui.Text(c, sender.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).TextColor(a.colors.Color(p, ev.Sender)).SingleLine().Shrink(1)
+			ui.Text(c, timeLabel(ev.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine().Grow(1)
+			// A place kept for it, so the card does not move as it shows: a
+			// small struck-through pin, level with the name.
+			ui.Box(c).Size(24, 24).Shrink(0).Children(func() {
+				if hov && acts != nil {
+					b := ui.ButtonBase(c.Key("unpin:" + ev.ID)).Size(24, 24).Radius(kit.RadiusSm).
+						AlignItems(ui.Center).Justify(ui.Center).Label("Unpin").Tooltip("Unpin")
+					fg := p.TextMuted
+					if b.Hovered() {
+						b.Background(p.Hover)
+						fg = p.Text
+					}
+					kit.Pressable(b)
+					b.Children(func() { ui.Icon(c, kit.IconPinOff).Size(15, 15).TextColor(fg) })
+					unpin = b.Clicked()
+				}
+			})
+		})
+		ui.Column(c).Gap(kit.S2).MinWidth(0).MaxHeight(320).Clip().Children(func() {
+			if ev.Kind == model.EventUndecryptable {
+				ui.Text(c, pinText(ev)).FontSize(kit.SizeSmall).Italic().TextColor(p.TextMuted)
+				return
+			}
+			doc, media, _ := a.content(ev)
+			if doc != nil {
+				kit.MessageBody(c, "pin:"+ev.ID, doc, a.reveals, kit.BodyStyle{Size: kit.SizeSmall + 1})
+			}
+			if len(media) > 0 {
+				if i := kit.MediaGrid(c, media, 236, a.reveals); i >= 0 {
+					a.viewerItems, a.viewerAt, a.viewer = media, i, true
+					opened = true
+				}
+			}
+			if f := a.fileSpec(ev); f != nil && kit.FileCard(c, *f).Clicked() {
+				a.downloadFile(ev)
+				opened = true
+			}
+			if doc == nil && len(media) == 0 && ev.Media == nil {
+				ui.Text(c, pinText(ev)).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
+			}
+		})
+	})
+	switch {
+	case unpin:
+		acts.Pin(r.ID, ev.ID, false)
+	case card.Clicked() && !opened:
+		a.jumpToEvent(r.ID, ev)
 	}
 }
+

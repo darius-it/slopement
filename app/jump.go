@@ -11,8 +11,12 @@ import (
 	"slopement/model"
 )
 
-// flashFor is how long a message that was jumped to stays highlighted.
-const flashFor = 1600 * time.Millisecond
+// A message that was jumped to blinks once: it holds its color for
+// flashHold, then fades out over flashFade.
+const (
+	flashHold = 450 * time.Millisecond
+	flashFade = 1100 * time.Millisecond
+)
 
 // jumpSeek is how long a jump to a message older than what is held keeps
 // paging history in, looking for it, before it gives up.
@@ -52,13 +56,22 @@ func (a *App) jumpStep(room string, rows []trow, ls *ui.ListState) {
 			}
 			a.jumpLooking = false
 			ls.ScrollTo(i, ui.Center)
-			a.flash = id
+			// One blink: the color comes in at once and holds a moment, then
+			// fades out slowly (kit.Message animates each way).
+			a.flash, a.flashOut = id, ""
 			if a.win != nil {
 				win := a.win
-				time.AfterFunc(flashFor, func() {
+				time.AfterFunc(flashHold, func() {
 					win.Update(func() {
 						if a.flash == id {
-							a.flash = ""
+							a.flash, a.flashOut = "", id
+						}
+					})
+				})
+				time.AfterFunc(flashHold+flashFade, func() {
+					win.Update(func() {
+						if a.flashOut == id {
+							a.flashOut = ""
 						}
 					})
 				})

@@ -129,34 +129,18 @@ func TestPinBar(t *testing.T) {
 
 	tt := ui.NewTester(a.View, 1100, 700)
 	settle(tt)
-	if !tt.HasText("Pinned 1 of 2") {
-		t.Fatal("no pin bar under the header")
+	// No bar under the header: pins live in the panel behind the pin button.
+	if tt.HasText("Go to pinned message") || tt.HasText("Pinned 1 of 2") {
+		t.Fatal("a pin bar is still drawn under the header")
 	}
-	if !tt.HasText("message number 20") {
-		t.Fatal("the bar does not show the newest pin first")
-	}
-	if err := tt.Click("Go to pinned message"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tt)
-	settle(tt)
-	if !tt.HasText("Pinned 2 of 2") || !tt.HasText("message number 3") {
-		t.Fatal("the bar did not move on to the next (older) pin")
-	}
-	// One press each: the next goes back round to the newest.
-	if err := tt.Click("Go to pinned message"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tt)
-	if !tt.HasText("Pinned 1 of 2") {
-		t.Fatal("the bar did not wrap round to the newest pin")
+	if len(a.pinnedEvents(room.ID)) != 2 {
+		t.Fatalf("pinned events = %d", len(a.pinnedEvents(room.ID)))
 	}
 
 	a.messageChoice(room.ID, tl[3], kit.MsgUnpin)
 	a.messageChoice(room.ID, tl[20], kit.MsgUnpin)
-	settle(tt)
-	if tt.HasText("Go to pinned message") {
-		t.Fatal("the bar stayed with nothing pinned")
+	if len(a.pinnedEvents(room.ID)) != 0 {
+		t.Fatal("still pinned after Unpin")
 	}
 	_ = time.Second
 }
@@ -182,11 +166,10 @@ func TestPinsPanel(t *testing.T) {
 	}
 }
 
-// The new controls at phone width: pin bar, a waiting file and the mention
-// popup together (a snapshot with SNAP_DIR) — and nothing overflows.
+// The new controls at phone width: a waiting file and the mention popup
+// together (a snapshot with SNAP_DIR) — and nothing overflows.
 func TestPhoneWithNewControls(t *testing.T) {
-	a, src, room := actApp(t)
-	a.messageChoice(room.ID, src.tl[27], kit.MsgPin)
+	a, _, room := actApp(t)
 	a.addFile(room.ID, model.File{Name: "quarterly-report-final-v2.pdf", Data: make([]byte, 340<<10)})
 	partner, _ := a.src.Person(room.Partner)
 	a.draft(room.ID).Text = "see " + "@" + partner.Name[:2]
@@ -194,8 +177,8 @@ func TestPhoneWithNewControls(t *testing.T) {
 	a.pushed = true
 	settle(tt)
 	snap(t, "phone-new-controls", tt)
-	if !tt.HasText("Pinned") || !tt.HasText("quarterly-report-final-v2.pdf") || !tt.HasText(partner.Name) {
-		t.Fatal("the phone view is missing the pin bar, the file chip or the suggestion")
+	if !tt.HasText("quarterly-report-final-v2.pdf") || !tt.HasText(partner.Name) {
+		t.Fatal("the phone view is missing the file chip or the suggestion")
 	}
 }
 

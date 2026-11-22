@@ -88,13 +88,17 @@ func VerifyStart(c *ui.Context) (ch VerifyChoice) {
 			ui.Text(c, "Verify it to read your encrypted messages and to show others it's really you.").
 				FontSize(SizeBody).TextColor(p.TextMuted).TextAlign(ui.Center).MaxWidth(340)
 		})
-		if choiceRow(c, IconMessage, "Use another device", "Compare emoji with a device you're signed in on").Clicked() {
-			ch = VerifyWithDevice
-		}
-		if choiceRow(c, IconKey, "Use your Security Key", "Or your Security Phrase").Clicked() {
-			ch = VerifyWithKey
-		}
-		l := ui.ButtonBase(c).AlignSelf(ui.Center).Padding(S1, S2).Radius(RadiusSm).Label("Can't verify? Reset")
+		// The two ways are one group, close together; the way out sits well
+		// apart below them.
+		ui.Column(c).Gap(S1).Children(func() {
+			if choiceRow(c, IconMessage, "Use another device", "Compare emoji with a device you're signed in on").Clicked() {
+				ch = VerifyWithDevice
+			}
+			if choiceRow(c, IconKey, "Use your Security Key", "Or your Security Phrase").Clicked() {
+				ch = VerifyWithKey
+			}
+		})
+		l := ui.ButtonBase(c).AlignSelf(ui.Center).Padding(S1, S2).Radius(RadiusSm).Label("Can't verify? Reset").Margin(S2, 0, 0, 0)
 		fg := p.TextMuted
 		if l.Hovered() {
 			fg = p.Text

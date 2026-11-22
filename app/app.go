@@ -79,13 +79,13 @@ type App struct {
 	noPreview        map[string]bool          // messages whose preview the user dismissed
 	msgSheet         kit.SheetState          // phones: a message's menu (actions.go)
 	msgRoom, msgID   string
-	pinAt            map[string]string // per room, the pinned message the bar shows (newest when unset)
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)
 	jumpSince        time.Time         // when that jump was asked for (it pages history in until found)
 	jumpAt           time.Time         // the target's time when known (zero if not)
 	jumpLooking      bool              // the jump is paging history in, looking for it
-	flash            string       // the message just jumped to, highlighted a moment
+	flash            string       // the message just jumped to, in its blink's color
+	flashOut         string       // the one whose blink is fading out
 	rs               receiptState // the open room's, taken once a frame
 	receiptsApplied  bool         // the source was told the setting (receipts.go)
 	receiptsVal      bool
@@ -184,7 +184,6 @@ func New(src model.Source, pick *picker.Controller) *App {
 		fullBusy:  map[string]bool{},
 		readMarked: map[string]string{},
 		files:      map[string][]model.File{},
-		pinAt:      map[string]string{},
 		previews:   map[string]*previewState{},
 		noPreview:  map[string]bool{},
 		gifs:       map[string]*ui.VideoPlayer{},
