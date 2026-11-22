@@ -428,6 +428,16 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					if toolButton(c, "Reply", func(fg ui.Color) { ui.Icon(c, IconReply).Size(16, 16).TextColor(fg) }).Clicked() {
 						a.Reply = true
 					}
+					// Your own words: Edit beside Reply; with Shift held, Delete too.
+					if !m.Menu.Off && m.Menu.Mine {
+						if m.Menu.HasText && toolButton(c, "Edit", func(fg ui.Color) { ui.Icon(c, IconPencil).Size(16, 16).TextColor(fg) }).Clicked() {
+							a.chose(MsgEdit)
+						}
+						if c.Modifiers()&ui.Shift != 0 &&
+							toolButton(c, "Delete", func(ui.Color) { ui.Icon(c, IconTrash).Size(16, 16).TextColor(p.Danger) }).Clicked() {
+							a.chose(MsgDelete)
+						}
+					}
 					if !m.Menu.Off {
 						more := toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) })
 						MenuButton(c, more, func(mm *ui.Menu) {
