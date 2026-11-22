@@ -78,6 +78,31 @@ func (a *App) profile(id string) *kit.ProfileSpec {
 		Recolor: true, ColorIndex: a.colorOf(p.ID)}
 }
 
+// fullTime is a moment in full, for a tooltip: "Sunday 7th October, 12:02",
+// with the year when it is not this one ("… October 2024, 12:02").
+func fullTime(t, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	day := t.Day()
+	suffix := "th"
+	if day%100 < 11 || day%100 > 13 {
+		switch day % 10 {
+		case 1:
+			suffix = "st"
+		case 2:
+			suffix = "nd"
+		case 3:
+			suffix = "rd"
+		}
+	}
+	s := t.Format("Monday ") + strconv.Itoa(day) + suffix + t.Format(" January")
+	if t.Year() != now.Year() {
+		s += t.Format(" 2006")
+	}
+	return s + t.Format(", 15:04")
+}
+
 // timeLabel is a room row's time: 14:02, Yesterday, Mon, 12 Nov.
 func timeLabel(t, now time.Time) string {
 	if t.IsZero() {

@@ -33,6 +33,7 @@ type MessageData struct {
 	SenderID  string
 	Avatar    AvatarSpec
 	Time      string // "14:02"
+	TimeFull  string // "Sunday 7th October, 12:02": the tooltip of the time
 	Body      string
 	Reply     *Quote
 	Thread    *ThreadChip // set on a thread's root: its replies, summed up
@@ -268,8 +269,11 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					}
 				}
 			} else if hov {
-				ui.Text(c, m.Time).FontSize(SizeCaption - 1).FontFeatures("tnum").TextColor(p.TextFaint).
+				ts := ui.Text(c, m.Time).FontSize(SizeCaption - 1).FontFeatures("tnum").TextColor(p.TextFaint).
 					SingleLine().MarginY(3)
+				if m.TimeFull != "" {
+					ts.Tooltip(m.TimeFull)
+				}
 			}
 		})
 		ui.Column(c).Grow(1).MinWidth(0).Gap(S05).Children(func() {
@@ -280,7 +284,10 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 						a.Profile = true
 					}
 					profilePopover(c, name, m, colors, &a)
-					ui.Text(c, m.Time).FontSize(SizeCaption).FontFeatures("tnum").TextColor(p.TextMuted).SingleLine()
+					ts := ui.Text(c, m.Time).FontSize(SizeCaption).FontFeatures("tnum").TextColor(p.TextMuted).SingleLine()
+					if m.TimeFull != "" {
+						ts.Tooltip(m.TimeFull) // the whole date, on hover
+					}
 					if m.Unverified {
 						ui.Icon(c, IconShieldX).Size(12, 12).TextColor(p.Warning).Tooltip("Sent from an unverified device")
 					}

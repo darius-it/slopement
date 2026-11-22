@@ -234,7 +234,8 @@ func (a *App) pinCard(c *ui.Context, r model.Room, ev model.Event, acts model.Ac
 		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Height(24).Children(func() {
 			kit.Avatar(c, a.avatar(sender, 20))
 			ui.Text(c, sender.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).TextColor(a.colors.Color(p, ev.Sender)).SingleLine().Shrink(1)
-			ui.Text(c, timeLabel(ev.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine().Grow(1)
+			ui.Text(c, timeLabel(ev.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine().Grow(1).
+				Tooltip(fullTime(ev.Time, a.now))
 			// A place kept for it, so the card does not move as it shows: a
 			// small struck-through pin, level with the name.
 			ui.Box(c).Size(24, 24).Shrink(0).Children(func() {

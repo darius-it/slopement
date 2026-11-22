@@ -295,7 +295,7 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	}
 	sender, _ := a.src.Person(ev.Sender)
 	me := ev.Sender == a.src.Me().ID
-	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), First: tr.first,
+	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), TimeFull: fullTime(ev.Time, a.now), First: tr.first,
 		Highlight: ev.Mentions, Flash: ev.ID == a.flash, FlashOut: ev.ID == a.flashOut, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
 		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals,
 		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),

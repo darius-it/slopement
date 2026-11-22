@@ -295,7 +295,8 @@ func (a *App) hitRow(c *ui.Context, h model.SearchHit, words []string) {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, sender.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightSemibold).TextColor(a.colors.Color(p, h.Sender)).SingleLine()
-				ui.Text(c, timeLabel(h.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine()
+				ui.Text(c, timeLabel(h.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine().
+					Tooltip(fullTime(h.Time, a.now))
 			})
 			spans := []ui.Span{}
 			for _, part := range highlightParts(snippet(h.Body, words, 220), words) {
