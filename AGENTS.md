@@ -130,7 +130,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   address/link, invite, directory, invitations — kept out of the room handlers
   by `takeInvites`), `Notifier` (`notify.go`), `Searcher` (`search.go`: the held
   timelines, which keeps encrypted rooms searchable without a plaintext index,
-  plus the server's `/search` for unencrypted ones; the matching rules are
+  plus the server's `/search` for unencrypted ones; `PageBack` pages older
+  history in so old encrypted messages become searchable — ⌘F's find bar
+  (`app/find.go`, one room) and the all-chats search's "Search further back"
+  both use it; the matching rules are
   `model.SearchQuery.Match`), `Threads` (`SendInThread`; `Event.ThreadRoot`,
   `Thread` summary built in `room.timeline`). Voice-message *recording* is not
   built: mygo's `audio` package only plays (no capture), and has no Opus/AAC

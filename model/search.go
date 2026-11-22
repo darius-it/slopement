@@ -18,6 +18,9 @@ type SearchQuery struct {
 	Before   time.Time // sent before the start of this day
 	After    time.Time // sent on or after the start of this day
 	Mentions bool      // mentions the user
+	// Room, when set, limits the search to that one room (by ID): the
+	// in-chat find. It is not one of the typed tokens.
+	Room string
 }
 
 // Empty says there is nothing to search for.
@@ -216,6 +219,15 @@ type SearchHit struct {
 	Sender      string // the MXID
 	Time        time.Time
 	Body        string // what it says, as plain text
+}
+
+// DeepSearch is what a Source may offer to search further back than it
+// holds: PageBack pages a room's older messages in (decrypting them: it is how
+// an encrypted room's old messages become searchable at all) up to a number
+// of pages, calling progress on the UI thread after each (done false) and once
+// at the end (done true); more says the room has older messages still.
+type DeepSearch interface {
+	PageBack(room string, pages int, progress func(done, more bool))
 }
 
 // Searcher is what a Source may offer: searching messages. done is called on

@@ -24,6 +24,10 @@ import (
 // The index is the timelines themselves: the cache keeps them sealed on
 // disk, which a searchable copy of the plain text would undo.
 
+// searchPage is how many events a page of history asks for when searching
+// back: bigger than scrolling's, since a search wants many.
+const searchPage = 100
+
 // searchLimit is how many hits a search gives.
 const searchLimit = 200
 
@@ -66,7 +70,7 @@ func (s *Source) matches(q model.SearchQuery, roomName, alias string, e model.Ev
 func (s *Source) localHits(q model.SearchQuery) []model.SearchHit {
 	var out []model.SearchHit
 	for rid, r := range s.rooms {
-		if r.space {
+		if r.space || (q.Room != "" && rid != q.Room) {
 			continue
 		}
 		for _, e := range r.events {
@@ -102,7 +106,7 @@ func (s *Source) Search(q model.SearchQuery, done func(hits []model.SearchHit, f
 	words := strings.TrimSpace(q.Words)
 	var rooms []id.RoomID
 	for rid, r := range s.rooms {
-		if r.space || r.encrypted {
+		if r.space || r.encrypted || (q.Room != "" && rid != q.Room) {
 			continue
 		}
 		if q.In != "" {
@@ -165,3 +169,76 @@ func (s *Source) Search(q model.SearchQuery, done func(hits []model.SearchHit, f
 }
 
 var _ model.Searcher = (*Source)(nil)
+
+// PageBack pages a room's older history in, a page at a time, up to pages
+// pages: each is fetched, decrypted with the keys there are (or looked for in
+// the backup, as any waiting message is) and placed in the timeline, where a
+// search then finds it. It stops at the room's start, and when another page
+// of the room is already on its way it waits for that one.
+func (s *Source) PageBack(room string, pages int, progress func(done, more bool)) {
+	if progress == nil {
+		progress = func(bool, bool) {}
+	}
+	if s.cli == nil {
+		progress(true, false)
+		return
+	}
+	go func() {
+		more := true
+		for i := 0; i < pages && more; i++ {
+			type start struct {
+				oldest, token string
+				stop, busy    bool
+			}
+			var st start
+			for try := 0; try < 25; try++ { // a page already on its way: wait for it
+				ch := make(chan start, 1)
+				s.post(func() {
+					r, ok := s.rooms[room]
+					switch {
+					case !ok || r.backDone:
+						ch <- start{stop: true}
+						return
+					case r.backBusy:
+						ch <- start{busy: true}
+						return
+					}
+					oldest := ""
+					for _, e := range r.events {
+						if !strings.HasPrefix(e.ID, localPrefix) {
+							oldest = e.ID
+							break
+						}
+					}
+					if oldest == "" && r.back == "" {
+						ch <- start{stop: true}
+						return
+					}
+					r.backBusy = true
+					ch <- start{oldest: oldest, token: r.back}
+				})
+				st = <-ch
+				if !st.busy {
+					break
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+			if st.stop || st.busy {
+				more = !st.stop
+				break
+			}
+			s.pageBack(room, st.oldest, st.token, min(searchPage, seekPage)) // returns when the page is in
+			res := make(chan bool, 1)
+			s.post(func() {
+				r, ok := s.rooms[room]
+				m := ok && !r.backDone
+				res <- m
+				progress(false, m)
+			})
+			more = <-res
+		}
+		s.post(func() { progress(true, more) })
+	}()
+}
+
+var _ model.DeepSearch = (*Source)(nil)

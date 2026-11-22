@@ -107,6 +107,14 @@ func Kbd(c *ui.Context, keys string) ui.Element {
 	return pillText(c, keys, 20, SizeCaption, WeightMedium, p.TextMuted, p.Bg).PaddingX(5).Radius(5).Border(1, p.Border)
 }
 
+// CmdF is the label of find-in-chat's shortcut on this platform.
+func CmdF() string {
+	if ui.Cmd == ui.Super {
+		return "⌘F"
+	}
+	return "Ctrl F"
+}
+
 // CmdK is the label of the quick switcher's shortcut on this platform.
 func CmdK() string {
 	if ui.Cmd == ui.Super {

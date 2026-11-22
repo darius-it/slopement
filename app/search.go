@@ -32,6 +32,95 @@ type searchState struct {
 	gen     int       // the search the answer must be for
 	waiting string    // the text a search is waiting to run for
 	dueAt   time.Time // when it runs
+
+	// Looking further back: the encrypted rooms whose history is paged in a
+	// room at a time (each a few pages), and where it is.
+	Crawling  bool
+	CrawlAt   int
+	CrawlN    int
+	CrawlRoom string
+	crawled   bool // it has run: "Search further back" says "again"
+}
+
+// crawlPages is how many pages of history each room gets when looking
+// further back (100 messages a page).
+const crawlPages = 10
+
+// crawlRooms are the rooms worth paging for a search: the encrypted ones
+// (the server can search the others), the most recent first, those the
+// in: filter keeps, a dozen at most.
+func (a *App) crawlRooms(q model.SearchQuery) []model.Room {
+	var out []model.Room
+	for _, r := range a.src.Rooms() {
+		if !r.Encrypted || (q.Room != "" && r.ID != q.Room) {
+			continue
+		}
+		if q.In != "" && !strings.Contains(strings.ToLower(r.Name), strings.ToLower(q.In)) &&
+			!strings.Contains(strings.ToLower(r.Alias), strings.ToLower(q.In)) {
+			continue
+		}
+		out = append(out, r)
+		if len(out) == 12 {
+			break
+		}
+	}
+	return out
+}
+
+// searchFurther pages older history in for the encrypted rooms, one after
+// another, and searches again as each page arrives: how what was said in an
+// encrypted chat long ago is found at all.
+func (a *App) searchFurther(q model.SearchQuery) {
+	deep, ok := a.src.(model.DeepSearch)
+	st := &a.srch
+	rooms := a.crawlRooms(q)
+	if !ok || st.Crawling || len(rooms) == 0 {
+		return
+	}
+	st.Crawling, st.crawled, st.CrawlAt, st.CrawlN = true, true, 0, len(rooms)
+	var next func()
+	next = func() {
+		if st.CrawlAt >= len(rooms) {
+			st.Crawling, st.CrawlRoom = false, ""
+			return
+		}
+		r := rooms[st.CrawlAt]
+		st.CrawlAt++
+		st.CrawlRoom = r.Name
+		deep.PageBack(r.ID, crawlPages, func(done, more bool) {
+			st.Asked = noSearch // search again over what arrived
+			if done {
+				next()
+			}
+		})
+	}
+	next()
+}
+
+// searchDeeper is the line (and button) under the results for looking
+// further back in encrypted rooms.
+func (a *App) searchDeeper(c *ui.Context, q model.SearchQuery) {
+	if _, ok := a.src.(model.DeepSearch); !ok || len(a.crawlRooms(q)) == 0 {
+		return
+	}
+	p := kit.Of(c)
+	st := &a.srch
+	ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Padding(kit.S2).Children(func() {
+		switch {
+		case st.Crawling:
+			ui.Text(c, "Looking further back in "+st.CrawlRoom+" ("+strconv.Itoa(st.CrawlAt)+" of "+strconv.Itoa(st.CrawlN)+")…").
+				FontSize(kit.SizeSmall).TextColor(p.TextMuted)
+		default:
+			label := "Search further back"
+			if st.crawled {
+				label = "Search even further back"
+			}
+			ui.Text(c, "Encrypted chats are searched in the messages loaded here.").FontSize(kit.SizeSmall).TextColor(p.TextFaint).Grow(1)
+			if kit.Button(c, kit.Secondary, label, nil).Height(28).Clicked() {
+				a.searchFurther(q)
+			}
+		}
+	})
 }
 
 // openSearch shows the search screen, with a query typed in already.
@@ -139,7 +228,7 @@ func (a *App) searchHelp(c *ui.Context) {
 				ui.Text(c, row[1]).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
 			})
 		}
-		ui.Text(c, "Encrypted rooms are searched on this device, in the messages it has loaded; other rooms are searched on your homeserver too.").
+		ui.Text(c, "Encrypted chats are searched on this device, in the messages loaded here: \"Search further back\" loads older ones. Other rooms are searched on your homeserver too. ⌘F finds within the open chat.").
 			FontSize(kit.SizeSmall).TextColor(p.TextFaint)
 	})
 }
@@ -159,6 +248,7 @@ func (a *App) searchResults(c *ui.Context, q model.SearchQuery) {
 		if st.Err != "" {
 			ui.Text(c, st.Err).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
 		}
+		a.searchDeeper(c, q)
 		return
 	}
 	var order []string
@@ -186,6 +276,7 @@ func (a *App) searchResults(c *ui.Context, q model.SearchQuery) {
 	case st.Err != "":
 		ui.Text(c, st.Err).FontSize(kit.SizeSmall).TextColor(p.TextMuted).Padding(kit.S2)
 	}
+	a.searchDeeper(c, q)
 }
 
 // hitRow is one message found: who, when, and what it says with the words

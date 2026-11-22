@@ -137,6 +137,7 @@ type App struct {
 	nameLoaded    bool
 	focused bool // the window is in front (notifications stay quiet for the room in view)
 	srch    searchState
+	find    findState // ⌘F: find in this chat (find.go)
 	// narrow: the window is phone-sized this frame (no side panels);
 	// thread is the open thread, inThread says one is being drawn.
 	narrow   bool
@@ -306,8 +307,10 @@ func (a *App) View(c *ui.Context) {
 		kit.Apply(c)
 	}
 	kit.SwitcherShortcut(c, &a.switcher)
-	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyF) { // ⌘⇧F: search messages
+	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyF) { // ⌘⇧F: search every chat
 		a.openSearch("")
+	} else if c.Shortcut(ui.Cmd, ui.KeyF) { // ⌘F: find in this chat
+		a.openFind()
 	}
 	if a.glass(c) {
 		kit.WindowChrome(c) // the bar and sidebars show the window's material

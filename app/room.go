@@ -88,6 +88,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 	col := ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0)
 	col.Children(func() {
 		a.roomHeader(c, r, back)
+		a.findBar(c) // ⌘F, under the header
 		if r.Call {
 			if kit.CallBanner(c, 3, a.inCall == r.ID) {
 				a.joinCall(r)
@@ -244,8 +245,12 @@ func (a *App) roomHeader(c *ui.Context, r model.Room, back bool) {
 			a.joinCall(r)
 		}
 		if !back {
-			if kit.IconButton(c, kit.Ghost, kit.IconSearch, "Search ("+kit.CmdK()+")").Clicked() {
-				a.switcher.Toggle()
+			if kit.IconButton(c, kit.Ghost, kit.IconSearch, "Find in this chat ("+kit.CmdF()+")").Clicked() {
+				if a.find.Open {
+					a.closeFind()
+				} else {
+					a.openFind()
+				}
 			}
 			// Pinned messages, with how many there are in the label.
 			pinLabel := "Pinned messages"

@@ -16,6 +16,9 @@ func (s *Source) Search(q model.SearchQuery, done func(hits []model.SearchHit, f
 	}
 	var out []model.SearchHit
 	for id, r := range s.rooms {
+		if q.Room != "" && id != q.Room {
+			continue
+		}
 		for _, e := range s.timeline[id] {
 			if e.Kind == model.EventSystem || e.Kind == model.EventUndecryptable || e.Pending {
 				continue
