@@ -87,6 +87,8 @@ type PickerState struct {
 	hover  string // the emoji under the pointer, for the footer
 	// hoverName is the shortcode of the pack image under the pointer.
 	hoverName string
+	// importHelp is the "where do I get this file" popover being open.
+	importHelp bool
 }
 
 // PickerResult is what the user did in the picker.
@@ -264,6 +266,22 @@ func EmojiPopover(c *ui.Context, anchor ui.Element, st *EmojiPickerState, recent
 	return chosen
 }
 
+// discordExporterURL is the userscript that exports Discord's favorite GIFs.
+const discordExporterURL = "https://github.com/darius-it/discord-gif-exporter"
+
+// importHelpPopover explains where the file to import comes from.
+func importHelpPopover(c *ui.Context, anchor ui.Element, st *PickerState) {
+	p := Of(c)
+	ui.PopoverBase(c, anchor, &st.importHelp, func(panel ui.Element) {
+		panel.Margin(6, 0, 0, 0).Width(300).Padding(S3).Gap(S2).Radius(RadiusMd).Background(p.Raised).Border(1, p.Border).
+			Shadow(0, 12, 32, -6, p.Shadow).Transition(PopIn())
+		ui.Text(c, "Bring your Discord favorites").FontSize(SizeBody).FontWeight(WeightSemibold)
+		ui.Text(c, "In your browser, my Tampermonkey userscript exports them to a file: install it, open Discord, open its GIF picker and press “Export GIFs”. Then choose that file here.").
+			FontSize(SizeSmall).TextColor(p.TextMuted)
+		ui.Link(c, "github.com/darius-it/discord-gif-exporter", discordExporterURL).FontSize(SizeSmall).TextColor(p.AccentStrong)
+	})
+}
+
 func emptyNote(c *ui.Context, text string) {
 	p := Of(c)
 	ui.Column(c).Padding(S8, S4).AlignItems(ui.Center).Children(func() {
@@ -298,8 +316,10 @@ func gifTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 	}
 	if st.Browse == "favorites" && st.Query == "" {
 		// The favorites, and bringing them over from Discord.
-		ui.Row(c).Gap(S2).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Grow(1).Children(func() { sectionLabel(c, "Favorites") })
+		ui.Row(c).Gap(S05).AlignItems(ui.Center).Children(func() {
+			// The label without sectionLabel's top padding, which would sit
+			// it below the buttons' middle.
+			ui.Text(c, "Favorites").FontSize(SizeCaption).FontWeight(WeightSemibold).TextColor(Of(c).TextMuted).Padding(0, S05).Grow(1)
 			imp := ui.ButtonBase(c.Key("import")).Height(26).PaddingX(S2).Gap(S1).Radius(RadiusSm).AlignItems(ui.Center).
 				Label("Import favorites from Discord").Tooltip("A JSON file from discord-gif-exporter")
 			p := Of(c)
@@ -308,9 +328,22 @@ func gifTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 			}
 			imp.Children(func() {
 				ui.Icon(c, IconDownload).Size(14, 14).TextColor(p.AccentStrong)
-				ui.Text(c, "Import from Discord").FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.AccentStrong)
+				ui.Text(c, "Import from Discord").FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.AccentStrong)
 			})
 			r.ImportDiscord = imp.Clicked()
+			// As small as the import button beside it (26 tall), so the row
+			// keeps its height.
+			help := ui.ButtonBase(c.Key("import-help")).Size(26, 26).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).
+				Label("How to export your Discord favorites").Tooltip("Where to get this file")
+			if help.Hovered() {
+				help.Background(p.Hover)
+			}
+			help.Children(func() { ui.Icon(c, IconHelp).Size(14, 14).TextColor(p.TextMuted) })
+			Pressable(help)
+			if help.Clicked() {
+				st.importHelp = !st.importHelp
+			}
+			importHelpPopover(c, help, st)
 		})
 	} else if m.Title != "" && st.Query == "" {
 		sectionLabel(c, m.Title)

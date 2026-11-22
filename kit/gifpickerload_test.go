@@ -37,6 +37,31 @@ func TestPickerTilesLoadOnlyInView(t *testing.T) {
 	}
 }
 
+// The favorites page has a question mark next to the Discord import; it opens
+// a note on where the file comes from.
+func TestImportHelp(t *testing.T) {
+	m := &PickerModel{}
+	st := &PickerState{Tab: TabGIFs, Browse: "favorites"}
+	st.Open = true
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		Picker(c, ui.Button(c.Key("anchor"), "GIF"), st, m)
+	}, 900, 700)
+	for i := 0; i < 3; i++ {
+		tt.Frame()
+	}
+	if tt.HasText("Tampermonkey") {
+		t.Fatal("the note shows before it is asked for")
+	}
+	tt.Click("How to export your Discord favorites")
+	for i := 0; i < 3; i++ {
+		tt.Frame()
+	}
+	if !tt.HasText("Bring your Discord favorites") || !tt.HasText("github.com/darius-it/discord-gif-exporter") {
+		t.Fatal("the note does not open")
+	}
+}
+
 // A tile still loading shows the skeleton; the wave is a drawn frame only
 // while it loads, so a loaded tile costs nothing.
 func TestPickerSkeletonOnlyWhileLoading(t *testing.T) {
