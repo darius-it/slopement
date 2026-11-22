@@ -205,6 +205,7 @@ func (s *Source) Start(ctx context.Context) {
 	}
 	s.started = true
 	go s.fetchMe(ctx)
+	go s.fetchAccountData(ctx)
 	go func() {
 		// The sync's first answer brings the DMs; their presence and
 		// status are then asked for (a resumed sync would never say).
