@@ -60,7 +60,8 @@ func (a *App) enter(room string, space bool) {
 }
 
 // pendingStep opens the room asked for as soon as it exists; gives up after
-// a while.
+// a while. The community being browsed stays when the room is one of its
+// own — a sub-space's too.
 func (a *App) pendingStep() {
 	if a.pendingOpen == "" {
 		return
@@ -68,11 +69,24 @@ func (a *App) pendingStep() {
 	if _, ok := a.src.Room(a.pendingOpen); ok {
 		id := a.pendingOpen
 		a.pendingOpen = ""
-		a.community = ""
+		if cm, ok := a.communityOf(a.community); !ok || !a.roomOfCommunity(cm, id) {
+			a.community = ""
+		}
 		a.open(id)
 	} else if time.Now().After(a.pendingOpenBy) {
 		a.pendingOpen = ""
 	}
+}
+
+// roomOfCommunity says the room is one of the community's own, or one of
+// its sub-spaces'.
+func (a *App) roomOfCommunity(cm model.Community, room string) bool {
+	for _, id := range a.communityRoomIDs(cm, 0) {
+		if id == room {
+			return true
+		}
+	}
+	return false
 }
 
 // roomsOverlays draws the dialogs (call it with the other overlays).

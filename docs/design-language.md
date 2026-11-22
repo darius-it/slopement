@@ -201,6 +201,13 @@ menus clashed with the look; `kit.NativeMenus` stays false):
   first two rooms and "See all N rooms".
 - One inbox: filter chips on top; a community is a row with a chevron that
   unfolds its rooms, indented to the text column (collapse transition).
+- A community's **More to join** mirrors its space tree in the space's
+  curated order (each child's `order` field, then when it was listed, then
+  ID — MSC1772, the rule the joined tree follows): channels as rows with a
+  Join, and each sub-space a quiet caption title over its own offers. The
+  titles are only labels — a sub-space is joined from elsewhere (the join
+  dialog), never from a button on its label. Element's "Rooms & spaces"
+  explorer is the behaviour reference.
 - The Settings picker: a card per layout with a box diagram of it; the
   platform's default carries a "Default" pill; the chosen card is ringed in
   the accent.
@@ -261,6 +268,7 @@ menus clashed with the look; `kit.NativeMenus` stays false):
 - Phone chat: [Signal](https://mobbin.com/screens/a3af7969-157a-41b7-a553-bca6e767c9b0), [Signal with a wallpaper](https://mobbin.com/screens/0ad7f30d-b41f-4e34-a4a7-e07438fdbe98), [LINE](https://mobbin.com/screens/10c94da2-93ad-4923-96b0-5d49c247a257), [KakaoTalk](https://mobbin.com/screens/4bc5eabf-0b02-44fc-8617-4cb1200b9070), [KakaoTalk sticker sheet](https://mobbin.com/screens/727b1ebe-5a41-4fe1-bda8-6eacbdcb45df)
 
 - Desktop 3-pane + rail: [Discord](https://mobbin.com/screens/b7b4fcc2-1a55-436e-911b-232f0df05df3), [Slack](https://mobbin.com/screens/de9d3a84-c9d5-41ff-88a2-9e78c96d0969), [hilos](https://mobbin.com/screens/29033e86-48e7-4549-bd13-72819aba1675), [Threads DMs](https://mobbin.com/screens/6344257e-afc6-4bc3-868e-4b78592d25b8)
+- Space tree / More to join (category titles over joinable channels; Element's Rooms & spaces explorer is the behaviour reference): [Discord](https://mobbin.com/screens/4fbd8bed-a678-441b-ae61-1d8f2b58eaf4), [Slack](https://mobbin.com/screens/3b9ee7a8-2187-4c9b-9462-d414c3fb00fb)
 - Phone chat list: [WhatsApp](https://mobbin.com/screens/14fcc4ed-fecf-4f61-b99a-2b2b76b7332b), [Behance](https://mobbin.com/screens/e293f8e5-cc43-4616-8574-37b65251f8f6)
 - Mute durations: [Discord](https://mobbin.com/screens/4461d5d6-e667-4d90-bbad-b00315386583), [WhatsApp](https://mobbin.com/screens/e05de48f-29dc-429f-8cf6-7765c375717d), [OpenPhone](https://mobbin.com/screens/1d7fc0d7-feeb-4043-b8e4-723343942c06)
 - Room context menu: [Slack](https://mobbin.com/screens/3f11b305-42f6-4e72-beaa-38be7b86fcc3), [Slite](https://mobbin.com/screens/ee47887f-d41a-4c57-8c9e-9b22d532a000), [Dropbox Dash](https://mobbin.com/screens/ee4a3806-4b05-469c-aab1-6555cfab2347)

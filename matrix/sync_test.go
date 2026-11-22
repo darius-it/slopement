@@ -135,6 +135,36 @@ func TestOnMemberStateVsTimeline(t *testing.T) {
 	if len(tl) != 1 || tl[0].Kind != model.EventSystem || tl[0].Body != "ada joined" {
 		t.Fatalf("timeline = %+v", tl)
 	}
+
+	// The user's own join, live from the timeline: it says so too — with
+	// a profile change (a join over a join) saying nothing.
+	mine := &event.Event{
+		ID: "$j3", RoomID: id.RoomID("!a"), Sender: id.UserID(s.me.ID),
+		StateKey: ptr(s.me.ID), Timestamp: 3, Type: event.StateMember,
+		Mautrix: event.MautrixInfo{EventSource: event.SourceJoin | event.SourceTimeline},
+		Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin}},
+	}
+	s.onMember(nil, mine)
+	tl = s.Timeline("!a")
+	if len(tl) != 2 || tl[1].Body != "You joined" || tl[1].Sender != s.me.ID {
+		t.Fatalf("own join: timeline = %+v", tl)
+	}
+	rename := &event.Event{
+		ID: "$j4", RoomID: id.RoomID("!a"), Sender: id.UserID(s.me.ID),
+		StateKey: ptr(s.me.ID), Timestamp: 4, Type: event.StateMember,
+		Mautrix: event.MautrixInfo{EventSource: event.SourceJoin | event.SourceTimeline},
+		Content: event.Content{Parsed: &event.MemberEventContent{
+			Membership: event.MembershipJoin, Displayname: "A new name"}},
+		Unsigned: event.Unsigned{PrevContent: &event.Content{Parsed: &event.MemberEventContent{
+			Membership: event.MembershipJoin}}},
+	}
+	s.onMember(nil, rename)
+	if tl = s.Timeline("!a"); len(tl) != 2 {
+		t.Fatalf("a profile change wrote a line: %+v", tl)
+	}
+	if s.Me().Name != "A new name" {
+		t.Fatalf("the profile change did not take: %+v", s.Me())
+	}
 }
 
 func TestOnReceiptMine(t *testing.T) {

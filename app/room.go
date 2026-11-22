@@ -26,10 +26,29 @@ func (a *App) rows(room string) []trow {
 	out := make([]trow, 0, len(evs)+2)
 	var prev *model.Event
 	threads := a.threadsOn()
+	// Messages from before the user joined were never encrypted to this
+	// device: they are no key's to wait for. They show as one quiet line.
+	var joined time.Time
+	me := a.src.Me().ID
+	for i := range evs {
+		if e := &evs[i]; e.Kind == model.EventSystem && e.Membership == "join" && e.Sender == me && e.Time.After(joined) {
+			joined = e.Time
+		}
+	}
+	saidBefore := false
 	for i := range evs {
 		ev := &evs[i]
 		if threads && ev.ThreadRoot != "" {
 			continue // a reply in a thread shows in its thread's panel
+		}
+		if ev.Kind == model.EventUndecryptable && ev.Time.Before(joined) {
+			if saidBefore {
+				continue
+			}
+			saidBefore = true
+			line := model.Event{ID: "before-join:" + room, Room: room, Time: ev.Time, Kind: model.EventSystem,
+				Body: "Messages from before you joined can't be read here"}
+			ev = &line
 		}
 		if a.prefs.hideJoins && ev.Kind == model.EventSystem && (ev.Membership == "join" || ev.Membership == "leave") {
 			continue // "Hide joins and leaves"

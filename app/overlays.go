@@ -56,10 +56,7 @@ func (a *App) overlays(c *ui.Context) {
 			Confirm: "Leave", Danger: true,
 		}); done {
 			if yes {
-				a.src.Leave(r.ID)
-				if a.room == r.ID {
-					a.room, a.panel = "", panelNone
-				}
+				a.leaveRoom(r)
 			}
 			a.leaving = ""
 		}
@@ -71,6 +68,16 @@ func (a *App) overlays(c *ui.Context) {
 	a.verifyDialog(c)
 	a.keysDialogView(c)
 	a.phoneSheets(c)
+}
+
+// leaveRoom leaves a room: it goes from the lists at once, and a community
+// that offers it under "More to join" offers it again.
+func (a *App) leaveRoom(r model.Room) {
+	delete(a.justJoined, r.ID)
+	a.src.Leave(r.ID)
+	if a.room == r.ID {
+		a.room, a.panel = "", panelNone
+	}
 }
 
 // switcherOverlay is the ⌘K switcher over rooms, people and communities.

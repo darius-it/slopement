@@ -102,8 +102,8 @@ var _ model.CacheResetter = (*Source)(nil)
 
 // SpaceRooms lists the rooms a community offers from its hierarchy, with the
 // ones the user is in marked: what there is to join from the community's home.
-// A sub-space is listed as a community, not a room, and the space itself is
-// left out.
+// A sub-space comes marked Space, and the space itself is left out. The
+// rooms come in the space's own order, as everywhere else.
 func (s *Source) SpaceRooms(space string, done func([]model.PublicRoom, string)) {
 	if s.cli == nil {
 		done(nil, "Not signed in.")
@@ -116,6 +116,25 @@ func (s *Source) SpaceRooms(space string, done func([]model.PublicRoom, string))
 		if err != nil {
 			s.post(func() { done(nil, "Could not load the community's rooms: "+plain(err)) })
 			return
+		}
+		// The space's own entry says where each child belongs: the order
+		// field of its m.space.child, and when it was listed.
+		order, listed := map[string]string{}, map[string]int64{}
+		for _, info := range resp.Rooms {
+			if info.RoomID.String() != space {
+				continue
+			}
+			for _, ev := range info.ChildrenState {
+				if ev == nil || ev.StateKey == nil {
+					continue
+				}
+				_ = ev.Content.ParseRaw(ev.Type)
+				if c := ev.Content.AsSpaceChild(); c != nil {
+					order[*ev.StateKey] = c.Order
+				}
+				listed[*ev.StateKey] = ev.Timestamp
+			}
+			break
 		}
 		var out []model.PublicRoom
 		for _, info := range resp.Rooms {
@@ -134,6 +153,25 @@ func (s *Source) SpaceRooms(space string, done func([]model.PublicRoom, string))
 			}
 			out = append(out, pr)
 		}
+		// By the order field, then when the room was listed, then by ID —
+		// the same rule the room list follows (MSC1772).
+		sort.SliceStable(out, func(i, j int) bool {
+			oi, oj := order[out[i].ID], order[out[j].ID]
+			if oi != oj {
+				if oi == "" {
+					return false
+				}
+				if oj == "" {
+					return true
+				}
+				return oi < oj
+			}
+			ti, tj := listed[out[i].ID], listed[out[j].ID]
+			if ti != tj {
+				return ti < tj
+			}
+			return out[i].ID < out[j].ID
+		})
 		s.post(func() {
 			for i := range out {
 				_, out[i].Joined = s.rooms[out[i].ID]

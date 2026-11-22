@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -49,16 +50,25 @@ func TestCommunityOrder(t *testing.T) {
 }
 
 // A community's hierarchy lists the rooms it offers, those the user is not in
-// among them, sub-spaces marked and the space itself left out.
+// among them, sub-spaces marked and the space itself left out — in the
+// space's own order: the order field of each child, then when it was
+// listed, then by ID.
 func TestSpaceRooms(t *testing.T) {
 	var query string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"rooms":[` +
-			`{"room_id":"!space:x","name":"The space","room_type":"m.space","num_joined_members":50,"children_state":[]},` +
+			`{"room_id":"!space:x","name":"The space","room_type":"m.space","num_joined_members":50,"children_state":[` +
+			`{"type":"m.space.child","state_key":"!sub:x","sender":"@a:x","content":{"via":["x"]},"origin_server_ts":9},` +
+			`{"type":"m.space.child","state_key":"!in:x","sender":"@a:x","content":{"via":["x"],"order":"1"},"origin_server_ts":7},` +
+			`{"type":"m.space.child","state_key":"!zz:x","sender":"@a:x","content":{"via":["x"],"order":"2"},"origin_server_ts":1},` +
+			`{"type":"m.space.child","state_key":"!aa:x","sender":"@a:x","content":{"via":["x"],"order":"2"},"origin_server_ts":2},` +
+			`{"type":"m.space.child","state_key":"!out:x","sender":"@a:x","content":{"via":["x"]},"origin_server_ts":3}]},` +
 			`{"room_id":"!in:x","name":"Already in","num_joined_members":10,"children_state":[]},` +
 			`{"room_id":"!out:x","name":"To join","canonical_alias":"#join:x","topic":"come in","num_joined_members":7,"children_state":[]},` +
+			`{"room_id":"!aa:x","name":"Second of two","num_joined_members":1,"children_state":[]},` +
+			`{"room_id":"!zz:x","name":"First of two","num_joined_members":1,"children_state":[]},` +
 			`{"room_id":"!sub:x","name":"Sub","room_type":"m.space","num_joined_members":3,"children_state":[]}]}`))
 	}))
 	defer srv.Close()
@@ -75,8 +85,15 @@ func TestSpaceRooms(t *testing.T) {
 		got <- r
 	})
 	rooms := <-got
-	if len(rooms) != 3 {
+	if len(rooms) != 5 {
 		t.Fatalf("rooms = %+v (the space itself is left out)", rooms)
+	}
+	var ids []string
+	for _, r := range rooms {
+		ids = append(ids, r.ID)
+	}
+	if want := []string{"!in:x", "!zz:x", "!aa:x", "!out:x", "!sub:x"}; !reflect.DeepEqual(ids, want) {
+		t.Fatalf("order %v, want %v (order field, then listed, then ID)", ids, want)
 	}
 	by := map[string]model.PublicRoom{}
 	for _, r := range rooms {

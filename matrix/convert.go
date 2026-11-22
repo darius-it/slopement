@@ -110,15 +110,30 @@ func mediaOf(c *event.MessageEventContent) (model.Media, bool) {
 }
 
 // memberLine is a membership change as the model's quiet system line:
-// "Mira joined", "Alex left". Pure, for the tests.
-func memberLine(evt *event.Event) (model.Event, bool) {
+// "Mira joined", "You left". A join over a join is only a profile change:
+// not a line. Pure, for the tests; me is the user's own MXID.
+func memberLine(evt *event.Event, me string) (model.Event, bool) {
 	c := evt.Content.AsMember()
 	if c == nil || evt.StateKey == nil {
 		return model.Event{}, false
 	}
+	var prev event.Membership
+	if pc := evt.Unsigned.PrevContent; pc != nil {
+		_ = pc.ParseRaw(event.StateMember)
+		if parsed := pc.AsMember(); parsed != nil {
+			prev = parsed.Membership
+		}
+	}
+	if c.Membership == event.MembershipJoin && prev == event.MembershipJoin {
+		return model.Event{}, false // only a profile change: nothing to say
+	}
+	you := *evt.StateKey == me
 	who := c.Displayname
-	if who == "" && evt.StateKey != nil {
+	if who == "" {
 		who = mxidName(*evt.StateKey)
+	}
+	if you {
+		who = "You"
 	}
 	var what string
 	switch c.Membership {
@@ -128,8 +143,14 @@ func memberLine(evt *event.Event) (model.Event, bool) {
 		what = "left"
 	case event.MembershipBan:
 		what = "was banned"
+		if you {
+			what = "were banned"
+		}
 	case event.MembershipInvite:
 		what = "was invited"
+		if you {
+			what = "were invited"
+		}
 	case event.MembershipKnock:
 		what = "knocked"
 	default:

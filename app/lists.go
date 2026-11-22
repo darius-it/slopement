@@ -412,6 +412,9 @@ func (a *App) inboxList(c *ui.Context) {
 	if a.filter != 1 {
 		comms := a.src.Communities()
 		for i := range comms {
+			if comms[i].Parent != "" {
+				continue // a sub-space is listed inside its parent
+			}
 			if comms[i].Favourite {
 				continue // already in Favourites above
 			}

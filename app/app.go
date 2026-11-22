@@ -164,6 +164,7 @@ type App struct {
 	// soon as the sync has it.
 	re            roomEdit              // editing a room or community (roomedit.go)
 	hier          map[string]*hierState // what each community's hierarchy offers (spaces.go)
+	justJoined    map[string]bool       // joined from a hierarchy list before the sync lands
 	rd            roomsDialog
 	inv           inviteDialog
 	pendingOpen   string

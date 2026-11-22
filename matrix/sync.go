@@ -442,8 +442,9 @@ func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 }
 
 // onMember is a membership change: who is in the room, who they are, and
-// a quiet system line — from the timeline, never from the initial sync's
-// state dump, which would flood every room with its whole history.
+// a quiet system line — the user's own joins and leaves say so too — from
+// the timeline, never from the initial sync's state dump, which would flood
+// every room with its whole history.
 func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 	c := evt.Content.AsMember()
 	if c == nil || evt.StateKey == nil {
@@ -451,7 +452,7 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 	}
 	who := *evt.StateKey
 	name := nameFor(c.Displayname, who)
-	line, isLine := memberLine(evt)
+	line, isLine := memberLine(evt, s.me.ID)
 	fromTimeline := evt.Mautrix.EventSource&event.SourceTimeline != 0
 	s.post(func() {
 		if who == s.me.ID {
@@ -471,7 +472,7 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 				r.members--
 			}
 		}
-		if isLine && fromTimeline && who != s.me.ID {
+		if isLine && fromTimeline {
 			r.appendEvent(line, name, false)
 		}
 	})

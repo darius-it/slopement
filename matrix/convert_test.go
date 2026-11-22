@@ -60,7 +60,7 @@ func TestMemberLine(t *testing.T) {
 			Membership: event.MembershipJoin, Displayname: "Ada",
 		}},
 	}
-	e, ok := memberLine(join)
+	e, ok := memberLine(join, "@me:example.org")
 	if !ok || e.Kind != model.EventSystem || e.Body != "Ada joined" || e.Membership != "join" {
 		t.Fatalf("line = %+v, %v", e, ok)
 	}
@@ -70,9 +70,39 @@ func TestMemberLine(t *testing.T) {
 		StateKey: ptr("@sam:example.org"), Timestamp: 6, Type: event.StateMember,
 		Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipLeave}},
 	}
-	e, ok = memberLine(leave)
+	e, ok = memberLine(leave, "@me:example.org")
 	if !ok || e.Body != "sam left" || e.Membership != "leave" { // no displayname: the MXID's local part
 		t.Fatalf("line = %+v, %v", e, ok)
+	}
+
+	// The user's own join and leave say "You".
+	mine := &event.Event{
+		ID: "$m", RoomID: id.RoomID("!r"), Sender: id.UserID("@me:example.org"),
+		StateKey: ptr("@me:example.org"), Timestamp: 7, Type: event.StateMember,
+		Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin}},
+	}
+	if e, ok = memberLine(mine, "@me:example.org"); !ok || e.Body != "You joined" {
+		t.Fatalf("own join = %+v, %v", e, ok)
+	}
+	mine.Content.Parsed = &event.MemberEventContent{Membership: event.MembershipInvite}
+	if e, ok = memberLine(mine, "@me:example.org"); !ok || e.Body != "You were invited" {
+		t.Fatalf("own invite = %+v, %v", e, ok)
+	}
+
+	// A join over a join is only a profile change: not a line, for the
+	// user or anyone else.
+	rename := &event.Event{
+		ID: "$p", RoomID: id.RoomID("!r"), Sender: id.UserID("@ada:example.org"),
+		StateKey: ptr("@ada:example.org"), Timestamp: 8, Type: event.StateMember,
+		Content: event.Content{Parsed: &event.MemberEventContent{
+			Membership: event.MembershipJoin, Displayname: "Ada Lovelace",
+		}},
+		Unsigned: event.Unsigned{PrevContent: &event.Content{Parsed: &event.MemberEventContent{
+			Membership: event.MembershipJoin,
+		}}},
+	}
+	if _, ok = memberLine(rename, "@me:example.org"); ok {
+		t.Fatal("a profile change said something")
 	}
 }
 
