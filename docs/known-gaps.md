@@ -57,6 +57,9 @@ and whether it was drawn on the GPU or the CPU.
 ## Builds
 - **Not signed or notarized.** macOS, Windows and Linux builds make your
   system warn you once (see the release notes for how to open them).
+- Arch Linux: each release has a `PKGBUILD` (x86-64) and `PKGBUILD-aarch64` that
+  fetch that release's files: `curl -LO <release>/PKGBUILD && makepkg -si`. It
+  installs the unsigned alpha build, not from the AUR.
 - No automatic updates yet: install each new version over the last.
 - GIF and sticker search needs **your own KLIPY API key** (Settings → GIFs);
   builds ship without one, so search and trending stay empty until you add it

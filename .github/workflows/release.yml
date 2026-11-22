@@ -39,6 +39,8 @@ jobs:
             - **Windows:** SmartScreen says "Windows protected your PC": More info, then Run anyway.
             - **Linux:** install the `.deb` or `.rpm`, unpack the `.tar.gz` and run `install.sh`,
               or use the `.AppImage` (x86-64): `chmod +x slopement-x86_64.AppImage`, then run it. It needs GTK 3.
+            - **Arch Linux:** `curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag || github.ref_name }}/PKGBUILD && makepkg -si`
+              (`PKGBUILD-aarch64` for ARM: `makepkg -si -p PKGBUILD-aarch64`).
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
@@ -98,13 +100,35 @@ jobs:
           # Runners have no FUSE: run the tool extracted.
           ARCH=x86_64 ./appimagetool.AppImage --appimage-extract-and-run AppDir \
             "$out/slopement-x86_64.AppImage"
+      # Arch Linux: mygo writes a PKGBUILD next to each Linux archive, with the
+      # archive and the icons as local files. Here its sources point at this
+      # release's files (the checksums stay right: they are the same files), so
+      # one download builds and installs it:
+      #   curl -LO <release>/PKGBUILD && makepkg -si
+      - name: Make the Arch Linux PKGBUILDs
+        if: matrix.name == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          mkdir -p build/arch
+          for pair in amd64:PKGBUILD arm64:PKGBUILD-aarch64; do
+            arch="${pair%%:*}"; name="${pair##*:}"
+            src="build/linux-${arch}/PKGBUILD"
+            test -f "$src" || { echo "no PKGBUILD for linux/${arch}"; exit 1; }
+            # Only the source=(...) line: every quoted file in it becomes a URL.
+            sed -E "/^source=/ s#'([^']+)'#'${base}/\1'#g" "$src" > "build/arch/${name}"
+            grep -q "^source=.*${base}" "build/arch/${name}"
+          done
+          # The icons the PKGBUILDs install (the same files for both).
+          cp build/linux-amd64/slopement-256x256.png build/linux-amd64/slopement-512x512.png build/arch/
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           shopt -s nullglob
-          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz build/*/*.AppImage)
+          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz build/*/*.AppImage build/arch/*)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
           gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
