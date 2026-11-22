@@ -154,6 +154,49 @@ func (a *App) localStill(m model.Media) ui.ImageSource {
 	return nil
 }
 
+const (
+	fullMax  = 4    // full-resolution pictures kept
+	fullSide = 4096 // the longest side, in pixels: sharp when zoomed on a large display
+)
+
+// fullPic is an attachment's picture for the viewer at full resolution, nil
+// until it has been fetched (the preview's still shows meanwhile). It is
+// asked only while the viewer shows it, once per picture.
+func (a *App) fullPic(m model.Media) ui.ImageSource {
+	key := m.URL
+	if len(m.Local) > 0 || !strings.HasPrefix(key, "mxc://") {
+		return nil
+	}
+	if b, ok := a.fulls[key]; ok {
+		return b
+	}
+	loader, ok := a.src.(model.MediaLoader)
+	if !ok || a.runUI == nil || a.fullBusy[key] {
+		return nil
+	}
+	a.fullBusy[key] = true
+	runUI := a.runUI
+	loader.LoadMedia(m, func(data []byte, err error) {
+		var bmp *ui.Bitmap
+		if err == nil {
+			bmp, err = ui.DecodeBitmapScaled(data, fullSide)
+		}
+		runUI(func() {
+			if err != nil || bmp == nil {
+				return
+			}
+			a.fulls[key] = bmp
+			a.fullOrder = append(a.fullOrder, key)
+			if len(a.fullOrder) > fullMax {
+				delete(a.fulls, a.fullOrder[0])
+				delete(a.fullBusy, a.fullOrder[0])
+				a.fullOrder = a.fullOrder[1:]
+			}
+		})
+	})
+	return nil
+}
+
 // still is an attachment's picture: the decoded one when it has arrived,
 // otherwise nil (the placeholder) while it is fetched, off the UI thread,
 // from the source. Pictures are kept by URL, the oldest dropped first.

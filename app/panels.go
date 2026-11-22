@@ -20,8 +20,11 @@ func (a *App) sidePanel(c *ui.Context) {
 		ui.Row(c).Height(52).PaddingStart(kit.S4).PaddingEnd(kit.S2).AlignItems(ui.Center).Shrink(0).
 			BorderWidth(0, 0, 1, 0).BorderColor(p.Border).DragWindow().Children(func() {
 			title := "Room info"
-			if a.panel == panelMembers {
+			switch a.panel {
+			case panelMembers:
 				title = "Members"
+			case panelPins:
+				title = "Pinned messages"
 			}
 			ui.Text(c, title).FontSize(kit.SizeLabel).FontWeight(kit.WeightSemibold).Grow(1)
 			if kit.IconButton(c, kit.Ghost, kit.IconX, "Close the panel").Clicked() {
@@ -29,9 +32,12 @@ func (a *App) sidePanel(c *ui.Context) {
 			}
 		})
 		ui.Scroll(c.Key("panel:" + r.ID)).Grow(1).Padding(kit.S3).Gap(kit.S3).Children(func() {
-			if a.panel == panelMembers {
+			switch a.panel {
+			case panelMembers:
 				a.members(c, r)
-			} else {
+			case panelPins:
+				a.pinsPanel(c, r)
+			default:
 				a.roomInfoBody(c, r)
 			}
 		})

@@ -84,6 +84,13 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   browser flow or a password form), handing the session to `main.go`,
   which then swaps the window to the app on the account. Reached with
   `SLOPEMENT_LOGIN=1 go run .`.
+- Accounts: `main.go` owns the one account on screen (`live`), the last used
+  is remembered (`matrix.SetLastUsed`, file `last-account`) and opened on its
+  own (`login.Resume`); the app's account menu (`app/accounts.go`, on the
+  avatar) switches, adds (`login.BeginAdd`) and removes. `SLOPEMENT_DEV_SECRETS=1`
+  (set by `npm run dev`) keeps secrets in `dev-secrets.json` instead of the
+  keychain, so ad-hoc dev builds don't re-prompt. Tests that sign in must use
+  `matrix.Isolate` (see `login/main_test.go`).
 - `matrix/`: the Matrix layer (mautrix-go, `-tags goolm`): one `Account`
   per login — its directory (`<config>/slopement/accounts/<sha256(user)>/`)
   holds `state.db`, `crypto.db` and `cache.db` (the room cache: rooms,

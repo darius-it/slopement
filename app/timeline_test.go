@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"slopement/kit"
 	"slopement/model"
 )
 
@@ -262,5 +263,120 @@ func TestJumpToLatest(t *testing.T) {
 	}
 	if tt.HasText("Jump to latest") {
 		t.Fatal("the button stayed at the end")
+	}
+}
+
+// pagedSource holds the newest `held` of a timeline and pages older ones
+// in only when told a page landed: as the Matrix layer does, LoadOlder is
+// a no-op while a page is on its way.
+type pagedSource struct {
+	model.Source
+	all        []model.Event
+	held, asks int
+	busy       bool
+}
+
+func (s *pagedSource) Timeline(string) []model.Event { return s.all[len(s.all)-s.held:] }
+func (s *pagedSource) HasOlder(string) bool          { return s.held < len(s.all) }
+func (s *pagedSource) LoadOlder(string) {
+	if !s.busy {
+		s.busy = true
+		s.asks++
+	}
+}
+func (s *pagedSource) land() { s.held, s.busy = min(s.held+40, len(s.all)), false }
+
+// seekSource is pagedSource with big pages for seeks (HistorySeek), as the
+// Matrix layer pages a jump to an old pin.
+type seekSource struct{ *pagedSource }
+
+func (s seekSource) LoadOlderBy(room string, n int) { s.LoadOlder(room) }
+func (s seekSource) landBy(n int) {
+	s.held, s.busy = min(s.held+n, len(s.all)), false
+}
+
+// At the size of a real room's months of history (thousands of rows, the
+// target near the top of them), the jump shows the message.
+func TestJumpFarBackShowsMessage(t *testing.T) {
+	a := testApp()
+	room, tl := longTimeline(a, 15000)
+	src := seekSource{&pagedSource{Source: a.src, all: tl, held: 300}}
+	a.src = src
+	a.open(room.ID)
+	tt := ui.NewTester(a.View, 1200, 800)
+	settle(tt)
+
+	a.jumpToEvent(room.ID, tl[84])
+	tt.Frame()
+	if !tt.HasText("Finding message") {
+		t.Fatal("no sign that the jump is looking for the message")
+	}
+	for page := 0; page < 40 && a.jumpID != ""; page++ {
+		tt.Frame()
+		src.landBy(500)
+		tt.Frame()
+		if page == 12 {
+			tt.Advance(500 * time.Millisecond) // mid-sweep
+			tt.Frame()
+			snap(t, "jump-seeking", tt)
+			// Near the sweep's end the segment runs off the pill's right
+			// edge: nothing of it shows past the pill.
+			r, ok := tt.Find("Finding message")
+			if !ok {
+				t.Fatal("no seeking pill")
+			}
+			tt.Advance(600 * time.Millisecond)
+			tt.Frame()
+			snap(t, "jump-seeking-edge", tt)
+			accent := kit.Light.Accent
+			img := tt.Image()
+			for x := int(r.X + r.W + 24); x < int(r.X+r.W+120); x++ {
+				for y := int(r.Y); y < int(r.Y+r.H+16); y++ {
+					px := img.RGBAAt(x, y)
+					if px.R == accent.R && px.G == accent.G && px.B == accent.B {
+						t.Fatalf("the sweep drew past the pill at %d,%d", x, y)
+					}
+				}
+			}
+		}
+	}
+	settle(tt)
+	settle(tt)
+	snap(t, "jump-far-back", tt)
+	if !tt.HasText("message number 84") {
+		t.Fatal("the timeline did not show the old message")
+	}
+	if tt.HasText("Finding message") {
+		t.Fatal("the seeking pill stayed after the message was found")
+	}
+}
+
+// A jump to a message many pages back (an old pin) keeps paging until it
+// is there, however many frames go by while each page loads — the pointer
+// moving makes frames, and they used to use the seek up before the first
+// page came.
+func TestJumpPagesBackUntilFound(t *testing.T) {
+	a := testApp()
+	room, tl := longTimeline(a, 400)
+	src := &pagedSource{Source: a.src, all: tl, held: 30}
+	a.src = src
+	a.open(room.ID)
+	tt := ui.NewTester(a.View, 1200, 800)
+	settle(tt)
+
+	a.jumpToEvent(room.ID, tl[5]) // 12 pages back
+	for page := 0; page < 20 && a.jumpID != ""; page++ {
+		for range 30 { // frames while the page is on its way
+			tt.Frame()
+		}
+		src.land()
+		settle(tt)
+	}
+	settle(tt)
+	if a.jumpID != "" || src.asks < 10 {
+		t.Fatalf("the seek did not finish: pending %q after %d pages", a.jumpID, src.asks)
+	}
+	if !tt.HasText("message number 5") {
+		t.Fatal("the timeline did not scroll to the old message")
 	}
 }

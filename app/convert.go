@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"slopement/embeds"
 	"slopement/format"
 	"slopement/kit"
@@ -72,7 +74,7 @@ func (a *App) contacts() []kit.Person {
 func (a *App) profile(id string) *kit.ProfileSpec {
 	p, _ := a.src.Person(id)
 	return &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
-		Trust: trust(p.Trust), Pronouns: p.Pronouns}
+		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID}
 }
 
 // timeLabel is a room row's time: 14:02, Yesterday, Mon, 12 Nov.
@@ -227,6 +229,10 @@ func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, 
 			}
 		}
 		spec.Still = a.still(m)
+		if m.Kind == model.MediaImage && !isGIFFile(m) {
+			mm := m
+			spec.Full = func() ui.ImageSource { return a.fullPic(mm) }
+		}
 		media = append(media, spec)
 	}
 	if doc == nil {

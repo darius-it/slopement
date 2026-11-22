@@ -407,7 +407,11 @@ func (s *Source) onEncrypted(ctx context.Context, evt *event.Event) {
 		if _, dup := r.raw[e.ID]; !dup {
 			s.encrypted++
 		}
-		r.raw[e.ID] = &rawEvent{evt: evt, tile: e}
+		raw := &rawEvent{evt: evt, tile: e}
+		if evt.Mautrix.EventSource&sourceHistory != 0 {
+			raw.since = time.Now() // paged in just now: give the key backup a look first
+		}
+		r.raw[e.ID] = raw
 		select {
 		case s.keyKick <- struct{}{}:
 		default:

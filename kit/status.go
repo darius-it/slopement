@@ -179,6 +179,10 @@ func StatusLine(c *ui.Context, s Status, now time.Time, full bool) ui.Element {
 	if full && !s.Until.IsZero() {
 		text += " · until " + untilText(s.Until, now)
 	}
+	// No emoji, no leading gap: the words start where the line does.
+	if s.Emoji == "" {
+		return ui.RichText(c, ui.Span{Text: text, Color: p.TextMuted}).FontSize(SizeSmall).SingleLine()
+	}
 	return ui.RichText(c,
 		ui.Span{Text: s.Emoji + " "},
 		ui.Span{Text: text, Color: p.TextMuted},
@@ -214,11 +218,12 @@ type ProfileSpec struct {
 	Status     Status
 	Trust      Trust
 	Pronouns   string
+	Self       bool // the user's own card: edit the status, no Message or Call
 }
 
 // ProfileAction is what the card asked for.
 type ProfileAction struct {
-	Message, Call, Verify bool
+	Message, Call, Verify, EditStatus bool
 }
 
 // ProfileCard is the card a user's avatar or name opens: their picture,
@@ -253,6 +258,10 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 			})
 		}
 		ui.Row(c).Gap(S2).Children(func() {
+			if s.Self {
+				a.EditStatus = Button(c, Primary, "Edit status", IconSmile).Grow(1).Clicked()
+				return
+			}
 			a.Message = Button(c, Primary, "Message", IconMessage).Grow(1).Clicked()
 			a.Call = IconButton(c, Secondary, IconPhone, "Call").Clicked()
 		})

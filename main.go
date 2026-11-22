@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -27,6 +28,15 @@ import (
 	"slopement/picker"
 	"slopement/platform"
 )
+
+// live is the account on screen: its source (the sync), its stores, and the
+// cancel that ends the sync.
+type live struct {
+	src    *matrix.Source
+	acc    *matrix.Account
+	cancel context.CancelFunc
+	user   string
+}
 
 func main() {
 	// KLIPY_API_KEY and other local secrets, from .env (gitignored).
@@ -91,10 +101,86 @@ func main() {
 
 		if lg != nil {
 			lg.SetUpdate(win.Update)
-			lg.OnSignedIn = func(s *matrix.Session) {
-				// The account's stores, the client and the sync loop are
-				// opened off the UI thread; the window then swaps to the
-				// app on the account, with the loop running.
+
+			// The account on screen, if any: what is stopped to switch.
+			var cur *live
+			var entries []app.AccountEntry // the menu's list, kept so it is not read from disk per frame
+			refresh := func() {
+				entries = entries[:0]
+				sessions, _ := matrix.Sessions()
+				for _, s := range sessions {
+					entries = append(entries, app.AccountEntry{
+						User: string(s.UserID), Server: s.ServerName,
+						Current: cur != nil && cur.user == string(s.UserID),
+					})
+				}
+				sort.Slice(entries, func(i, j int) bool { return entries[i].User < entries[j].User })
+			}
+			// stop puts the account on screen away: its sync ends, what it
+			// learned is on disk, its stores and lock are released.
+			stop := func() {
+				if cur == nil {
+					return
+				}
+				cur.cancel()
+				cur.src.Flush()
+				a.SaveState()
+				a.Detach()
+				cur.acc.Close()
+				cur = nil
+			}
+			var openAccount func(s *matrix.Session)
+			find := func(user string) *matrix.Session {
+				sessions, _ := matrix.Sessions()
+				for _, s := range sessions {
+					if string(s.UserID) == user {
+						return s
+					}
+				}
+				return nil
+			}
+			accounts := &app.Accounts{
+				List: func() []app.AccountEntry { return entries },
+				Switch: func(user string) {
+					if s := find(user); s != nil {
+						openAccount(s)
+					}
+				},
+				Add: func() {
+					// The sign-in over the running app, with a way back.
+					lg.BeginAdd(func() { signed = cur != nil })
+					signed = false
+				},
+				Remove: func(user string) {
+					s := find(user)
+					if s == nil {
+						return
+					}
+					wasCurrent := cur != nil && cur.user == user
+					if wasCurrent {
+						stop()
+					}
+					if err := s.Delete(); err != nil {
+						log.Printf("removing %s: %v", user, err)
+					}
+					refresh()
+					if wasCurrent {
+						// On to another account if there is one, else the sign-in.
+						lg.EndAdd()
+						signed = false
+						lg.Reload()
+						lg.Resume()
+					}
+				},
+			}
+
+			// openAccount shows an account: the stores, the client and the
+			// sync loop are opened off the UI thread, then the window swaps
+			// to the app on the account, with the loop running.
+			openAccount = func(s *matrix.Session) {
+				lg.EndAdd()
+				stop()
+				signed = false
 				go func() {
 					ctx := context.Background()
 					acc, err := matrix.Open(ctx, s.UserID, s.DeviceID)
@@ -108,11 +194,13 @@ func main() {
 					}
 					cli, err := matrix.Dial(ctx, s)
 					if err != nil {
+						acc.Close()
 						lg.Fail("Reaching the server failed: " + err.Error())
 						return
 					}
 					src, err := matrix.NewSynced(ctx, acc, cli)
 					if err != nil {
+						acc.Close()
 						lg.Fail("Preparing the sync failed: " + err.Error())
 						return
 					}
@@ -126,19 +214,32 @@ func main() {
 						a.OpenGallery = openGallery
 						a.Attach(win)
 						a.MenuChanged = setMenu
+						// The next launch opens this account on its own.
+						_ = matrix.SetLastUsed(string(s.UserID))
+						syncCtx, cancel := context.WithCancel(context.Background())
+						cur = &live{src: src, acc: acc, cancel: cancel, user: string(s.UserID)}
+						refresh()
+						a.SetAccounts(accounts)
+						lg.Reload()
 						signed = true
 						setMenu()
-						// What the sync learned is on disk before the window
-						// goes (the cache also writes a second after every
-						// change, so a crash loses at most that).
-						win.OnClose(func(*mygo.CloseEvent) {
-							src.Flush()
-							a.SaveState()
-						})
-						src.Start(context.Background())
+						src.Start(syncCtx)
 					})
 				}()
 			}
+			lg.OnSignedIn = openAccount
+			// What the sync learned is on disk before the window goes (the
+			// cache also writes a second after every change, so a crash
+			// loses at most that).
+			win.OnClose(func(*mygo.CloseEvent) {
+				if cur != nil {
+					cur.src.Flush()
+					a.SaveState()
+				}
+			})
+			// The account used last opens on its own: the sign-in shows only
+			// when there is none, or it cannot be opened.
+			lg.Resume()
 		} else {
 			a.OpenGallery = openGallery
 			a.Attach(win)

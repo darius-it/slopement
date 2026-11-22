@@ -23,8 +23,12 @@ func historyServer(t *testing.T, pages *int) *httptest.Server {
 			_, _ = w.Write([]byte(`{"start":"t1","end":"t2","events_before":[],"events_after":[],"state":[]}`))
 		case strings.HasSuffix(r.URL.Path, "/messages"):
 			*pages++
-			if r.URL.Query().Get("from") == "t0" {
-				_, _ = w.Write([]byte(`{"start":"t0","chunk":[]}`)) // nothing further back
+			switch r.URL.Query().Get("from") {
+			case "t0": // empty, but with a token: what it covered was filtered out
+				_, _ = w.Write([]byte(`{"start":"t0","end":"t-1","chunk":[]}`))
+				return
+			case "t-1":
+				_, _ = w.Write([]byte(`{"start":"t-1","chunk":[]}`)) // nothing further back
 				return
 			}
 			_, _ = w.Write([]byte(`{"start":"t1","end":"t0","chunk":[
@@ -103,7 +107,15 @@ func TestLoadOlder(t *testing.T) {
 		t.Fatalf("pages fetched = %d, want 1 (the second call must not ask again)", pages)
 	}
 
-	// The next page is empty: nothing further back.
+	// The next page is empty but goes on: not the end (this used to stop
+	// the room's paging for good, and old pins could not be reached).
+	s.LoadOlder("!a")
+	waitFor(t, "the empty page", func() bool { return pages == 2 && !r.backBusy })
+	if r.backDone || !s.HasOlder("!a") {
+		t.Fatal("an empty page with a token to go on from ended the history")
+	}
+
+	// The one after has no token: nothing further back.
 	s.LoadOlder("!a")
 	waitFor(t, "the end of history", func() bool { return r.backDone })
 	if s.HasOlder("!a") {

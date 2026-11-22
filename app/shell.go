@@ -217,23 +217,27 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 // sits on its corner.
 func (a *App) meButton(c *ui.Context, size float32) {
 	me := a.src.Me()
-	tip := "Set a status"
+	tip := me.Name
 	if me.Status.Set(a.now) {
-		tip = me.Status.Emoji + " " + me.Status.Text
+		tip = me.Name + " · " + me.Status.Emoji + " " + me.Status.Text
 	}
-	b := ui.ButtonBase(c.Key("me")).Radius(kit.RadiusFull).Label("Set a status")
-	kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
-	b.Children(func() {
-		kit.Avatar(c, a.avatar(me, size))
-		if me.Status.Set(a.now) {
-			ui.Box(c).Attach(ui.AnchorTopRight, ui.AnchorCenter).Top(4).Left(-4).PassThrough().Children(func() {
-				ui.Text(c, me.Status.Emoji).FontSize(12)
-			})
-		}
+	// Built in the quiet menu theme: the menu it opens highlights its rows
+	// in the hover gray, not the accent fill, which drowned the account
+	// rows' pictures and Log out buttons.
+	ui.Themed(c, kit.QuietMenuTheme(c)).Background(ui.Transparent).Shrink(0).Children(func() {
+		b := ui.ButtonBase(c.Key("me")).Radius(kit.RadiusFull).Label("Account menu")
+		kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
+		b.Children(func() {
+			kit.Avatar(c, a.avatar(me, size))
+			if me.Status.Set(a.now) {
+				ui.Box(c).Attach(ui.AnchorTopRight, ui.AnchorCenter).Top(4).Left(-4).PassThrough().Children(func() {
+					ui.Text(c, me.Status.Emoji).FontSize(12)
+				})
+			}
+		})
+		// A press opens the account menu: status, profile, switching accounts.
+		kit.MenuButton(c, b, a.meMenu)
 	})
-	if b.Clicked() {
-		a.statusDraft.Edit(status(me.Status))
-	}
 }
 
 // communityCounts sums a community's rooms.

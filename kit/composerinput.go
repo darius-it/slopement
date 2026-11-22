@@ -77,6 +77,10 @@ func (st *ComposerState) Complete(startRune int, it SuggestItem) {
 	st.wantFocus = true
 }
 
+// Focus gives the field the keyboard focus on the next frame: after Reply
+// or Edit the user types at once.
+func (st *ComposerState) Focus() { st.wantFocus = true }
+
 // insertPlain puts plain text at the caret (over the selection).
 func (st *ComposerState) insertPlain(s string) {
 	st.ensureDoc()

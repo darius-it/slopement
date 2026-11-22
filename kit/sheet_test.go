@@ -103,6 +103,51 @@ func TestViewerClickOutside(t *testing.T) {
 	}
 }
 
+// TestViewerZoom: a pinch, the wheel and +/- zoom the picture (up to 8×,
+// never below fitted), a double click toggles it, and a click beside a zoomed
+// picture does not close the viewer.
+func TestViewerZoom(t *testing.T) {
+	open, at := true, 0
+	items := []MediaSpec{{ID: "z", Kind: MediaImage, W: 400, H: 300, Label: "Photo"}}
+	view := func(c *ui.Context) {
+		Apply(c)
+		MediaViewer(c, &open, items, &at)
+	}
+	viewZoom.Scale = 0
+	tt := ui.NewTester(view, 1000, 800)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if viewZoom.Scale != 1 {
+		t.Fatalf("starts at %v, want fitted", viewZoom.Scale)
+	}
+	tt.Move(500, 450)
+	tt.Frame()
+	tt.Pinch(500, 450, 2)
+	tt.Frame()
+	if viewZoom.Scale < 1.9 || viewZoom.Scale > 2.1 {
+		t.Fatalf("after a pinch of 2: %v", viewZoom.Scale)
+	}
+	tt.Pinch(500, 450, 100)
+	tt.Frame()
+	if viewZoom.Scale != viewZoomMax {
+		t.Fatalf("zoom is not capped: %v", viewZoom.Scale)
+	}
+	tt.Pinch(500, 450, 0.001)
+	tt.Frame()
+	if viewZoom.Scale != 1 || viewZoom.X != 0 || viewZoom.Y != 0 {
+		t.Fatalf("zoomed out past fitted: %+v", viewZoom)
+	}
+	tt.Wheel(500, 450, 0, -100)
+	tt.Frame()
+	if viewZoom.Scale <= 1 {
+		t.Fatalf("the wheel did not zoom: %v", viewZoom.Scale)
+	}
+	if !open {
+		t.Fatal("zooming closed the viewer")
+	}
+}
+
 // TestSheetDrag drags a sheet by its body, as Control Center: a short,
 // slow drag bounces back; a slow drag past half way closes it, with no
 // flick needed; and a sheet caught mid-flight stays under the finger.

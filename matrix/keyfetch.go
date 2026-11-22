@@ -23,11 +23,18 @@ func (s *Source) keyWatch(ctx context.Context) {
 		return
 	}
 	asked := map[string]bool{} // sessions already requested from devices
+	// When each session was last looked for in the backup: a session is
+	// asked for once a pass, not once per message (a page of old history
+	// holds hundreds of messages of a few sessions), and one an old
+	// message waits on, again only after a minute — its key will not
+	// show up in the backup any second now, as a new message's may.
+	looked := map[id.SessionID]time.Time{}
 	var (
 		version id.KeyBackupVersion
 		key     *backup.MegolmBackupKey
 	)
 	debug := os.Getenv("SLOPEMENT_DEBUG") != ""
+	logged := map[string]bool{} // locked events already logged
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	for {
@@ -56,6 +63,7 @@ func (s *Source) keyWatch(ctx context.Context) {
 				version = info.Version
 			}
 		}
+		pass := time.Now()
 		for _, snap := range snaps {
 			for evtID, raw := range snap.raw {
 				_, err := s.helper.Decrypt(ctx, raw.evt)
@@ -63,15 +71,23 @@ func (s *Source) keyWatch(ctx context.Context) {
 					s.redecryptOne(ctx, snap, evtID, raw)
 					continue
 				}
-				if debug {
+				if debug && !logged[evtID] { // once each, not every pass
+					logged[evtID] = true
 					fmt.Fprintf(os.Stderr, "slopement: %s in %s still locked: %v\n", evtID, snap.id, err)
 				}
 				enc := raw.evt.Content.AsEncrypted()
 				if enc == nil {
 					continue
 				}
-				if key != nil && version != "" {
-					s.importSession(ctx, version, key, raw.evt.RoomID, enc.SessionID)
+				wait := time.Duration(0) // a new message: every pass
+				if time.Since(time.UnixMilli(raw.evt.Timestamp)) > 2*time.Minute {
+					wait = time.Minute
+				}
+				if last, ok := looked[enc.SessionID]; key != nil && version != "" && (!ok || last.Equal(pass) || pass.Sub(last) >= wait) {
+					if !last.Equal(pass) {
+						looked[enc.SessionID] = pass
+						s.importSession(ctx, version, key, raw.evt.RoomID, enc.SessionID)
+					}
 					if _, err := s.helper.Decrypt(ctx, raw.evt); err == nil {
 						s.redecryptOne(ctx, snap, evtID, raw)
 						continue

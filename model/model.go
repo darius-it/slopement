@@ -172,6 +172,15 @@ type Actions interface {
 	Pinned(room string) []string
 }
 
+// Pins is what a Source may offer beyond Actions: the pinned messages
+// themselves, including those older than what is held, which RefreshPins
+// asks the server for (once per room per run).
+type Pins interface {
+	RefreshPins(room string)
+	// PinnedEvents are the room's pinned messages, in the order pinned.
+	PinnedEvents(room string) []Event
+}
+
 // File is something the user sends: its name, its media type ("" to
 // detect it) and its bytes.
 type File struct {
@@ -194,6 +203,13 @@ type Uploader interface {
 type History interface {
 	HasOlder(room string) bool
 	LoadOlder(room string)
+}
+
+// HistorySeek is what a History may offer for a jump far back (an old
+// pin): LoadOlder with a page of n events, so that months of history come
+// in a few requests rather than hundreds.
+type HistorySeek interface {
+	LoadOlderBy(room string, n int)
 }
 
 // ReceiptPrivacy is what a Source may offer: whether the read receipts

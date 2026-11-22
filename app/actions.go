@@ -42,6 +42,7 @@ func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 			st.Editing, st.Text = ev.ID, ev.Body
 			st.Reply = nil
 			delete(a.replyTo, room)
+			st.Focus()
 		}
 	case kit.MsgPin:
 		if canAct {
@@ -148,43 +149,111 @@ func (a *App) messageSheet(c *ui.Context) {
 	})
 }
 
-// pinBar is the line under a room's header when messages are pinned in it:
-// the one shown, among those the app holds, and a press that goes to it and
-// on to the next.
-func (a *App) pinBar(c *ui.Context, room string) {
+// pinnedEvents are a room's pinned messages, in the order pinned: all of
+// them where the source can fetch the ones it does not hold, else those it
+// holds.
+func (a *App) pinnedEvents(room string) []model.Event {
+	if p, ok := a.src.(model.Pins); ok {
+		return p.PinnedEvents(room)
+	}
 	acts, ok := a.src.(model.Actions)
 	if !ok {
-		return
-	}
-	pinned := acts.Pinned(room)
-	if len(pinned) == 0 {
-		return
+		return nil
 	}
 	held := map[string]model.Event{}
 	for _, e := range a.src.Timeline(room) {
 		held[e.ID] = e
 	}
-	var shown []model.Event
-	for _, id := range pinned {
+	var out []model.Event
+	for _, id := range acts.Pinned(room) {
 		if e, ok := held[id]; ok {
-			shown = append(shown, e)
+			out = append(out, e)
 		}
 	}
-	if len(shown) == 0 {
-		return // pinned, but older than what is loaded
+	return out
+}
+
+// pinText is a pinned message in one line: its words, "Attachment" for a
+// file or picture, and for one whose key has not come yet a quiet note (the
+// app keeps looking for it; it is not a call to verify).
+func pinText(ev model.Event) string {
+	if ev.Kind == model.EventUndecryptable {
+		return "Encrypted message, loading…"
 	}
-	at := a.pinAt[room]
-	if at >= len(shown) {
-		at = 0
+	if text := strings.Join(strings.Fields(ev.Body), " "); text != "" {
+		return text
 	}
-	ev := shown[at]
+	return "Attachment"
+}
+
+// pinsPanel is the side panel of pinned messages: each with who and what,
+// a press that goes to it, and a way to unpin.
+func (a *App) pinsPanel(c *ui.Context, r model.Room) {
+	p := kit.Of(c)
+	pins := a.pinnedEvents(r.ID)
+	if len(pins) == 0 {
+		ui.Column(c).Padding(kit.S6, kit.S3).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, kit.IconPin).Size(24, 24).TextColor(p.TextFaint)
+			ui.Text(c, "Nothing pinned yet").FontSize(kit.SizeBody).TextColor(p.TextMuted)
+			ui.Text(c, "Pin a message from its ⋯ menu to keep it here.").FontSize(kit.SizeSmall).TextColor(p.TextFaint).TextAlign(ui.Center)
+		})
+		return
+	}
+	acts, _ := a.src.(model.Actions)
+	for i := len(pins) - 1; i >= 0; i-- { // newest pin first
+		ev := pins[i]
+		sender, _ := a.src.Person(ev.Sender)
+		text := pinText(ev)
+		card := ui.ButtonBase(c.Key("pin:"+ev.ID)).Padding(kit.S3).Gap(kit.S1).Radius(kit.RadiusMd).Background(p.Bg).
+			Border(1, p.Border).Label("Go to pinned message from " + sender.Name)
+		if card.Hovered() {
+			card.Background(p.Hover)
+		}
+		card.Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(kit.S1).Children(func() {
+				ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+					kit.Avatar(c, a.avatar(sender, 20))
+					ui.Text(c, sender.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).TextColor(a.colors.Color(p, ev.Sender)).SingleLine().Shrink(1)
+					ui.Text(c, timeLabel(ev.Time, a.now)).FontSize(kit.SizeCaption).TextColor(p.TextFaint).SingleLine()
+				})
+				ui.Text(c, text).FontSize(kit.SizeSmall).TextColor(p.Text).MaxLines(4)
+			})
+		})
+		if card.Clicked() {
+			a.jumpToEvent(r.ID, ev)
+		}
+		if acts != nil {
+			ui.Row(c).Justify(ui.End).Children(func() {
+				if kit.Button(c, kit.Ghost, "Unpin", kit.IconPin).Height(24).Clicked() {
+					acts.Pin(r.ID, ev.ID, false)
+				}
+			})
+		}
+	}
+}
+
+// pinBar is the line under a room's header when messages are pinned in it:
+// the one shown, newest pin first, and a press that goes to it and on to
+// the next older one. The pin shown is kept by its ID, not its place: the
+// pins the server is asked for arrive one by one, and a place would point
+// at another message each time one lands.
+func (a *App) pinBar(c *ui.Context, room string) {
+	pins := a.pinnedEvents(room)
+	if len(pins) == 0 {
+		return
+	}
+	at := 0 // newest first: pins are in the order pinned
+	for i := range pins {
+		if pins[len(pins)-1-i].ID == a.pinAt[room] {
+			at = i
+			break
+		}
+	}
+	ev := pins[len(pins)-1-at]
 	sender, _ := a.src.Person(ev.Sender)
-	text := strings.Join(strings.Fields(ev.Body), " ")
-	if text == "" {
-		text = "Attachment"
-	}
-	if kit.PinBar(c, at, len(shown), sender.Name, text) {
-		a.jumpTo(room, ev.ID)
-		a.pinAt[room] = (at + 1) % len(shown)
+	text := pinText(ev)
+	if kit.PinBar(c, at, len(pins), sender.Name, text) {
+		a.jumpToEvent(room, ev)
+		a.pinAt[room] = pins[len(pins)-1-(at+1)%len(pins)].ID
 	}
 }

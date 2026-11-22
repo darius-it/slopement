@@ -70,6 +70,14 @@ func (l *Login) BeginAdd(cancel func()) {
 	l.onCancel = cancel
 }
 
+// EndAdd leaves the add-an-account mode (the account was added, or another
+// opened): no Cancel, and the recorded logins are offered again.
+func (l *Login) EndAdd() {
+	l.st.Adding = false
+	l.onCancel = nil
+	l.st.Step, l.st.Err, l.st.Busy = kit.LoginServer, "", false
+}
+
 // Reload reads the recorded logins again (after one was added or removed).
 func (l *Login) Reload() {
 	l.sessions = nil

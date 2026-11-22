@@ -65,6 +65,7 @@ func (a *App) overlays(c *ui.Context) {
 		}
 	}
 
+	a.removeAccountDialog(c)
 	kit.MediaViewer(c, &a.viewer, a.viewerItems, &a.viewerAt)
 	a.verifyDialog(c)
 	a.phoneSheets(c)

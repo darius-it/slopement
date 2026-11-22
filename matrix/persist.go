@@ -94,7 +94,10 @@ func (rec roomRecord) room() *room {
 		unread: rec.Unread, mentions: rec.Mentions,
 		favourite: rec.Favourite, lowPriority: rec.LowPriority, muted: rec.Muted,
 		last: rec.Last, preview: rec.Preview, parent: rec.Parent,
-		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, backDone: rec.BackDone, pinned: rec.Pinned,
+		// backDone is not taken back: earlier builds set it on any empty
+		// page, which cut rooms' history short for good. A room whose
+		// history is all held asks once more a run and learns it again.
+		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, pinned: rec.Pinned,
 	}
 	for _, byID := range r.reactions {
 		for _, rr := range byID {

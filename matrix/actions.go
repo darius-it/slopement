@@ -90,17 +90,40 @@ func (s *Source) Pin(room, eventID string, on bool) {
 	}
 	r.pinned = pinned
 	s.markDirty(room)
-	ids := make([]id.EventID, len(pinned))
-	for i, p := range pinned {
-		ids[i] = id.EventID(p)
-	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, err := s.cli.SendStateEvent(ctx, id.RoomID(room), event.StatePinnedEvents, "", &event.PinnedEventsEventContent{Pinned: ids})
+		// Built on what the server has now, not on what this app happens to
+		// know: a pin list this device never learned must not be replaced by
+		// a list of one.
+		current, err := s.serverPins(ctx, room)
 		if err != nil {
 			s.notice(room, "Could not change the pins: "+plain(err))
+			return
 		}
+		var next []id.EventID
+		for _, p := range current {
+			if p.String() != eventID {
+				next = append(next, p)
+			}
+		}
+		if on {
+			next = append(next, id.EventID(eventID))
+		}
+		if _, err = s.cli.SendStateEvent(ctx, id.RoomID(room), event.StatePinnedEvents, "", &event.PinnedEventsEventContent{Pinned: next}); err != nil {
+			s.notice(room, "Could not change the pins: "+plain(err))
+			return
+		}
+		list := make([]string, len(next))
+		for i, p := range next {
+			list[i] = p.String()
+		}
+		s.post(func() {
+			if r, ok := s.rooms[room]; ok {
+				r.pinned = list
+				s.markDirty(room)
+			}
+		})
 	}()
 }
 
@@ -135,7 +158,15 @@ func (s *Source) onPinned(ctx context.Context, evt *event.Event) {
 	for i, p := range c.Pinned {
 		pinned[i] = p.String()
 	}
-	s.post(func() { s.roomOf(evt.RoomID.String()).pinned = pinned })
+	room := evt.RoomID.String()
+	s.post(func() {
+		r := s.roomOf(room)
+		r.pinned = pinned
+		s.markDirty(room)
+		// A pin that is new may be a message this app does not hold.
+		r.pinsAsked = true
+		go s.fetchPins(room)
+	})
 }
 
 var _ model.Actions = (*Source)(nil)

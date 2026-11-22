@@ -132,25 +132,54 @@ func TestPinBar(t *testing.T) {
 	if !tt.HasText("Pinned 1 of 2") {
 		t.Fatal("no pin bar under the header")
 	}
-	if !tt.HasText("message number 3") {
-		t.Fatal("the bar does not show the pinned message")
+	if !tt.HasText("message number 20") {
+		t.Fatal("the bar does not show the newest pin first")
 	}
 	if err := tt.Click("Go to pinned message"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
 	settle(tt)
-	if !tt.HasText("Pinned 2 of 2") {
-		t.Fatal("the bar did not move on to the next pin")
+	if !tt.HasText("Pinned 2 of 2") || !tt.HasText("message number 3") {
+		t.Fatal("the bar did not move on to the next (older) pin")
+	}
+	// One press each: the next goes back round to the newest.
+	if err := tt.Click("Go to pinned message"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if !tt.HasText("Pinned 1 of 2") {
+		t.Fatal("the bar did not wrap round to the newest pin")
 	}
 
 	a.messageChoice(room.ID, tl[3], kit.MsgUnpin)
 	a.messageChoice(room.ID, tl[20], kit.MsgUnpin)
 	settle(tt)
-	if tt.HasText("Pinned") {
+	if tt.HasText("Go to pinned message") {
 		t.Fatal("the bar stayed with nothing pinned")
 	}
 	_ = time.Second
+}
+
+// The pins panel (the pin button beside call and search) lists what is
+// pinned, and says so when nothing is.
+func TestPinsPanel(t *testing.T) {
+	a, _, room := actApp(t)
+	tl := a.src.Timeline(room.ID)
+	tt := ui.NewTester(a.View, 1100, 700)
+	settle(tt)
+	if err := tt.Click("Pinned messages"); err != nil {
+		t.Fatalf("no pin button in the header: %v", err)
+	}
+	settle(tt)
+	if !tt.HasText("Nothing pinned yet") {
+		t.Fatal("the empty pins panel says nothing")
+	}
+	a.messageChoice(room.ID, tl[3], kit.MsgPin)
+	settle(tt)
+	if tt.HasText("Nothing pinned yet") || !tt.HasText("message number 3") {
+		t.Fatal("the pinned message is not listed")
+	}
 }
 
 // The new controls at phone width: pin bar, a waiting file and the mention

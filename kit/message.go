@@ -141,7 +141,7 @@ func profilePopover(c *ui.Context, anchor ui.Element, m MessageData, colors *Use
 			Shadow(0, 12, 32, -6, p.Shadow).Transition(PopIn())
 		a.ProfileAct = ProfileCard(c, *m.Profile, colors, time.Now())
 	})
-	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify {
+	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify || a.ProfileAct.EditStatus {
 		a.ProfileClosed = true
 	}
 }
@@ -152,6 +152,13 @@ var QuickReactions = []string{"👍", "❤️", "😂"}
 // MessageGroupGap is the room above the first message of a group.
 const MessageGroupGap = S3
 
+// toolbarPinned is the message whose hover toolbar is held open for its ⋯
+// menu (UI thread only, like the rest of the view).
+var (
+	toolbarPinned   string
+	toolbarPinnedAt time.Time // when the pointer was last on its ⋯
+)
+
 // Message is a row of the timeline: flat, not a bubble, with the avatar
 // and name on the first message of a group, the time in the gutter of
 // the others while hovered, and a toolbar of actions while hovered.
@@ -160,6 +167,17 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 	a.OpenMedia, a.Vote = -1, -1
 	row := ui.Row(c.Key(m.ID))
 	hov := row.Hovered() || row.FocusWithin()
+	// The toolbar stays while its ⋯ menu is in use: the menu lives in the
+	// toolbar's ⋯ button, and the pointer leaves the row to reach the menu,
+	// so a toolbar that left with the hover would take the menu with it.
+	// It is pinned once the pointer is on ⋯ and let go when the pointer
+	// comes back to the row elsewhere, to another row, or a choice is made.
+	if row.Hovered() && toolbarPinned != m.ID && toolbarPinned != "" {
+		toolbarPinned = ""
+	}
+	if toolbarPinned == m.ID {
+		hov = true
+	}
 	bg := ui.Transparent
 	if m.Highlight {
 		bg = p.AccentSubtle.Alpha(0.45)
@@ -320,7 +338,21 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 					}
 					if !m.Menu.Off {
 						more := toolButton(c, "More", func(fg ui.Color) { ui.Icon(c, IconMore).Size(16, 16).TextColor(fg) })
-						MenuButton(c, more, func(mm *ui.Menu) { a.chose(MessageMenu(mm, m.Menu)) })
+						MenuButton(c, more, func(mm *ui.Menu) {
+							ch := MessageMenu(mm, m.Menu)
+							if ch != MsgNone {
+								toolbarPinned = ""
+							}
+							a.chose(ch)
+						})
+						if more.Hovered() {
+							toolbarPinned, toolbarPinnedAt = m.ID, time.Now()
+						} else if row.Hovered() && toolbarPinned == m.ID && time.Since(toolbarPinnedAt) > 2*time.Second {
+							// Back on the row, well after leaving ⋯: no menu is
+							// being reached for (crossing the row to the menu
+							// takes a moment, and must not let go).
+							toolbarPinned = ""
+						}
 					}
 				})
 		}
@@ -475,6 +507,52 @@ func TypingOverlay(c *ui.Context, text string) {
 		})
 		ui.Text(c, text).FontSize(SizeCaption + 1).TextColor(p.TextMuted).SingleLine()
 	})
+}
+
+// SeekingPill floats on the bottom edge of a timeline, where Jump to
+// latest sits and in its look, while the app looks for a message far back
+// in the history (a jump to an old pin): what it is doing, and a thin
+// square line along its bottom that sweeps across, left to right, again
+// and again — always forward, as Windows' busy line does. With less motion
+// asked for, the line pulses in place instead. It takes no room; the app
+// removes it once the message is found, and the loop's frames go with it.
+func SeekingPill(c *ui.Context, text string) {
+	p := Of(c)
+	pill := ui.Row(c.Key("seeking")).Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-S1).PassThrough().
+		Height(controlHeight(c)).PaddingX(S3+S05).AlignItems(ui.Center).Radius(RadiusSm).Clip().
+		Background(p.Raised).Border(1, p.BorderStrong).Transition(PopIn()).
+		Label(text).Role(ui.RoleProgress)
+	// Fast through the middle, easing at the ends, then a short rest off
+	// the edge before the next sweep.
+	t := pill.Loop("sweep", 1400*time.Millisecond, ui.Linear)
+	still := c.Preferences().ReduceMotion
+	line := p.Accent
+	pill.Draw(func(pt *ui.Painter, r ui.Rect) {
+		// Inside the border and its rounded corners: Clip on the element
+		// clips its children, not its own drawing, so the line is clipped
+		// here, to the inner shape.
+		in := ui.Rect{X: r.X + 1, Y: r.Y + 1, W: r.W - 2, H: r.H - 2}
+		y := in.Y + in.H - 2
+		pt.Clip(in, RadiusSm-1, func() {
+			if still {
+				pt.Fill(ui.Rect{X: in.X, Y: y, W: in.W, H: 2}, line.Alpha(0.3+0.6*ui.EaseInOut(1-abs32(2*t-1))), 0)
+				return
+			}
+			w := in.W * 0.4
+			x := in.X - w + (in.W+w)*ui.EaseInOut(min(t/0.85, 1))
+			pt.Fill(ui.Rect{X: x, Y: y, W: w, H: 2}, line, 0)
+		})
+	})
+	pill.Children(func() {
+		ui.Text(c, text).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.TextMuted).SingleLine()
+	})
+}
+
+func abs32(x float32) float32 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 func pulse(t, off float32) float32 {

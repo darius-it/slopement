@@ -32,6 +32,7 @@ const (
 	panelNone panel = iota
 	panelInfo
 	panelMembers
+	panelPins
 )
 
 // App is the app's UI state. The data is the Source's.
@@ -78,9 +79,12 @@ type App struct {
 	noPreview        map[string]bool          // messages whose preview the user dismissed
 	msgSheet         kit.SheetState          // phones: a message's menu (actions.go)
 	msgRoom, msgID   string
-	pinAt            map[string]int // per room, which pinned message the bar shows
+	pinAt            map[string]string // per room, the pinned message the bar shows (newest when unset)
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)
+	jumpSince        time.Time         // when that jump was asked for (it pages history in until found)
+	jumpAt           time.Time         // the target's time when known (zero if not)
+	jumpLooking      bool              // the jump is paging history in, looking for it
 	flash            string       // the message just jumped to, highlighted a moment
 	rs               receiptState // the open room's, taken once a frame
 	receiptsApplied  bool         // the source was told the setting (receipts.go)
@@ -94,6 +98,11 @@ type App struct {
 	stills     map[string]ui.ImageSource
 	stillOrder []string
 	stillBusy  map[string]bool
+	// fulls are the viewer's pictures at full resolution (a few: each is
+	// big), fetched when one is opened.
+	fulls     map[string]*ui.Bitmap
+	fullOrder []string
+	fullBusy  map[string]bool
 	// runUI runs a function on the UI thread (the window's Update; a test
 	// runs it at once): where work done off-thread comes back.
 	runUI       func(func())
@@ -115,6 +124,12 @@ type App struct {
 	profileMsg   string // the message whose sender's card is open
 	leave        kit.SheetState
 	leaving      string
+	// The accounts of this device (nil on the mock) and the removal being
+	// confirmed.
+	accounts      *Accounts
+	detached      bool // the window moved on to another account's app
+	removing      string
+	removeAccount kit.SheetState
 	picker       kit.PickerState
 	pickerRoom   string
 	viewer       bool
@@ -165,9 +180,11 @@ func New(src model.Source, pick *picker.Controller) *App {
 		roomMenu:  map[string]bool{},
 		stills:    map[string]ui.ImageSource{},
 		stillBusy: map[string]bool{},
+		fulls:     map[string]*ui.Bitmap{},
+		fullBusy:  map[string]bool{},
 		readMarked: map[string]string{},
 		files:      map[string][]model.File{},
-		pinAt:      map[string]int{},
+		pinAt:      map[string]string{},
 		previews:   map[string]*previewState{},
 		noPreview:  map[string]bool{},
 		gifs:       map[string]*ui.VideoPlayer{},
@@ -194,6 +211,7 @@ func New(src model.Source, pick *picker.Controller) *App {
 // background work comes back through it.
 func (a *App) Attach(w *mygo.Window) {
 	a.win = w
+	a.detached = false
 	a.runUI = w.Update
 	kit.ClipboardText = mygo.Clipboard.ReadText // the composer pastes plain text itself
 	a.src.SetUpdate(w.Update)
@@ -203,7 +221,23 @@ func (a *App) Attach(w *mygo.Window) {
 	// Coming back to the window is a frame: the room open there is read
 	// (readStep), whatever arrived while the user was away.
 	w.OnFocus(func() { w.Update(func() {}) })
+	// Files dropped where no element takes them (over the composer's field,
+	// the side panel, a gap) still go to the open room's composer: the
+	// window takes files anywhere once it has a listener.
+	w.OnFileDrop(func(e *mygo.FileDropEvent) {
+		paths := e.Paths
+		w.Update(func() {
+			if !a.detached && a.room != "" && a.view == viewRoom && len(paths) > 0 {
+				a.addPaths(a.room, paths)
+			}
+		})
+	})
 }
+
+// Detach ends the app's hold on the window: its handlers do nothing from
+// here on. The host calls it when it swaps the window to another account's
+// app.
+func (a *App) Detach() { a.detached = true }
 
 // open opens a room: it becomes the open room, is marked read, and leads
 // the switcher's recents.

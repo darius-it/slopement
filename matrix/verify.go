@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"maunium.net/go/mautrix"
@@ -35,6 +36,11 @@ type VerifyDriver struct {
 
 	txn id.VerificationTransactionID // the flow in flight
 	st  model.VerifyState
+	// keyed: this device holds the key backup's key (from the Security
+	// Key or another device), so it is verified and looks in the backup
+	// on its own: what stays unreadable is not in the backup, and
+	// verifying again would not unlock it, so it does not prompt.
+	keyed atomic.Bool
 }
 
 // newVerify wires the driver into the sync and the client.
@@ -57,7 +63,7 @@ func (v *VerifyDriver) State() model.VerifyState {
 	// not bring the history must not hide the way to the Security Key.
 	// Only what has waited past the grace period counts: a message that
 	// arrived a moment ago usually has its key coming.
-	st.Needed = (st.Phase == model.VerifyIdle || st.Phase == model.VerifyDone) && v.src.stuck() > 0
+	st.Needed = (st.Phase == model.VerifyIdle || st.Phase == model.VerifyDone) && !v.keyed.Load() && v.src.stuck() > 0
 	return st
 }
 
@@ -67,7 +73,9 @@ func (s *Source) stuck() int {
 	n := 0
 	for _, r := range s.rooms {
 		for _, raw := range r.raw {
-			if !lockedForNow(raw.tile) {
+			// Past the grace of its age, and of this app's own wait: older
+			// history just paged in is looked for in the backup first.
+			if !lockedForNow(raw.tile) && (raw.since.IsZero() || time.Since(raw.since) > unreadableGrace) {
 				n++
 			}
 		}
@@ -194,6 +202,7 @@ func (v *VerifyDriver) restoreBackup(ctx context.Context, key string) (id.KeyBac
 	// Kept in the keychain so the next boots restore (and keep
 	// restoring) the history without asking for the key again.
 	_ = secrets.Set(secretKey(string(v.cli.UserID), string(v.cli.DeviceID), "backup-key"), decrypted)
+	v.keyed.Store(true)
 	return v.mach.DownloadAndStoreLatestKeyBackup(ctx, backupKey)
 }
 
@@ -207,6 +216,7 @@ func (v *VerifyDriver) savedBackupKey() *backup.MegolmBackupKey {
 	if err != nil {
 		return nil
 	}
+	v.keyed.Store(true)
 	return key
 }
 
@@ -225,6 +235,7 @@ func (v *VerifyDriver) restoreSaved(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	v.keyed.Store(true)
 	if _, err := v.mach.DownloadAndStoreLatestKeyBackup(ctx, key); err != nil {
 		return
 	}
@@ -309,6 +320,7 @@ func (v *VerifyDriver) requestBackupKey(quiet bool) {
 		}
 		key = k
 		_ = secrets.Set(secretKey(string(v.cli.UserID), string(v.cli.DeviceID), "backup-key"), raw)
+		v.keyed.Store(true)
 		return true, nil
 	}, 2*time.Minute)
 	if err != nil || key == nil {

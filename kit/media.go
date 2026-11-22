@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
@@ -26,6 +27,11 @@ type MediaSpec struct {
 	Player *ui.VideoPlayer
 	Still  ui.ImageSource
 	URL    string
+	// Full, when set, gives the picture at full resolution for the viewer
+	// (nil until it has been fetched: the Still shows meanwhile). The
+	// timeline's Still is decoded for the preview's size, which looks soft
+	// once it fills the window and is zoomed.
+	Full func() ui.ImageSource
 	// W and H are the media's size: the preview keeps its aspect ratio
 	// from the start, so the timeline never jumps as it loads.
 	W, H     float32
@@ -356,9 +362,48 @@ func YouTubeCard(c *ui.Context, y YouTubeSpec, width float32) (play bool) {
 	return play
 }
 
+// viewZoom is the viewer's zoom on the picture shown: Scale 1 is fitted,
+// and X, Y the pan in DIPs from the center. It resets with the item.
+var viewZoom struct {
+	ID       string
+	Scale    float32
+	X, Y     float32
+	dragging bool
+	lx, ly   float32
+}
+
+const (
+	viewZoomMax = 8
+	viewZoomMin = 1
+)
+
+// zoomAt changes the zoom to scale, keeping the point (px, py), from the
+// center of the area, where it is on screen.
+func zoomAt(scale, px, py float32) {
+	scale = min(max(scale, viewZoomMin), viewZoomMax)
+	k := scale / viewZoom.Scale
+	viewZoom.X = px - (px-viewZoom.X)*k
+	viewZoom.Y = py - (py-viewZoom.Y)*k
+	viewZoom.Scale = scale
+	if scale == 1 {
+		viewZoom.X, viewZoom.Y = 0, 0
+	}
+}
+
+// clampPan keeps the picture from being dragged out of the area: its edges
+// stop at the area's.
+func clampPan(mw, mh, aw, ah float32) {
+	s := viewZoom.Scale
+	limX := max((mw*s-aw)/2, 0)
+	limY := max((mh*s-ah)/2, 0)
+	viewZoom.X = min(max(viewZoom.X, -limX), limX)
+	viewZoom.Y = min(max(viewZoom.Y, -limY), limY)
+}
+
 // MediaViewer shows attachments full screen over a dark backdrop: the
-// picture fitted, arrows (and keys) between items, a counter, download
-// and close. *index is the item shown.
+// picture fitted at full resolution, zoomed with the wheel, a pinch,
+// double-click or +/−, and dragged when zoomed; arrows (and keys) between
+// items, a counter, download and close. *index is the item shown.
 func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 	if len(items) == 0 {
 		return
@@ -370,34 +415,59 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		w, h := c.Size()
 		panel.Size(w, h).Transition(FadeIn()).Label("Media viewer")
 		m := items[*index]
-		ui.Row(c).Height(52).PaddingX(S3).Gap(S2).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine()
+		if viewZoom.ID != m.ID || viewZoom.Scale == 0 {
+			viewZoom.ID, viewZoom.Scale, viewZoom.X, viewZoom.Y, viewZoom.dragging = m.ID, 1, 0, 0, false
+		}
+		areaW, areaH := w-S8*2, h-140
+		// The header sits clear of the window's controls (the traffic lights
+		// on macOS), as every other bar does.
+		bar := c.TitleBar()
+		ui.Row(c).Height(max(52, bar.Height)).Padding(0, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
+			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine().MinWidth(0)
 			ui.Text(c, strconv.Itoa(*index+1)+" / "+strconv.Itoa(len(items))).FontSize(SizeSmall).FontFeatures("tnum").TextColor(white.Alpha(0.7))
 			for _, a := range []struct {
 				icon  *ui.SVG
 				label string
-			}{{IconDownload, "Download"}, {IconX, "Close"}} {
+			}{{IconMinus, "Zoom out"}, {IconPlus, "Zoom in"}, {IconDownload, "Download"}, {IconX, "Close"}} {
 				b := ui.ButtonBase(c.Key(a.label)).Size(36, 36).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label(a.label)
 				if b.Hovered() {
 					b.Background(white.Alpha(0.12))
 				}
 				b.Children(func() { ui.Icon(c, a.icon).Size(18, 18).TextColor(white) })
-				if b.Clicked() && a.label == "Close" {
-					*open = false
+				if b.Clicked() {
+					switch a.label {
+					case "Close":
+						*open = false
+					case "Zoom in":
+						zoomAt(viewZoom.Scale*1.5, 0, 0)
+					case "Zoom out":
+						zoomAt(viewZoom.Scale/1.5, 0, 0)
+					}
 				}
 			}
 		})
 		// A click around the picture (not on it) closes the viewer.
 		var picBox ui.Rect // the picture, last frame, in window DIPs
-		area := ui.Row(c.Key("area")).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4)
+		area := ui.Row(c.Key("area")).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4).Clip()
+		var mw, mh float32
 		area.Children(func() {
-			mw, mh := fit(m.W, m.H, w-S8*2, h-140)
-			pic := ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Clip().Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}})
+			mw, mh = fit(m.W, m.H, areaW, areaH)
+			s := viewZoom.Scale
+			pic := ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}})
+			if s != 1 {
+				pic.Scale(s, s).Translate(viewZoom.X/s, viewZoom.Y/s)
+			}
 			picBox = pic.Bounds()
+			var full ui.ImageSource
+			if m.Full != nil {
+				full = m.Full()
+			}
 			pic.Children(func() {
 				switch {
 				case m.Player != nil:
 					ui.Video(c, m.Player).Fill().Fit(ui.Contain)
+				case full != nil:
+					ui.Image(c, full).Fill().Fit(ui.Contain)
 				case m.Still != nil:
 					ui.Image(c, m.Still).Fill().Fit(ui.Contain)
 				case m.URL != "":
@@ -405,9 +475,56 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				}
 			})
 		})
-		if area.Clicked() {
+		ab := area.Bounds() // as of the last frame: the callback outlives this element
+		area.HandleInput(func(ev ui.InputEvent) bool {
+			px, py := ev.X-ab.W/2, ev.Y-ab.H/2 // from the area's center
+			switch ev.Kind {
+			case ui.InputZoom:
+				zoomAt(viewZoom.Scale*ev.Scale, px, py)
+			case ui.InputScroll:
+				switch {
+				case ev.Mods&ui.Ctrl != 0 || !ev.Precise:
+					// A wheel's notches (or Ctrl held) zoom, around the pointer.
+					zoomAt(viewZoom.Scale*float32(math.Exp(float64(-ev.DY)*0.01)), px, py)
+				case viewZoom.Scale > 1:
+					viewZoom.X -= ev.DX // a touchpad pans what is zoomed
+					viewZoom.Y -= ev.DY
+				default:
+					return false
+				}
+			case ui.InputPointerDown:
+				if ev.Button != 0 {
+					return false
+				}
+				if ev.Clicks == 2 {
+					if viewZoom.Scale > 1 {
+						zoomAt(1, px, py)
+					} else {
+						zoomAt(2.5, px, py)
+					}
+					clampPan(mw, mh, ab.W, ab.H)
+					return true
+				}
+				viewZoom.dragging, viewZoom.lx, viewZoom.ly = viewZoom.Scale > 1, ev.X, ev.Y
+				return false // a plain click still reaches Clicked below
+			case ui.InputPointerMove:
+				if !viewZoom.dragging {
+					return false
+				}
+				viewZoom.X += ev.X - viewZoom.lx
+				viewZoom.Y += ev.Y - viewZoom.ly
+				viewZoom.lx, viewZoom.ly = ev.X, ev.Y
+			case ui.InputPointerUp:
+				viewZoom.dragging = false
+				return false
+			default:
+				return false
+			}
+			clampPan(mw, mh, ab.W, ab.H)
+			return true
+		})
+		if area.Clicked() && viewZoom.Scale == 1 {
 			x, y, _ := area.PointerPosition()
-			ab := area.Bounds()
 			px, py := ab.X+x, ab.Y+y
 			if px < picBox.X || px > picBox.X+picBox.W || py < picBox.Y || py > picBox.Y+picBox.H {
 				*open = false
@@ -418,6 +535,15 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		}
 		if c.Shortcut(0, ui.KeyLeft) && *index > 0 {
 			*index--
+		}
+		if c.Shortcut(0, ui.KeyEqual) || c.Shortcut(ui.Shift, ui.KeyEqual) {
+			zoomAt(viewZoom.Scale*1.5, 0, 0)
+		}
+		if c.Shortcut(0, ui.KeyMinus) {
+			zoomAt(viewZoom.Scale/1.5, 0, 0)
+		}
+		if c.Shortcut(0, ui.Key0) {
+			zoomAt(1, 0, 0)
 		}
 	})
 }

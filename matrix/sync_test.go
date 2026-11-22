@@ -662,6 +662,14 @@ func TestEncryptedNeeded(t *testing.T) {
 	if !s.Verify().State().Needed {
 		t.Fatal("an undecrypted message did not ask for verification")
 	}
+	// A device holding the backup key is verified and has looked in the
+	// backup already: an old message whose key is not there (an old pin
+	// paged in) is no reason to ask it to verify again.
+	s.verify.keyed.Store(true)
+	if s.Verify().State().Needed {
+		t.Fatal("a device with the backup key was asked to verify again")
+	}
+	s.verify.keyed.Store(false)
 
 	// The keys arrived: the same event re-dispatched decrypted.
 	s.onMessage(nil, msgEvent("$e", "!r", "@ada:example.org", 1,

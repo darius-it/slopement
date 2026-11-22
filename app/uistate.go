@@ -91,7 +91,7 @@ func (a *App) applyState(st uiState) {
 	}
 	a.menuTheme = a.theme
 	a.sidebar = st.Sidebar
-	if p := panel(st.Panel); p >= panelNone && p <= panelMembers {
+	if p := panel(st.Panel); p >= panelNone && p <= panelPins {
 		a.panel = p
 	}
 	a.tab, a.filter, a.phoneTab = st.Tab, st.Filter, st.PhoneTab

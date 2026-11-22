@@ -50,6 +50,19 @@ func (f *recordServer) find(substr string) (string, bool) {
 	return "", false
 }
 
+// findPut is the body of the first PUT whose path holds substr (the pin
+// list is also read with a GET, which has no body).
+func (f *recordServer) findPut(substr string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, r := range f.reqs {
+		if strings.HasPrefix(r, "PUT ") && strings.Contains(r, substr) {
+			return f.bodies[i], true
+		}
+	}
+	return "", false
+}
+
 func actionSource(t *testing.T, fake *recordServer) (*Source, *room, func()) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(fake.handler))
@@ -90,8 +103,8 @@ func TestMessageActions(t *testing.T) {
 	if !s.IsPinned("!a", "$other") || len(s.Pinned("!a")) != 1 {
 		t.Fatal("not pinned at once")
 	}
-	waitFor(t, "the pin", func() bool { _, ok := fake.find("m.room.pinned_events"); return ok })
-	pin, _ := fake.find("m.room.pinned_events")
+	waitFor(t, "the pin", func() bool { _, ok := fake.findPut("m.room.pinned_events"); return ok })
+	pin, _ := fake.findPut("m.room.pinned_events")
 	if !strings.Contains(pin, `"$other"`) {
 		t.Fatalf("pinned content = %s", pin)
 	}

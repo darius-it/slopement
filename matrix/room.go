@@ -61,6 +61,11 @@ type room struct {
 
 	// pinned are the room's pinned events (m.room.pinned_events).
 	pinned []string
+	// pinEvents are pinned messages the room's timeline does not hold,
+	// fetched (not kept in the cache: asked for again each run), and
+	// pinsAsked says this run has asked.
+	pinEvents map[string]model.Event
+	pinsAsked bool
 
 	// History: back is the token to page older events from ("" until the
 	// first page is asked for), backDone says there are no older ones,
@@ -89,6 +94,10 @@ type spaceChild struct {
 type rawEvent struct {
 	evt  *event.Event
 	tile model.Event // what the timeline shows until then
+	// since is when this app began waiting for its key: an old message
+	// paged in a moment ago has had no time to be looked for in the key
+	// backup, so it is not yet "stuck".
+	since time.Time
 }
 
 // appendEvent adds e to the timeline, capped, and refreshes what the

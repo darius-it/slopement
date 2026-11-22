@@ -23,6 +23,29 @@ func MenuStyle(c *ui.Context) ui.PopoverMenuOptions {
 	}
 }
 
+// QuietMenuTheme is the kit's theme for a menu whose highlight is the
+// neutral hover gray rather than the accent fill: rows that carry their
+// own pictures and buttons (the account switcher), where a purple fill
+// drowns them. Menus take the theme their trigger was built in, so build
+// the trigger inside ui.Themed(c, QuietMenuTheme(c)).
+func QuietMenuTheme(c *ui.Context) *ui.Theme {
+	dark := c.Theme().Dark
+	i := 0
+	if dark {
+		i = 1
+	}
+	if quietMenu[i] == nil {
+		p := Of(c)
+		t := *Theme(dark)
+		t.Accent = p.Hover.Over(p.Raised)
+		t.AccentText = p.Text
+		quietMenu[i] = &t
+	}
+	return quietMenu[i]
+}
+
+var quietMenu [2]*ui.Theme
+
 // MuteFor is a mute duration; 0 is until turned back on.
 type MuteFor time.Duration
 

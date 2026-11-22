@@ -77,6 +77,10 @@ func (a *App) draft(room string) *kit.ComposerState {
 // who is typing, and the composer.
 func (a *App) roomView(c *ui.Context, back bool) {
 	r, _ := a.src.Room(a.room)
+	// What is pinned here, as the server has it (asked once per room a run).
+	if pins, ok := a.src.(model.Pins); ok {
+		pins.RefreshPins(r.ID)
+	}
 	col := ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0)
 	col.Children(func() {
 		a.roomHeader(c, r, back)
@@ -109,7 +113,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 					emptyNote(c, "No messages yet. Say hi!")
 				}
 			})
-			if !ls.AtEnd() && len(rows) > 0 {
+			if !ls.AtEnd() && len(rows) > 0 && !(a.jumpLooking && a.jumpRoom == r.ID) { // the seeking pill takes its place
 				ui.Row(c.Key("jump")).Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-kit.S1).Children(func() {
 					if kit.Button(c, kit.Secondary, "Jump to latest", kit.IconArrowDown).Clicked() {
 						// The list knows where its end is, rows it has not
@@ -122,6 +126,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 			if len(r.Typing) > 0 {
 				kit.TypingOverlay(c, strings.Join(r.Typing, ", ")+" is typing…")
 			}
+			a.seekPill(c, r.ID)
 		})
 		if a.encryptedWaiting(rows) {
 			a.verifyBanner(c)
@@ -237,6 +242,14 @@ func (a *App) roomHeader(c *ui.Context, r model.Room, back bool) {
 			if kit.IconButton(c, kit.Ghost, kit.IconSearch, "Search ("+kit.CmdK()+")").Clicked() {
 				a.switcher.Toggle()
 			}
+			// Pinned messages, with how many there are in the label.
+			pinLabel := "Pinned messages"
+			if n := len(a.pinnedEvents(r.ID)); n > 0 {
+				pinLabel += " (" + strconv.Itoa(n) + ")"
+			}
+			if kit.IconButton(c, kit.Ghost, kit.IconPin, pinLabel).AccessSelected(a.panel == panelPins).Clicked() {
+				a.togglePanel(panelPins)
+			}
 			if !dm {
 				if kit.IconButton(c, kit.Ghost, kit.IconUsers, "Members").Clicked() {
 					a.togglePanel(panelMembers)
@@ -288,9 +301,8 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	if ev.Poll != nil {
 		m.Poll = a.pollData(ev.ID, *ev.Poll, me)
 	}
-	if !me {
-		m.Profile, m.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
-	}
+	// Your own name and picture open your card too.
+	m.Profile, m.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
 	ui.Column(c.Key(ev.ID)).Children(func() {
 		a.messageAct(r.ID, ev, m.Media, kit.Message(c, m, &a.colors))
 	})
@@ -308,6 +320,7 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		d := a.draft(room)
 		d.Reply = a.quote(room, ev.ID)
 		a.replyTo[room] = ev.ID
+		d.Focus()
 	case act.Menu != kit.MsgNone:
 		a.messageChoice(room, ev, act.Menu)
 	case act.OpenMedia >= 0:
@@ -351,6 +364,9 @@ func (a *App) profileActs(person string, act kit.ProfileAction) {
 	case act.Verify:
 		a.profileOpen, a.profileSheet.Open = "", false
 		a.verify.Open, a.verifyStep = true, 0
+	case act.EditStatus:
+		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
+		a.statusDraft.Edit(status(a.src.Me().Status))
 	}
 }
 
@@ -508,6 +524,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 				ui.Column(c.Key("ptyping")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(kit.S3).Top(-kit.S1).PassThrough().
 					Children(func() { kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors) })
 			}
+			a.seekPill(c, r.ID)
 		})
 		a.composer(c, r)
 	})

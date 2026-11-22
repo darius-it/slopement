@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"strconv"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -320,14 +322,18 @@ func results(c *ui.Context, m *PickerModel, r *PickerResult, cols int, sticker b
 		}
 		return
 	}
-	ui.Grid(c.Key("results")).Columns(cols).Gap(S1).Children(func() {
-		for i := range m.Results {
-			t := &m.Results[i]
-			if itemTile(c, t, r, sticker).Clicked() {
-				r.Item = t
+	if sticker {
+		ui.Grid(c.Key("results")).Columns(cols).Gap(S1).Children(func() {
+			for i := range m.Results {
+				t := &m.Results[i]
+				if itemTile(c, t, r, sticker).Clicked() {
+					r.Item = t
+				}
 			}
-		}
-	})
+		})
+	} else {
+		staggered(c, m, r, cols)
+	}
 	if m.HasMore {
 		// Scrolled near the end, the next page loads.
 		end := ui.Box(c.Key("more")).Height(1)
@@ -335,6 +341,54 @@ func results(c *ui.Context, m *PickerModel, r *PickerResult, cols int, sticker b
 			r.More = true
 		}
 	}
+}
+
+// staggered lays GIFs out in columns whose rows do not line up: every GIF
+// keeps its own shape (nothing is cropped) and goes under the shortest
+// column, so the columns end about level. The order down each column is the
+// order of the results.
+func staggered(c *ui.Context, m *PickerModel, r *PickerResult, cols int) {
+	heights := make([]float32, cols) // each column's height in widths
+	assigned := make([][]int, cols)
+	for i := range m.Results {
+		t := &m.Results[i]
+		ratio := tileRatio(t)
+		short := 0
+		for k := 1; k < cols; k++ {
+			if heights[k] < heights[short] {
+				short = k
+			}
+		}
+		assigned[short] = append(assigned[short], i)
+		heights[short] += 1 / ratio
+	}
+	ui.Row(c.Key("results")).Gap(S1).AlignItems(ui.Start).Children(func() {
+		for k := range assigned {
+			ui.Column(c.Key("col"+strconv.Itoa(k))).Grow(1).Basis(0).MinWidth(0).Gap(S1).Children(func() {
+				for _, i := range assigned[k] {
+					t := &m.Results[i]
+					if itemTile(c, t, r, false).Clicked() {
+						r.Item = t
+					}
+				}
+			})
+		}
+	})
+}
+
+// tileRatio is a GIF's width over height, kept within what a tile can
+// reasonably be (a very tall or very wide one is not stretched out).
+func tileRatio(t *PickerTile) float32 {
+	w, h := t.W, t.H
+	if t.Player != nil {
+		if pw, ph := t.Player.Size(); pw > 0 && ph > 0 {
+			w, h = float32(pw), float32(ph)
+		}
+	}
+	if w <= 0 || h <= 0 {
+		return 4.0 / 3
+	}
+	return min(max(w/h, 0.5), 2.5)
 }
 
 // tileMedia shows a tile's animation, its still, or a placeholder.
@@ -392,11 +446,13 @@ func categoryTile(c *ui.Context, t *PickerTile) ui.Element {
 // to the favorites (GIFs).
 func itemTile(c *ui.Context, t *PickerTile, r *PickerResult, sticker bool) ui.Element {
 	p := Of(c)
-	h := float32(110)
+	b := ui.ButtonBase(c.Key(t.ID)).Radius(RadiusSm + 2).Clip().Label(t.Label)
 	if sticker {
-		h = 88
+		b.Height(88)
+	} else {
+		// A GIF is its own shape, the width of its column.
+		b.AspectRatio(tileRatio(t))
 	}
-	b := ui.ButtonBase(c.Key(t.ID)).Height(h).Radius(RadiusSm + 2).Clip().Label(t.Label)
 	if !sticker {
 		b.Background(p.BgInset)
 	} else if b.Hovered() {
