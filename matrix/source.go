@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
@@ -23,8 +24,13 @@ type Source struct {
 	// takes a pass over all the rooms each time. Dropped wherever the model
 	// changes (changed, the update runners, a room appearing).
 	spaceCache map[string]string
-	direct     map[string]bool // the DM rooms (m.direct)
-	people     map[string]*model.Person
+	// savedStatus is the status the user set, with its end (account data);
+	// statusTimer ends it on time (status.go).
+	savedStatus model.Status
+	statusSeen  bool // the saved status was compared with the server's once this run
+	statusTimer *time.Timer
+	direct      map[string]bool // the DM rooms (m.direct)
+	people      map[string]*model.Person
 	// encrypted counts the messages still waiting for keys: the verify
 	// prompt shows while any are there and the session is unverified.
 	encrypted int

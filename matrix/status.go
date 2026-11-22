@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -66,6 +67,7 @@ func (s *Source) setPresence(who, name string, presence model.Presence, msg stri
 	if who == s.me.ID {
 		s.me.Presence = presence
 		s.me.Status = status
+		s.reconcileStatus() // the server's copy has no end time, and may have forgotten it
 		return
 	}
 	p, ok := s.people[who]
@@ -154,28 +156,136 @@ func isForbidden(err error) bool {
 // on the server.
 func (s *Source) SetStatus(st model.Status) {
 	s.me.Status = st
+	s.savedStatus = st
+	if s.cli != nil {
+		go s.sendStatus(statusMessage(st))
+		go s.saveStatus(st)
+	}
+	s.scheduleStatusEnd()
+	s.changed()
+}
+
+// sendStatus puts the status message in the user's presence.
+func (s *Source) sendStatus(msg string) {
 	if s.cli == nil {
 		return
 	}
-	msg := statusMessage(st)
-	send := func(msg string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		_ = s.cli.SetPresence(ctx, mautrix.ReqPresence{Presence: event.PresenceOnline, StatusMsg: msg})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_ = s.cli.SetPresence(ctx, mautrix.ReqPresence{Presence: event.PresenceOnline, StatusMsg: msg})
+}
+
+// The user's own status is also kept in their account data, with the moment
+// it ends: the homeserver's presence carries only the words, and may drop
+// them (when the user goes offline, say), so a restart would otherwise lose
+// both the status and its end — "Today" would be gone, or never end.
+
+const statusData = "com.slopement.status"
+
+var statusType = event.Type{Type: statusData, Class: event.AccountDataEventType}
+
+type storedStatus struct {
+	Emoji string `json:"emoji,omitempty"`
+	Text  string `json:"text,omitempty"`
+	Until int64  `json:"until,omitempty"` // Unix milliseconds; 0 for never
+}
+
+func (s *Source) saveStatus(st model.Status) {
+	c := storedStatus{Emoji: st.Emoji, Text: st.Text}
+	if !st.Until.IsZero() {
+		c.Until = st.Until.UnixMilli()
 	}
-	go send(msg)
-	if !st.Until.IsZero() && s.update != nil {
-		if d := time.Until(st.Until); d > 0 {
-			time.AfterFunc(d, func() {
-				s.update(func() {
-					if s.me.Status == st { // not replaced by another since
-						s.me.Status = model.Status{}
-						go send("")
-						s.changed()
-					}
-				})
-			})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_ = s.cli.SetAccountData(ctx, statusData, c)
+}
+
+// onStatusData is the saved status as the account has it.
+func (s *Source) onStatusData(ctx context.Context, evt *event.Event) {
+	var c storedStatus
+	if json.Unmarshal(evt.Content.VeryRaw, &c) != nil {
+		return
+	}
+	st := model.Status{Emoji: c.Emoji, Text: c.Text}
+	if c.Until > 0 {
+		st.Until = time.UnixMilli(c.Until)
+	}
+	s.post(func() {
+		s.savedStatus = st
+		s.reconcileStatus()
+	})
+}
+
+// reconcileStatus makes the status shown agree with the one the user set: it
+// is brought back when the server forgot it, takes its end time, and ends
+// when that has passed (also across a restart). UI thread.
+func (s *Source) reconcileStatus() {
+	sv, cur := s.savedStatus, s.me.Status
+	if sv.Emoji == "" && sv.Text == "" {
+		return // none saved
+	}
+	same := statusMessage(sv) == statusMessage(cur)
+	empty := cur.Emoji == "" && cur.Text == ""
+	seen := s.statusSeen
+	s.statusSeen = true // from now on, an empty status is the user's doing
+	switch {
+	case !sv.Until.IsZero() && !time.Now().Before(sv.Until):
+		// Ended while the app was closed.
+		if same || empty {
+			s.me.Status, s.savedStatus = model.Status{}, model.Status{}
+			if s.cli != nil {
+				go s.sendStatus("")
+				go s.saveStatus(model.Status{})
+			}
+			s.changed()
 		}
+		return
+	case empty && seen:
+		// Cleared by the user from another client while this one runs: theirs
+		// is the choice.
+		s.savedStatus = model.Status{}
+		if s.cli != nil {
+			go s.saveStatus(model.Status{})
+		}
+		return
+	case empty:
+		// Once at the start: the server forgot it. Put it back, and say it again.
+		s.me.Status = sv
+		if s.cli != nil {
+			go s.sendStatus(statusMessage(sv))
+		}
+		s.changed()
+	case same && s.me.Status.Until != sv.Until:
+		s.me.Status.Until = sv.Until // the server's copy has no end
+		s.changed()
 	}
-	s.changed()
+	s.scheduleStatusEnd()
+}
+
+// scheduleStatusEnd clears the status when its end comes (once at a time).
+func (s *Source) scheduleStatusEnd() {
+	if s.statusTimer != nil {
+		s.statusTimer.Stop()
+		s.statusTimer = nil
+	}
+	st := s.me.Status
+	if st.Until.IsZero() || s.update == nil {
+		return
+	}
+	d := time.Until(st.Until)
+	if d <= 0 {
+		return
+	}
+	s.statusTimer = time.AfterFunc(d, func() {
+		s.update(func() {
+			if s.me.Status == st { // not replaced by another since
+				s.me.Status, s.savedStatus = model.Status{}, model.Status{}
+				if s.cli != nil {
+					go s.sendStatus("")
+					go s.saveStatus(model.Status{})
+				}
+				s.changed()
+			}
+		})
+	})
 }

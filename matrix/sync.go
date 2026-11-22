@@ -113,6 +113,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(userColorsType, s.onUserColors)
 	syncer.OnEventType(event.AccountDataIgnoredUserList, s.onIgnored)
 	syncer.OnEventType(railOrderType, s.onRailOrder)
+	syncer.OnEventType(statusType, s.onStatusData)
 	syncer.OnEventType(userEmotesType, s.onUserEmotes)
 	syncer.OnEventType(emoteRoomsType, s.onEmoteRooms)
 	syncer.OnEventType(roomPackType, s.onRoomEmotes)

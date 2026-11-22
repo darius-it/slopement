@@ -146,17 +146,90 @@ func TestSetStatus(t *testing.T) {
 	if me := s.Me(); me.Status.Emoji != "🎧" {
 		t.Fatalf("not shown at once: %+v", me.Status)
 	}
-	waitFor(t, "the status to go out", func() bool {
+	// Presence calls only: the status is also saved to the account's data.
+	presence := func() []string {
 		mu.Lock()
 		defer mu.Unlock()
-		return len(bodies) == 1 && strings.Contains(bodies[0], "🎧 Focusing") && strings.HasPrefix(bodies[0], "PUT ") && strings.Contains(bodies[0], "/presence/")
+		var out []string
+		for _, b := range bodies {
+			if strings.Contains(b, "/presence/") {
+				out = append(out, b)
+			}
+		}
+		return out
+	}
+	waitFor(t, "the status to go out", func() bool {
+		p := presence()
+		return len(p) == 1 && strings.Contains(p[0], "🎧 Focusing") && strings.HasPrefix(p[0], "PUT ")
+	})
+	waitFor(t, "the status to be saved", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, b := range bodies {
+			if strings.Contains(b, "/account_data/com.slopement.status") && strings.Contains(b, "Focusing") {
+				return true
+			}
+		}
+		return false
 	})
 
 	s.SetStatus(model.Status{Emoji: "☕", Text: "break", Until: time.Now().Add(150 * time.Millisecond)})
 	waitFor(t, "the status to end", func() bool { return !s.Me().Status.Set(time.Now()) })
 	waitFor(t, "the clearing to go out", func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return len(bodies) >= 3 && !strings.Contains(bodies[len(bodies)-1], "break")
+		p := presence()
+		return len(p) >= 3 && !strings.Contains(p[len(p)-1], "break")
 	})
+}
+
+// A restart: the server's copy of the user's status has no end time, and may
+// be gone. The saved one brings it back, with its end, and an ended one stays
+// ended.
+func TestStatusSurvivesARestart(t *testing.T) {
+	s, _ := testSynced()
+	me := s.me.ID
+	tomorrow := time.Now().Add(20 * time.Hour)
+	saved := model.Status{Emoji: "🎧", Text: "Focusing", Until: tomorrow}
+
+	// The server still has the words, without an end: the end comes from the saved one.
+	s.savedStatus = saved
+	s.setPresence(me, "Me", model.Online, "🎧 Focusing", 0)
+	if got := s.Me().Status; got.Text != "Focusing" || !got.Until.Equal(tomorrow) {
+		t.Fatalf("the end was not taken: %+v", got)
+	}
+
+	// Cleared from another client while the app runs: the user's choice, kept.
+	s.setPresence(me, "Me", model.Online, "", 0)
+	if s.Me().Status.Set(time.Now()) || s.savedStatus.Text != "" {
+		t.Fatalf("a status cleared elsewhere came back: %+v", s.Me().Status)
+	}
+
+	// A new run: the server forgot the status (it went offline with the app
+	// closed), so it is put back.
+	s2, _ := testSynced()
+	s2.savedStatus = saved
+	s2.setPresence(me, "Me", model.Online, "", 0)
+	if got := s2.Me().Status; got.Text != "Focusing" || !got.Set(time.Now()) || !got.Until.Equal(tomorrow) {
+		t.Fatalf("a forgotten status was not restored: %+v", got)
+	}
+
+	// One that ended while the app was closed is not brought back, and the
+	// server's copy of it (no end) is cleared.
+	s.savedStatus = model.Status{Emoji: "☕", Text: "break", Until: time.Now().Add(-time.Minute)}
+	s.me.Status = model.Status{}
+	s.setPresence(me, "Me", model.Online, "", 0)
+	if s.Me().Status.Set(time.Now()) {
+		t.Fatalf("an ended status came back: %+v", s.Me().Status)
+	}
+	s.savedStatus = model.Status{Emoji: "☕", Text: "break", Until: time.Now().Add(-time.Minute)}
+	s.setPresence(me, "Me", model.Online, "☕ break", 0)
+	if s.Me().Status.Set(time.Now()) {
+		t.Fatalf("an ended status stayed: %+v", s.Me().Status)
+	}
+
+	// Another status set from another client is the user's choice: left alone.
+	s.savedStatus = saved
+	s.setPresence(me, "Me", model.Online, "🍔 Lunch", 0)
+	if got := s.Me().Status; got.Text != "Lunch" || !got.Until.IsZero() {
+		t.Fatalf("a status set elsewhere was overwritten: %+v", got)
+	}
 }
