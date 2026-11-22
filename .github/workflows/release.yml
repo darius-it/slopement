@@ -37,7 +37,8 @@ jobs:
               `xattr -dr com.apple.quarantine /Applications/slopement.app` in Terminal
               (or right-click the app, Open).
             - **Windows:** SmartScreen says "Windows protected your PC": More info, then Run anyway.
-            - **Linux:** install the `.deb` or `.rpm`, or unpack the `.tar.gz` and run `install.sh`.
+            - **Linux:** install the `.deb` or `.rpm`, unpack the `.tar.gz` and run `install.sh`,
+              or use the `.AppImage` (x86-64): `chmod +x slopement-x86_64.AppImage`, then run it. It needs GTK 3.
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
@@ -74,13 +75,36 @@ jobs:
         # package.json's "build" sets GOFLAGS=-tags=goolm (mautrix's crypto is
         # pure Go only with it).
         run: bun run build -- -platform "${{ matrix.platform }}"
+      # An AppImage of the Linux x86-64 build: the binary, its desktop entry
+      # and icon. It uses the system's GTK 3 (as the .deb does), which every
+      # common desktop has; it does not bundle it.
+      - name: Make the AppImage
+        if: matrix.name == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=build/linux-amd64
+          mkdir -p AppDir/usr/bin
+          cp "$out/slopement" AppDir/usr/bin/slopement
+          cp "$out/slopement.desktop" AppDir/slopement.desktop
+          cp "$out/slopement-256x256.png" AppDir/slopement.png
+          printf '%s\n' '#!/bin/sh' \
+            'HERE="$(dirname "$(readlink -f "$0")")"' \
+            'exec "$HERE/usr/bin/slopement" "$@"' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          curl -fsSL -o appimagetool.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
+          # Runners have no FUSE: run the tool extracted.
+          ARCH=x86_64 ./appimagetool.AppImage --appimage-extract-and-run AppDir \
+            "$out/slopement-x86_64.AppImage"
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           shopt -s nullglob
-          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz)
+          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz build/*/*.AppImage)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
           gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
