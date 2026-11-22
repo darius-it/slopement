@@ -61,8 +61,42 @@ func (a *App) kitPerson(p model.Person) kit.Person {
 		Status: status(p.Status), LastSeen: p.LastSeen}
 }
 
-// contacts are the people listed in People: those with a DM.
+// bridgeMarks are what a bridge's puppet users carry in their IDs: an
+// appservice's users are @_discord_123, @whatsapp_49151…, @telegram_… .
+var bridgeMarks = []string{"_discord", "discord_", "_telegram", "telegram_", "_whatsapp", "whatsapp_", "_signal", "signal_",
+	"_slack", "slack_", "_irc", "irc_", "_facebook", "facebook_", "_instagram", "instagram_", "_twitter", "twitter_",
+	"_gmessages", "gmessages_", "_googlechat", "googlechat_", "_meta", "bridge"}
+
+// outsideHome says a user is not one of the home server's own people: from
+// another server, or a bridge's puppet (a Discord or WhatsApp user shown in
+// Matrix), which People hides until asked.
+func (a *App) outsideHome(mxid string) bool {
+	user := strings.TrimPrefix(strings.ToLower(mxid), "@")
+	local, server, _ := strings.Cut(user, ":")
+	_, mine, _ := strings.Cut(strings.ToLower(strings.TrimPrefix(a.src.Me().ID, "@")), ":")
+	if mine != "" && server != mine {
+		return true
+	}
+	if strings.HasPrefix(local, "_") {
+		return true // an appservice's puppets (the leading underscore is theirs by convention)
+	}
+	for _, m := range bridgeMarks {
+		if strings.Contains(local, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// contacts are the people listed in People: those with a DM. By default only
+// the home server's own people; hidden says how many others there are
+// (other servers and bridges), shown when the user asks (a.peopleAll).
 func (a *App) contacts() []kit.Person {
+	out, _ := a.contactsFor(a.peopleAll)
+	return out
+}
+
+func (a *App) contactsFor(all bool) (out []kit.Person, hidden int) {
 	// When the user last chatted with each person: the last activity of
 	// their DM.
 	lastChat := map[string]time.Time{}
@@ -71,15 +105,19 @@ func (a *App) contacts() []kit.Person {
 			lastChat[r.Partner] = r.LastActivity
 		}
 	}
-	var out []kit.Person
 	for _, p := range a.src.People() {
-		if p.Contact {
-			kp := a.kitPerson(p)
-			kp.LastChat = lastChat[p.ID]
-			out = append(out, kp)
+		if !p.Contact {
+			continue
 		}
+		if !all && a.outsideHome(p.ID) {
+			hidden++
+			continue
+		}
+		kp := a.kitPerson(p)
+		kp.LastChat = lastChat[p.ID]
+		out = append(out, kp)
 	}
-	return out
+	return out, hidden
 }
 
 func (a *App) profile(id string) *kit.ProfileSpec {

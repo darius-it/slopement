@@ -7,12 +7,17 @@ import (
 )
 
 // While suggestions show: Up and Down move the highlight (round), Tab takes
-// the highlighted one, Escape puts them away; Enter is left alone, to send.
+// the highlighted one (so does Enter), Escape puts them away.
 func TestSuggestKeys(t *testing.T) {
 	st := &ComposerState{Text: "hi @a", Suggest: []SuggestItem{{Insert: "@a1"}, {Insert: "@a2"}, {Insert: "@a3"}}}
 
-	if suggestKey(st, ui.TextKey{Key: ui.KeyEnter}) || st.wantPick {
-		t.Fatal("Enter was taken by the suggestions: it must send")
+	if !suggestKey(st, ui.TextKey{Key: ui.KeyEnter}) || !st.wantPick {
+		t.Fatal("Enter did not take the highlighted suggestion")
+	}
+	st.wantPick = false
+	// With a modifier (Shift+Enter breaks the line) the suggestions let go.
+	if suggestKey(st, ui.TextKey{Key: ui.KeyEnter, Mods: ui.Shift}) {
+		t.Fatal("Shift+Enter was taken by the suggestions")
 	}
 	for i, want := range []int{1, 2, 0} { // Down, round from the last to the first
 		if !suggestKey(st, ui.TextKey{Key: ui.KeyDown}) || st.sel != want {

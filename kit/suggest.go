@@ -82,9 +82,9 @@ func rowHeightFor(c *ui.Context, h float32) float32 {
 }
 
 // suggestKey handles a key in the field while suggestions show: Up and Down
-// move the highlight, Tab takes the highlighted one, Escape puts them away
-// until the text changes. Enter is not taken: it sends, as always. It
-// reports whether the key was used.
+// move the highlight, Tab or Enter takes the highlighted one, Escape puts
+// them away until the text changes (Enter then sends, as always). It reports
+// whether the key was used.
 func suggestKey(st *ComposerState, k ui.TextKey) bool {
 	if len(st.Suggest) == 0 || k.Mods != 0 {
 		return false
@@ -96,7 +96,7 @@ func suggestKey(st *ComposerState, k ui.TextKey) bool {
 	case ui.KeyUp:
 		st.sel = (st.sel + len(st.Suggest) - 1) % len(st.Suggest)
 		return true
-	case ui.KeyTab:
+	case ui.KeyTab, ui.KeyEnter:
 		if st.OnPick != nil && st.sel < len(st.Suggest) {
 			st.OnPick(st.Suggest[st.sel])
 			st.Suggest, st.sel = nil, 0

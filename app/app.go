@@ -88,7 +88,10 @@ type App struct {
 	previewsDirect   bool                                // which source previews were asked from
 	keysAsked        bool                                // the key status was asked for since the Security page opened
 	confirmLogs      func(answer func(include, ok bool)) // tests' answer to the export logs dialog
-	klipyDraft       string                              // the KLIPY key being typed (gifsettings.go)
+	trail            navHistory                          // back and forward (nav.go)
+	peopleAll        bool                               // People also lists other servers and bridges (convert.go)
+	focusRoom        string                             // a room just opened: its composer takes the focus (room.go)
+	klipyDraft       string                             // the KLIPY key being typed (gifsettings.go)
 	gifFolders       []string                            // folders of pictures the GIF picker also offers (gifsettings.go)
 	files            map[string][]model.File             // per room, waiting in the composer (files.go)
 	previews         map[string]*previewState            // link previews by URL (previews.go)
@@ -306,6 +309,7 @@ func (a *App) open(id string) {
 		a.stopTyping(a.room) // they left the room they were typing in
 	}
 	a.room, a.view, a.pushed = id, viewRoom, true
+	a.focusRoom = id // the composer takes the keyboard when the room is built (not on phones)
 	a.restoreRoom = "" // the user chose; the last run's room no longer applies
 	a.profileMsg = ""
 	a.src.MarkRead(id)
@@ -346,6 +350,8 @@ func (a *App) View(c *ui.Context) {
 		kit.Apply(c)
 	}
 	kit.SwitcherShortcut(c, &a.switcher)
+	a.navKeys(c)
+	a.navTrack()
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyF) { // ⌘⇧F: search every chat
 		a.openSearch("")
 	} else if c.Shortcut(ui.Cmd, ui.KeyF) { // ⌘F: find in this chat

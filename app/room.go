@@ -437,6 +437,12 @@ func (a *App) composer(c *ui.Context, r model.Room) {
 		return
 	}
 	st := a.draft(r.ID)
+	if a.focusRoom == r.ID {
+		a.focusRoom = ""
+		if !kit.Touch(c) { // a phone's keyboard would cover the chat
+			st.Focus()
+		}
+	}
 	place := "Message " + r.Name
 	if r.Kind == model.KindRoom {
 		place = "Message #" + r.Name

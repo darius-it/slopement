@@ -277,6 +277,16 @@ func (a *App) peopleView(c *ui.Context, back bool) {
 			}
 			ui.Icon(c, kit.IconUsers).Size(18, 18).TextColor(p.TextMuted)
 			ui.Text(c, "People").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold).Grow(1)
+			// Your own server's people first; the others and the bridges' are one press away.
+			if _, hidden := a.contactsFor(false); hidden > 0 || a.peopleAll {
+				label := "Show other servers and bridges (" + strconv.Itoa(hidden) + ")"
+				if a.peopleAll {
+					label = "Only my server"
+				}
+				if kit.Button(c, kit.Ghost, label, nil).Clicked() {
+					a.peopleAll = !a.peopleAll
+				}
+			}
 			if kit.Button(c, kit.Secondary, "Add person", kit.IconPlus).Clicked() {
 				a.openAddPerson()
 			}
