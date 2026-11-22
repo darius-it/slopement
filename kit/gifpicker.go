@@ -149,7 +149,7 @@ func Picker(c *ui.Context, anchor ui.Element, st *PickerState, m *PickerModel) (
 			if st.Tab == TabEmoji {
 				if st.hover != "" {
 					ui.Text(c, st.hover).FontSize(18)
-					ui.Text(c, ":"+EmojiName(st.hover)+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
+					ui.Text(c, ":"+emojiShortcode(EmojiName(st.hover))+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
 				} else if st.hoverName != "" {
 					ui.Text(c, ":"+st.hoverName+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
 				}
@@ -188,12 +188,28 @@ func emojiTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 // footer naming it. It returns the one clicked.
 func EmojiGrid(c *ui.Context, query string, recent []string, hover *string, cols int) (chosen string) {
 	*hover = ""
+	// The grid is rows of cols emoji. With the whole set (about 1,900) only
+	// the rows near the view build their cells: the others are empty boxes of
+	// the same height, so the scroll keeps its size and a frame stays cheap.
 	grid := func(key string, list []Emoji) {
-		ui.Grid(c.Key(key)).Columns(cols).Gap(2).Children(func() {
-			for _, e := range list {
-				if emojiCell(c, e, hover) {
-					chosen = e.Char
+		ui.Column(c.Key(key)).Gap(2).Children(func() {
+			for start := 0; start < len(list); start += cols {
+				row := ui.Row(c.Key(key + "#" + strconv.Itoa(start))).Height(emojiRow).Gap(2)
+				if !row.InViewMargin(240) {
+					row.Children(func() {})
+					continue
 				}
+				row.Children(func() {
+					for i := start; i < start+cols; i++ {
+						if i >= len(list) {
+							ui.Box(c).Grow(1).Basis(0) // keeps the last row's cells the width of the others
+							continue
+						}
+						if emojiCell(c, list[i], hover) {
+							chosen = list[i].Char
+						}
+					}
+				})
 			}
 		})
 	}
@@ -212,7 +228,7 @@ func EmojiGrid(c *ui.Context, query string, recent []string, hover *string, cols
 	sectionLabel(c, "Recently used")
 	list := make([]Emoji, 0, len(recent))
 	for _, e := range recent {
-		list = append(list, Emoji{e, EmojiName(e)})
+		list = append(list, Emoji{Char: e, Name: EmojiName(e)})
 	}
 	grid("recent", list)
 	for _, cat := range EmojiCategories {
@@ -222,9 +238,12 @@ func EmojiGrid(c *ui.Context, query string, recent []string, hover *string, cols
 	return chosen
 }
 
+// emojiRow is the height of a row of emoji in the grid.
+const emojiRow = 40
+
 func emojiCell(c *ui.Context, e Emoji, hover *string) (clicked bool) {
 	p := Of(c)
-	b := ui.ButtonBase(c.Key(e.Char)).Height(40).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).Label(e.Name)
+	b := ui.ButtonBase(c.Key(e.Char)).Height(emojiRow).Grow(1).Basis(0).MinWidth(0).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).Label(e.Name)
 	if b.Hovered() || b.FocusVisible() {
 		b.Background(p.Hover)
 		*hover = e.Char
@@ -256,7 +275,7 @@ func EmojiPopover(c *ui.Context, anchor ui.Element, st *EmojiPickerState, recent
 		ui.Row(c).Height(24).Gap(S2).AlignItems(ui.Center).Children(func() {
 			if st.hover != "" {
 				ui.Text(c, st.hover).FontSize(18)
-				ui.Text(c, ":"+EmojiName(st.hover)+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
+				ui.Text(c, ":"+emojiShortcode(EmojiName(st.hover))+":").FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
 			}
 		})
 	})

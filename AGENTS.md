@@ -99,7 +99,12 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   (`model.StickerSender`, `matrix/sticker.go`, `app/stickers.go`), MSC2545 packs
   (`model.Packs`, `matrix/packs.go`, `app/packs.go`, `kit/packpicker.go`,
   `format.Emoji`), and GIF folders (`picker/folders.go`, `app/gifsettings.go`,
-  uiState `GifFolders`). Tests that build an `App` with `picker.New(nil)` must
+  uiState `GifFolders`). The emoji set is the full Unicode list from
+  `github.com/forPelevin/gomoji` (`kit/emojiset.go`: Discord's categories, no
+  skin-tone variants, fully qualified, curated words kept for search; the grid
+  builds only the rows in view). Read-only rooms (`model.Room.ReadOnly` from
+  `m.room.power_levels`, `matrix/power.go`) show `kit.ReadOnlyBar` instead of the
+  composer; a profile card's picture opens the viewer (`app/profilepic.go`). Tests that build an `App` with `picker.New(nil)` must
   `t.Setenv("HOME"/"XDG_CONFIG_HOME", t.TempDir())`, or they write the user's
   real `picker.json`. Still "Soon": key backup/export, identity
   reset, log export. Voice recording (and Opus/AAC decode) is in the
@@ -197,5 +202,6 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - Rename `kit/palette.go` → `kit/switcher.go` (holds the ⌘K Switcher).
 - Delete `app/zz_probe_test.go` and `app/zz_dbg_test.go` (emptied one-off
   diagnostics).
+- Delete `kit/zz_gomoji_probe_test.go` (an emptied one-off probe).
 - Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
   edit itself is already in `matrix/sync_test.go`).

@@ -4,6 +4,8 @@ go 1.27.3
 
 require (
 	github.com/egoist/mygo v0.10.0
+	github.com/forPelevin/gomoji v1.4.1
+	github.com/rivo/uniseg v0.4.7
 	go.mau.fi/util v0.11.1
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.62.0
@@ -16,7 +18,6 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
-	github.com/forPelevin/gomoji v1.4.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
@@ -32,7 +33,6 @@ require (
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/petermattis/goid v0.0.0-20261109124353-7cfa343ad0ab // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

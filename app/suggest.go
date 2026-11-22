@@ -162,12 +162,28 @@ func (a *App) mentionSuggestions(room, query string) []kit.SuggestItem {
 // emojiSuggestions are emoji whose name matches the word after the colon
 // (":smi", ":thumbs_up").
 func emojiSuggestions(query string) []kit.SuggestItem {
+	q := strings.ToLower(strings.ReplaceAll(query, "_", " "))
+	// Of the many that contain the word, the names that start with it come
+	// first, then names with a word starting with it, then the rest.
+	var starts, wordStarts, rest []kit.Emoji
+	for _, e := range kit.SearchEmoji(q) {
+		switch {
+		case strings.HasPrefix(e.Name, q):
+			starts = append(starts, e)
+		case strings.Contains(" "+e.Name, " "+q):
+			wordStarts = append(wordStarts, e)
+		default:
+			rest = append(rest, e)
+		}
+	}
 	var out []kit.SuggestItem
-	for _, e := range kit.SearchEmoji(strings.ReplaceAll(query, "_", " ")) {
-		out = append(out, kit.SuggestItem{Label: e.Name, Sub: ":" + strings.ReplaceAll(e.Name, " ", "_") + ":",
-			Emoji: e.Char, Insert: e.Char})
-		if len(out) == suggestMax {
-			break
+	for _, list := range [][]kit.Emoji{starts, wordStarts, rest} {
+		for _, e := range list {
+			if len(out) == suggestMax {
+				return out
+			}
+			out = append(out, kit.SuggestItem{Label: e.Name, Sub: ":" + strings.ReplaceAll(e.Name, " ", "_") + ":",
+				Emoji: e.Char, Insert: e.Char})
 		}
 	}
 	return out

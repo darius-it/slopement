@@ -2,9 +2,11 @@ package kit
 
 import "strings"
 
-// Emoji is an emoji with the words it is found by.
+// Emoji is an emoji with its name and the words it is also found by.
 type Emoji struct {
 	Char, Name string
+	// Words are extra search words ("joy tears laugh"), lowercase.
+	Words string
 }
 
 // EmojiCategory is a section of the emoji picker.
@@ -16,14 +18,14 @@ type EmojiCategory struct {
 func em(pairs ...string) []Emoji {
 	out := make([]Emoji, 0, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {
-		out = append(out, Emoji{pairs[i], pairs[i+1]})
+		out = append(out, Emoji{Char: pairs[i], Words: pairs[i+1]})
 	}
 	return out
 }
 
-// EmojiCategories is the picker's set: the commonly used emoji of each
-// group, in Unicode's order. The full set loads later from a data file.
-var EmojiCategories = []EmojiCategory{
+// curatedCategories are the commonly used emoji of each group with the words
+// people look for them by; the full set (emojiset.go) takes these words.
+var curatedCategories = []EmojiCategory{
 	{"Smileys", em(
 		"😀", "grinning", "😃", "smiley", "😄", "smile", "😁", "grin", "😆", "laughing", "😅", "sweat smile",
 		"😂", "joy tears laugh", "🤣", "rofl rolling", "🥲", "smiling tear", "😊", "blush", "😇", "innocent halo",
@@ -97,28 +99,45 @@ var EmojiCategories = []EmojiCategory{
 // DefaultRecentEmoji fill the recently used row before the user has any.
 var DefaultRecentEmoji = []string{"👍", "❤️", "😂", "🎉", "🔥", "🙏", "👀", "✨", "😭", "🥲", "💜", "✅"}
 
-var emojiNames = func() map[string]string {
-	m := map[string]string{}
+// EmojiCategories is the picker's set: every emoji of Unicode's emoji list
+// (without the skin-tone variants), in categories as Discord's, built once
+// from the full data (emojiset.go) with the curated words above kept as extra
+// ways to find them.
+var EmojiCategories []EmojiCategory
+
+var emojiNames map[string]string
+
+func init() {
+	EmojiCategories = buildEmojiCategories()
+	emojiNames = map[string]string{}
 	for _, cat := range EmojiCategories {
 		for _, e := range cat.Emojis {
-			m[e.Char] = e.Name
+			emojiNames[e.Char] = e.Name
 		}
 	}
-	return m
-}()
+}
 
-// EmojiName returns the name of e, for labels.
-func EmojiName(e string) string { return emojiNames[e] }
+// EmojiName returns the name of e, for labels ("face with tears of joy").
+func EmojiName(e string) string {
+	if n, ok := emojiNames[e]; ok {
+		return n
+	}
+	return emojiNames[strings.ReplaceAll(e, "️", "")+"️"]
+}
 
-// SearchEmoji returns the emoji whose names contain every word of query.
+// emojiShortcode is a name as a ":shortcode:" word ("face_with_tears_of_joy").
+func emojiShortcode(name string) string { return strings.ReplaceAll(name, " ", "_") }
+
+// SearchEmoji returns the emoji whose name or keywords contain every word of
+// query.
 func SearchEmoji(query string) []Emoji {
-	words := strings.Fields(strings.ToLower(query))
+	words := strings.Fields(strings.ToLower(strings.ReplaceAll(query, "_", " ")))
 	var out []Emoji
 	for _, cat := range EmojiCategories {
 	next:
 		for _, e := range cat.Emojis {
 			for _, w := range words {
-				if !strings.Contains(e.Name, w) {
+				if !strings.Contains(e.Name, w) && !strings.Contains(e.Words, w) {
 					continue next
 				}
 			}
