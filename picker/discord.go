@@ -8,7 +8,9 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"slopement/klipy"
 )
@@ -60,6 +62,9 @@ func parseDiscordFavorites(data []byte) ([]klipy.Item, error) {
 		if u == "" {
 			continue // a video we can't show as a GIF
 		}
+		if expiredLink(u, now()) {
+			continue // a Discord attachment link past its expiry: it would only ever show as gone
+		}
 		sum := sha1.Sum([]byte(e.key))
 		r := klipy.Rendition{URL: u, Width: e.f.Width, Height: e.f.Height}
 		th := r
@@ -82,7 +87,8 @@ func discordGIF(key, src string) string {
 	if strings.HasPrefix(src, "//") {
 		src = "https:" + src
 	}
-	src = unproxy(src)
+	src = originalFormat(unproxy(src))
+	key = originalFormat(key)
 	for _, u := range []string{src, key} {
 		if strings.HasSuffix(strings.ToLower(strings.SplitN(u, "?", 2)[0]), ".gif") {
 			return u
@@ -103,6 +109,51 @@ func discordGIF(key, src string) string {
 		return "https://" + p.Host + strings.TrimSuffix(p.Path, ".mp4") + ".gif"
 	}
 	return ""
+}
+
+// originalFormat undoes Discord's conversion of an attachment: a link with
+// ?format=webp&animated=true serves an animated WebP, which mygo cannot show;
+// without them Discord serves the file as it was uploaded (the GIF). Any
+// other address is returned as it is.
+func originalFormat(u string) string {
+	p, err := url.Parse(u)
+	if err != nil {
+		return u
+	}
+	host := strings.ToLower(p.Host)
+	if host != "cdn.discordapp.com" && host != "media.discordapp.net" {
+		return u
+	}
+	q := p.Query()
+	if q.Get("format") != "webp" {
+		return u
+	}
+	if !strings.HasSuffix(strings.ToLower(p.Path), ".gif") {
+		return u // a still or a WebP upload: the conversion is all there is
+	}
+	q.Del("format")
+	q.Del("animated")
+	p.RawQuery = q.Encode()
+	return p.String()
+}
+
+// now is the clock, a test's to set.
+var now = time.Now
+
+// expiredLink reports whether u is a Discord attachment link whose signed
+// expiry (the hex Unix time in its ex= parameter) has passed: Discord answers
+// 403 for it from then on.
+func expiredLink(u string, at time.Time) bool {
+	p, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(p.Host)
+	if host != "cdn.discordapp.com" && host != "media.discordapp.net" {
+		return false
+	}
+	ex, err := strconv.ParseInt(p.Query().Get("ex"), 16, 64)
+	return err == nil && ex > 0 && time.Unix(ex, 0).Before(at)
 }
 
 // thumbURL is a small version of the GIF at u to show as a tile, where the
@@ -134,11 +185,24 @@ func unproxy(src string) string {
 	if !ok {
 		return src
 	}
-	parts := strings.SplitN(rest, "/", 3) // hash, scheme, the address
-	if len(parts) != 3 || (parts[1] != "https" && parts[1] != "http") || parts[2] == "" {
+	// <hash>/[the proxy's own options, as one encoded segment/]https/<address>
+	_, after, ok := strings.Cut(rest, "/") // past the hash
+	if !ok {
 		return src
 	}
-	out := "https://" + parts[2]
+	after = "/" + after
+	i, j := strings.Index(after, "/https/"), strings.Index(after, "/http/")
+	var addr string
+	switch {
+	case i >= 0 && (j < 0 || i < j):
+		addr = after[i+len("/https/"):]
+	case j >= 0:
+		addr = after[j+len("/http/"):]
+	}
+	if addr == "" {
+		return src
+	}
+	out := "https://" + addr
 	if p.RawQuery != "" {
 		out += "?" + p.RawQuery
 	}

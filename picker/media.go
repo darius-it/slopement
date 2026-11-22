@@ -20,6 +20,7 @@ type mediaEntry struct {
 	player  *ui.VideoPlayer
 	loading bool
 	failed  bool
+	gone    bool      // failed for good (forbidden, not found)
 	tries   int       // failed loads in a row
 	retryAt time.Time // when a failed load may start again
 	el      *list.Element
@@ -93,6 +94,21 @@ func (m *mediaCache) fail(url string) time.Duration {
 	return wait
 }
 
+// markGone records a load that failed for good: it is not retried, by itself
+// or by a tap.
+func (m *mediaCache) markGone(url string) {
+	if e, ok := m.entries[url]; ok {
+		e.loading, e.failed, e.gone = false, true, true
+		e.tries = autoRetries + 1
+	}
+}
+
+// isGone reports whether url failed for good.
+func (m *mediaCache) isGone(url string) bool {
+	e, ok := m.entries[url]
+	return ok && e.gone
+}
+
 // cancel forgets a load that never began, so it can start afresh.
 func (m *mediaCache) cancel(url string) {
 	if e, ok := m.entries[url]; ok && e.player == nil && e.loading {
@@ -103,7 +119,7 @@ func (m *mediaCache) cancel(url string) {
 // retry lets a failed url load again now, as a tap on its tile asks.
 func (m *mediaCache) retry(url string) bool {
 	e, ok := m.entries[url]
-	if !ok || !e.failed || e.loading {
+	if !ok || !e.failed || e.loading || e.gone {
 		return false
 	}
 	e.tries, e.retryAt = 0, time.Time{}
@@ -116,7 +132,7 @@ func (m *mediaCache) put(url string, p *ui.VideoPlayer) {
 		e = &mediaEntry{}
 		m.entries[url] = e
 	}
-	e.player, e.loading, e.failed, e.tries = p, false, false, 0
+	e.player, e.loading, e.failed, e.gone, e.tries = p, false, false, false, 0
 	e.el = m.order.PushFront(url)
 	for m.order.Len() > m.max {
 		last := m.order.Back()

@@ -44,6 +44,9 @@ type PickerTile struct {
 	Want   func()
 	Drop   func() // takes the request back: the tile scrolled out of view
 	Failed bool
+	// Gone: the file is not there any more (an expired link): it says so,
+	// is not retried and sends nothing. The star still takes it away.
+	Gone bool
 	// W and H are the item's size, for its aspect ratio.
 	W, H     float32
 	Favorite bool
@@ -430,8 +433,14 @@ func tileMedia(c *ui.Context, t *PickerTile, fit ui.Fit, tint bool) {
 		ui.Box(c).Fill().Background(p.Users[HashIndex(t.ID)].Alpha(0.16).Over(p.BgInset))
 	}
 	if t.Failed && t.Player == nil {
-		// It could not load: a quiet mark that a tap tries again.
+		// It could not load: a quiet mark that a tap tries again, or, for an
+		// expired link that will never load, that it is gone.
 		ui.Column(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).AlignItems(ui.Center).Justify(ui.Center).Gap(S1).PassThrough().Children(func() {
+			if t.Gone {
+				ui.Icon(c, IconX).Size(18, 18).TextColor(p.TextFaint)
+				ui.Text(c, "No longer available").FontSize(SizeCaption).TextColor(p.TextFaint).TextAlign(ui.Center)
+				return
+			}
 			ui.Icon(c, IconRetry).Size(18, 18).TextColor(p.TextFaint)
 			ui.Text(c, "Tap to retry").FontSize(SizeCaption).TextColor(p.TextFaint)
 		})
@@ -532,7 +541,7 @@ func itemTile(c *ui.Context, t *PickerTile, r *PickerResult, sticker bool) ui.El
 		}
 	}
 	defer func() {
-		if t.Failed && t.Player == nil && b.Clicked() {
+		if t.Failed && !t.Gone && t.Player == nil && b.Clicked() {
 			r.Retry = t
 		}
 	}()

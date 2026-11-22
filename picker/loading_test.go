@@ -211,6 +211,78 @@ func TestSendRegistersShare(t *testing.T) {
 	}
 }
 
+// A Discord attachment re-served as animated WebP goes back to its GIF; other
+// addresses, a WebP upload, and signed parameters stay.
+func TestOriginalFormat(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://media.discordapp.net/attachments/1/2/x.gif?format=webp&animated=true&ex=6b&is=6c&hm=ab": "https://media.discordapp.net/attachments/1/2/x.gif?ex=6b&hm=ab&is=6c",
+		"https://media.discordapp.net/attachments/1/2/x.webp?format=webp&animated=true&ex=6b":            "https://media.discordapp.net/attachments/1/2/x.webp?format=webp&animated=true&ex=6b",
+		"https://media.discordapp.net/attachments/1/2/x.gif?ex=6b":                                       "https://media.discordapp.net/attachments/1/2/x.gif?ex=6b",
+		"https://example.com/x.gif?format=webp&animated=true":                                            "https://example.com/x.gif?format=webp&animated=true",
+	} {
+		if got := originalFormat(in); got != want {
+			t.Errorf("originalFormat(%q)\n got %q\nwant %q", in, got, want)
+		}
+	}
+}
+
+// A proxied Discord sticker keeps the proxy's own options in an extra
+// segment before the address; it unwraps all the same, and goes back to its GIF.
+func TestProxiedStickerUnwraps(t *testing.T) {
+	in := "https://images-ext-1.discordapp.net/external/51a6b/%3Fsize%3D160%26name%3Dabsolute%2Blaunchpad/https/media.discordapp.net/stickers/133.gif?format=webp&animated=true"
+	if got, want := originalFormat(unproxy(in)), "https://media.discordapp.net/stickers/133.gif"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// Links past their signed expiry are not imported; ones still good are.
+func TestExpiredLink(t *testing.T) {
+	at := time.Unix(1795360347, 0)
+	if !expiredLink("https://media.discordapp.net/attachments/1/2/x.gif?ex=6a000000", at) {
+		t.Error("an expired link counts as live")
+	}
+	if expiredLink("https://media.discordapp.net/attachments/1/2/x.gif?ex=6b03989e", at) || expiredLink("https://media.discordapp.net/a.gif", at) || expiredLink("https://tenor.com/a.gif?ex=1", at) {
+		t.Error("a live link, one with no expiry or one from elsewhere counts as expired")
+	}
+}
+
+// A permanent failure (403/404) is not retried and says so; a tap does not
+// retry it, and choosing it sends nothing.
+func TestGoneIsNotRetried(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/busy.gif" {
+			http.Error(w, "busy", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "expired", http.StatusForbidden)
+	}))
+	defer srv.Close()
+	c := newAt(nil, filepath.Join(t.TempDir(), "p.json"))
+	q := &queue{}
+	c.SetUpdate(q.post)
+	gone, busy := srv.URL+"/gone.gif", srv.URL+"/busy.gif"
+	for _, u := range []string{gone, busy} {
+		c.mediaOf(u)
+	}
+	q.settle(t, func() bool { return c.media.failed(gone) && c.media.failed(busy) })
+	if !c.media.isGone(gone) || c.media.isGone(busy) {
+		t.Fatal("a 403 is gone for good, a 503 is not")
+	}
+	if c.media.retry(gone) || c.media.start(gone) {
+		t.Fatal("a gone file is retried")
+	}
+	it := klipy.Item{ID: "g", Thumb: klipy.Rendition{URL: gone}, Full: klipy.Rendition{URL: gone}}
+	c.items["g"] = it
+	tile := c.tile(it)
+	if !tile.Gone || !tile.Failed {
+		t.Fatalf("tile = %+v", tile)
+	}
+	out := c.Handle(&kit.PickerState{}, kit.PickerResult{Item: &tile})
+	if out.Item != nil {
+		t.Fatal("a gone GIF was sent")
+	}
+}
+
 func TestThumbURL(t *testing.T) {
 	for in, want := range map[string]string{
 		"https://media.tenor.com/Bh4Mf9OUMh8AAAAC/bro-just-typing.gif": "https://media.tenor.com/Bh4Mf9OUMh8AAAAM/bro-just-typing.gif",

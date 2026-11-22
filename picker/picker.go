@@ -142,7 +142,10 @@ func (c *Controller) load() {
 		json.Unmarshal(b, &c.saved)
 	}
 	for i := range c.saved.Favorites {
-		if f := &c.saved.Favorites[i]; f.Thumb.URL == f.Full.URL {
+		f := &c.saved.Favorites[i]
+		f.Full.URL = originalFormat(unproxy(f.Full.URL)) // imported as a WebP, which cannot be shown: the GIF
+		f.Thumb.URL = originalFormat(unproxy(f.Thumb.URL))
+		if f.Thumb.URL == f.Full.URL {
 			f.Thumb.URL = thumbURL(f.Full.URL) // imported before thumbnails: the full GIF is no tile
 		}
 	}
@@ -405,7 +408,7 @@ func (c *Controller) tile(it klipy.Item) kit.PickerTile {
 	if e, ok := c.media.get(url); ok {
 		t.Player = e.player
 	}
-	t.Failed = c.media.failed(url)
+	t.Failed, t.Gone = c.media.failed(url), c.media.isGone(url)
 	t.Want = func() { c.mediaOf(url) }
 	t.Drop = func() { c.setWanted(url, false) }
 	return t
@@ -454,7 +457,7 @@ func (c *Controller) mediaOf(url string) (*ui.VideoPlayer, ui.ImageSource) {
 					return
 				}
 			}
-			c.failed(url)
+			c.failed(url, isGone(err))
 		})
 	}()
 	return nil, nil
@@ -484,7 +487,12 @@ func (c *Controller) isWanted(url string) bool {
 
 // failed notes a failed load: the tile says so, and a tile or message
 // still on screen tries again after a wait.
-func (c *Controller) failed(url string) {
+func (c *Controller) failed(url string, gone bool) {
+	if gone {
+		c.media.markGone(url) // it will not come back: no retries, no tap to retry
+		c.refreshTiles()
+		return
+	}
 	wait := c.media.fail(url)
 	c.refreshTiles()
 	if wait > 0 {
@@ -517,10 +525,29 @@ func (c *Controller) refreshTiles() {
 				if e, ok := c.media.get(it.Thumb.URL); ok {
 					t.Player = e.player
 				}
-				t.Failed = c.media.failed(it.Thumb.URL)
+				t.Failed, t.Gone = c.media.failed(it.Thumb.URL), c.media.isGone(it.Thumb.URL)
 			}
 		}
 	}
+}
+
+// statusError is a download the server refused.
+type statusError struct {
+	code int
+	text string
+}
+
+func (e *statusError) Error() string { return e.text }
+
+// isGone reports whether a load failed for good: the server says the file is
+// forbidden or gone (a Discord attachment link that has expired is a 403), or
+// the local file is missing. A timeout or a 5xx is not: it may work later.
+func isGone(err error) bool {
+	var se *statusError
+	if errors.As(err, &se) {
+		return se.code == http.StatusForbidden || se.code == http.StatusNotFound || se.code == http.StatusGone
+	}
+	return errors.Is(err, os.ErrNotExist)
 }
 
 func (c *Controller) download(url string) ([]byte, error) {
@@ -530,7 +557,7 @@ func (c *Controller) download(url string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.New(res.Status)
+		return nil, &statusError{res.StatusCode, res.Status}
 	}
 	if res.ContentLength > maxDownload {
 		return nil, fmt.Errorf("animation is %d bytes, over the %d-byte limit", res.ContentLength, maxDownload)
@@ -594,7 +621,7 @@ func (c *Controller) Handle(st *kit.PickerState, r kit.PickerResult) (out Chosen
 		c.save()
 		out.Emoji = r.Emoji
 	}
-	if r.Item != nil && r.Retry == nil { // a tap on a tile that failed to load retries it
+	if r.Item != nil && r.Retry == nil && !r.Item.Gone { // a tap on a tile that failed to load retries it; one that is gone sends nothing
 		if it, ok := c.items[r.Item.ID]; ok {
 			if it.Kind == klipy.Stickers {
 				c.saved.RecentStickers = pushItem(c.saved.RecentStickers, it, 8)
