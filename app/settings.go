@@ -258,6 +258,7 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Send typing notifications", "Others in a chat see \"… is typing\" while you write", &a.prefs.typing)
 		})
 		a.ignoredGroup(c)
+		a.updatesPrivacyGroup(c)
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)
 			switchRow(c, "Fetch previews from this device", "Off: your homeserver fetches them and sites never see you. On: this device does, no link goes to the homeserver, and every site linked sees your IP address. Addresses on your own network are never fetched.", &a.prefs.previewsDirect)
@@ -286,6 +287,7 @@ func (a *App) settingsPage(c *ui.Context) {
 			a.soonSwitch(c, "Camera off when joining", "Turn it on in the call")
 		})
 	case "Advanced":
+		a.updatesAdvancedGroup(c)
 		group(c, "Troubleshooting", "Resetting the cache never touches your encryption keys.", func() {
 			if _, ok := a.src.(model.LogExporter); ok {
 				if kit.ChoiceRow(c, kit.IconDownload, "Export logs", "A zip for bug reports, without message contents, names or tokens").Clicked() {

@@ -31,6 +31,11 @@ jobs:
             > will change, and your data may need resetting between versions.
             > Do not rely on it for anything important.
 
+            slopement can look for updates, but only if you turn it on (Settings → Privacy →
+            "Check for updates at startup"): then it asks GitHub once at startup, and downloads
+            nothing until you press Install. Copies installed from a `.deb`, `.rpm`, AppImage or
+            the Arch package update through where they came from.
+
             These builds are **not signed**, so your system will warn you once:
 
             - **macOS:** open the disk image, drag slopement to Applications, then run
@@ -73,9 +78,19 @@ jobs:
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
+      # The app's version is the tag without its "v": the app compares versions
+      # to know an update is newer (mygo.config.ts reads SLOPEMENT_VERSION).
+      - name: Set the version from the tag
+        shell: bash
+        run: echo "SLOPEMENT_VERSION=${TAG#v}" >> "$GITHUB_ENV"
       - name: Build
         # package.json's "build" sets GOFLAGS=-tags=goolm (mautrix's crypto is
-        # pure Go only with it).
+        # pure Go only with it). MYGO_UPDATER_PRIVATE_KEY signs the update
+        # archives and manifests (the secret key of `mygo keygen`; the public
+        # key is committed as mygo-update.pub). Without the secret the build
+        # still works, and has no update files.
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: bun run build -- -platform "${{ matrix.platform }}"
       # An AppImage of the Linux x86-64 build: the binary, its desktop entry
       # and icon. It uses the system's GTK 3 (as the .deb does), which every
@@ -128,7 +143,7 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz build/*/*.AppImage build/arch/*)
+          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm build/*/*.tar.gz build/*/*.AppImage build/*/update-*.json build/arch/*)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
           gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 

@@ -217,6 +217,17 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
+## Updates
+Opt-in, never automatic (`app/updates.go`): Settings → Privacy switch (off by
+default, kept per device in `<config>/slopement/updates.json`), one check at
+startup per run, "Check for updates now" in Advanced, a dialog, Install only on
+a press. Built on `mygo.Updater` (signed archives; `theUpdater` is the test
+seam). `mygo.config.ts` turns the updater on when `mygo-update.pub` exists
+(`mygo keygen`; commit the .pub, keep the .key out of the repo and in the
+Actions secret `MYGO_UPDATER_PRIVATE_KEY`). The version is the tag without `v`
+(`SLOPEMENT_VERSION`), and all releases are pre-releases, so the check
+asks for pre-releases. Do not lose the secret key: installed apps trust only it.
+
 ## Performance rules learned
 - The sidebar lists (Chats in every layout, One inbox) are `ui.List`s of
   `listLine`s (`app/lists.go`, `showLines`): they used to be a `Scroll` with a
@@ -255,5 +266,6 @@ keychain service: do not change it after a release.
 - Delete `app/zz_probe_test.go` and `app/zz_dbg_test.go` (emptied one-off
   diagnostics).
 - Delete `kit/zz_gomoji_probe_test.go` (an emptied one-off probe).
+- Delete `app/zz_dbg_updates_test.go` (an emptied one-off diagnostic).
 - Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
   edit itself is already in `matrix/sync_test.go`).

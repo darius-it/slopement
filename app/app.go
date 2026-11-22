@@ -93,6 +93,9 @@ type App struct {
 	srcGen           uint64                              // counts the source's changes
 	inboxLS          ui.ListState                        // One inbox's scroll
 	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
+	updCheck         bool                                // the switch "Check for updates at startup"
+	updInit          bool                                // updCheck was read from the saved choice
+	upd              updateDialog                        // an update found (updates.go)
 	fwd              forwardDialog                       // "Forward" (forward.go)
 	trail            navHistory                          // back and forward (nav.go)
 	peopleAll        bool                                // People also lists other servers and bridges (convert.go)
@@ -334,6 +337,7 @@ func (a *App) View(c *ui.Context) {
 	a.frameStart()
 	defer a.frameEnd()
 	a.now = time.Now()
+	a.updatesAtStart() // only if the user turned it on (Settings → Privacy)
 	a.typingTick()
 	// Appearance settings: the tint, the timeline's density, the size.
 	kit.SetAccent(a.prefs.accent)
