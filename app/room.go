@@ -107,7 +107,9 @@ func (a *App) roomView(c *ui.Context, back bool) {
 			// 24 under the last message before the composer, as Meetup's and
 			// Fresha's web chats leave (Mobbin); it scrolls with the messages.
 			ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.timelineRow(c, r, rows[i]) }).
-				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).Children(func() {
+				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).
+				Selectable(). // one selection over the messages built: a drag crosses them
+				Children(func() {
 				if len(rows) == 0 {
 					emptyNote(c, "No messages yet. Say hi!")
 				}

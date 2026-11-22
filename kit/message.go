@@ -169,7 +169,9 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 	p := Of(c)
 	a.OpenMedia, a.Vote = -1, -1
 	row := ui.Row(c.Key(m.ID))
-	hov := row.Hovered() || row.FocusWithin()
+	// Only the pointer, not focus: a click on the text or an embed leaves
+	// the keyboard focus in the row, which must not keep it highlighted.
+	hov := row.Hovered()
 	// The toolbar stays while its ⋯ menu is in use: the menu lives in the
 	// toolbar's ⋯ button, and the pointer leaves the row to reach the menu,
 	// so a toolbar that left with the hover would take the menu with it.
@@ -259,9 +261,10 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				}
 				body := func() {
 					if m.Doc != nil {
-						MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg})
+						// Selected with the rest of the timeline (the list is Selectable).
+						MessageBody(c, m.ID, m.Doc, m.Reveals, BodyStyle{Color: fg, Shared: true})
 					} else if m.Body != "" {
-						ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45).Selectable()
+						ui.RichText(c, ui.Span{Text: m.Body, Color: fg}).FontSize(SizeBody).LineHeight(1.45)
 					}
 				}
 				if m.Edited {

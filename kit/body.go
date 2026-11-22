@@ -20,10 +20,21 @@ type BodyStyle struct {
 	// OnAccent is set inside an outgoing bubble on the accent, which
 	// recolors links, code and quotes to read on it.
 	OnAccent bool
+	// OnClick, when set, runs on a plain click (a press and release in one
+	// place) on the text — a drag still selects it. For bodies shown in a
+	// card that goes somewhere (a pinned message): selectable text takes
+	// the press, so the card cannot see the click itself.
+	OnClick func()
+	// Shared leaves the selection to a Selectable container around the
+	// body (the timeline's list), so one drag can cross messages as it does
+	// on the web; without it the body is one selection of its own.
+	Shared bool
 }
 
 // MessageBody renders a message's formatted tree. key identifies the
-// message, for its spoilers' state.
+// message, for its spoilers' state. One selection spans the whole message:
+// a drag crosses its paragraphs, list items and code, and Copy takes what
+// is selected.
 func MessageBody(c *ui.Context, key string, doc *format.Node, rv Reveals, s BodyStyle) {
 	if doc == nil {
 		return
@@ -32,7 +43,11 @@ func MessageBody(c *ui.Context, key string, doc *format.Node, rv Reveals, s Body
 		s.Size = SizeBody
 	}
 	b := &bodyBuilder{c: c, key: key, rv: rv, s: s, p: Of(c)}
-	ui.Column(c).Gap(S15).MinWidth(0).Children(func() {
+	col := ui.Column(c).Gap(S15).MinWidth(0)
+	if !s.Shared {
+		col.Selectable()
+	}
+	col.Children(func() {
 		for i, n := range doc.Children {
 			b.block(n, strconv.Itoa(i))
 		}
@@ -97,7 +112,7 @@ func (b *bodyBuilder) block(n *format.Node, path string) {
 				}
 				ui.Row(c.Key(i)).Gap(S15).AlignItems(ui.Start).Children(func() {
 					ui.Text(c, marker).FontSize(b.s.Size).FontFeatures("tnum").TextColor(b.muted()).
-						MinWidth(14).TextAlign(ui.End).Shrink(0)
+						MinWidth(14).TextAlign(ui.End).Shrink(0).Unselectable()
 					ui.Column(c).Gap(S05).Grow(1).MinWidth(0).Children(func() {
 						for j, ch := range item.Children {
 							b.block(ch, path+"."+strconv.Itoa(i)+"."+strconv.Itoa(j))
@@ -112,8 +127,11 @@ func (b *bodyBuilder) block(n *format.Node, path string) {
 }
 
 func (b *bodyBuilder) paragraph(inl []*format.Node, size float32, weight int, path string) {
-	para := ui.RichText(b.c.Key(path)).FontSize(size).FontWeight(weight).LineHeight(1.45).TextColor(b.textColor()).
-		Selectable()
+	// Selectable comes from the body's container, so the selection is one.
+	para := ui.RichText(b.c.Key(path)).FontSize(size).FontWeight(weight).LineHeight(1.45).TextColor(b.textColor())
+	if click := b.s.OnClick; click != nil && para.Clicked() {
+		click()
+	}
 	prev, prevID := b.para, b.paraID
 	b.para, b.paraID = para, b.key+"|"+path
 	para.Children(func() {
@@ -211,7 +229,7 @@ func (b *bodyBuilder) codeBlock(n *format.Node, path string) {
 			if lang == "" {
 				lang = "code"
 			}
-			ui.Text(c, lang).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(b.muted()).Grow(1)
+			ui.Text(c, lang).FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(b.muted()).Grow(1).Unselectable()
 			cp := ui.ButtonBase(c.Key("copy")).Height(22).PaddingX(S15).Gap(S1).Radius(RadiusSm).AlignItems(ui.Center).
 				Label("Copy code")
 			if cp.Hovered() {
@@ -227,7 +245,7 @@ func (b *bodyBuilder) codeBlock(n *format.Node, path string) {
 			}
 		})
 		ui.Scroll(c).Row().Scrollbars(false).Padding(0, S3, S3, S3).Children(func() {
-			ui.RichText(c).Font("monospace").FontSize(SizeSmall).LineHeight(1.5).NoWrap().Selectable().Children(func() {
+			ui.RichText(c).Font("monospace").FontSize(SizeSmall).LineHeight(1.5).NoWrap().Children(func() {
 				// Quiet highlighting: comments, strings, numbers and the
 				// language's keywords only (format.Highlight, no dependency).
 				for _, tok := range format.Highlight(n.Lang, n.Text) {

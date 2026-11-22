@@ -256,7 +256,10 @@ func (a *App) pinCard(c *ui.Context, r model.Room, ev model.Event, acts model.Ac
 			}
 			doc, media, _ := a.content(ev)
 			if doc != nil {
-				kit.MessageBody(c, "pin:"+ev.ID, doc, a.reveals, kit.BodyStyle{Size: kit.SizeSmall + 1})
+				// A click on the words goes to the message as one beside them does;
+				// a drag over them selects.
+				kit.MessageBody(c, "pin:"+ev.ID, doc, a.reveals, kit.BodyStyle{Size: kit.SizeSmall + 1,
+					OnClick: func() { a.jumpToEvent(r.ID, ev) }})
 			}
 			if len(media) > 0 {
 				if i := kit.MediaGrid(c, media, 236, a.reveals); i >= 0 {
