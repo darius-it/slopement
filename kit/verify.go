@@ -206,7 +206,9 @@ func choiceRow(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 			Children(func() { ui.Icon(c, icon).Size(18, 18).TextColor(p.AccentStrong) })
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium)
-			ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextMuted)
+			if sub != "" { // an empty line would push the title above the icon's middle
+				ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextMuted)
+			}
 		})
 		ui.Icon(c, IconChevronR).Size(16, 16).TextColor(p.TextFaint)
 	})
@@ -225,7 +227,9 @@ func ChoiceRowSoon(c *ui.Context, icon *ui.SVG, title, sub string) ui.Element {
 			Children(func() { ui.Icon(c, icon).Size(18, 18).TextColor(p.TextMuted) })
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(p.TextMuted)
-			ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextFaint)
+			if sub != "" {
+				ui.Text(c, sub).FontSize(SizeSmall).TextColor(p.TextFaint)
+			}
 		})
 		SoonTag(c)
 	})
