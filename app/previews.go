@@ -1,11 +1,24 @@
 package app
 
 import (
+	"context"
+	"time"
+
 	"slopement/embeds"
 	"slopement/format"
 	"slopement/kit"
+	"slopement/linkpreview"
 	"slopement/model"
 )
+
+// previewClient is what fetches previews from this device (tests give it
+// their own, which may reach the local machine).
+func (a *App) previewClient() *linkpreview.Client {
+	if a.previewFetcher == nil {
+		a.previewFetcher = &linkpreview.Client{}
+	}
+	return a.previewFetcher
+}
 
 // previewState is what the app knows of one link's preview.
 type previewState struct {
@@ -28,6 +41,12 @@ func (a *App) linkCard(ev model.Event, doc *format.Node) *kit.LinkCard {
 	}
 	if r, ok := a.src.Room(ev.Room); ok && r.Encrypted && !a.prefs.previewsE2EE {
 		return nil
+	}
+	if a.previewsDirect != a.prefs.previewsDirect {
+		// The source of previews changed: what was asked (or failed) before
+		// is asked again from the new one.
+		a.previewsDirect = a.prefs.previewsDirect
+		a.previews = map[string]*previewState{}
 	}
 	var link string
 	for _, l := range embeds.Links(doc, 3) {
@@ -66,12 +85,32 @@ func (a *App) linkCard(ev model.Event, doc *format.Node) *kit.LinkCard {
 // askPreview requests a link's preview from the source, once; the answer
 // comes back through the window.
 func (a *App) askPreview(link string, st *previewState) {
-	pv, ok := a.src.(model.Previewer)
 	st.asked = true
-	if !ok || a.runUI == nil {
+	if a.runUI == nil {
 		return
 	}
 	runUI := a.runUI
+	if a.prefs.previewsDirect {
+		// "Fetch previews from this device": the page is fetched here, not by
+		// the homeserver, so no link goes to the homeserver and the site sees
+		// this device's address. Private addresses are never fetched.
+		client := a.previewClient()
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			p, err := client.Fetch(ctx, link)
+			runUI(func() {
+				if err == nil && (p.Title != "" || p.Description != "") {
+					st.card, st.got = p, true
+				}
+			})
+		}()
+		return
+	}
+	pv, ok := a.src.(model.Previewer)
+	if !ok {
+		return
+	}
 	pv.LinkPreview(link, func(p model.Preview, err error) {
 		runUI(func() {
 			// A page with nothing to say is no card.

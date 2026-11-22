@@ -114,8 +114,12 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   new key backup (make it in Element, restore here). Logs: `internal/diag`
   (one redacted file a day under `<config>/slopement/logs`, 7 days, 20 MB; an
   export hashes IDs), wired in `logging.go` and `matrix/diagnostics.go`, exported
-  from Advanced (`model.LogExporter`). Still "Soon" in settings: animate profile
-  pictures, hide joins/leaves, fetch previews from this device (and calls).
+  from Advanced (`model.LogExporter`). Previews from this device
+  (`linkpreview/`, never fetches private addresses; `app/previews.go`, remote
+  pictures in `app/media.go`), hide joins/leaves (`model.Event.Membership`,
+  `app.rows`), animated GIF avatars (`kit.AvatarSpec.Anim`, `app/avataranim.go`:
+  original fetched lazily when it would play). Only the call settings are still
+  "Soon" in settings.
   File dialogs go through `app/dialogs.go` (tests replace `pickFileFn` /
   `saveFileFn`). Voice recording (and Opus/AAC decode) is in the
   mobile-polish/device-pass scope (plan step 9), not stage 5: mygo has no

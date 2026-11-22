@@ -61,7 +61,7 @@ func TestMemberLine(t *testing.T) {
 		}},
 	}
 	e, ok := memberLine(join)
-	if !ok || e.Kind != model.EventSystem || e.Body != "Ada joined" {
+	if !ok || e.Kind != model.EventSystem || e.Body != "Ada joined" || e.Membership != "join" {
 		t.Fatalf("line = %+v, %v", e, ok)
 	}
 
@@ -71,7 +71,7 @@ func TestMemberLine(t *testing.T) {
 		Content: event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipLeave}},
 	}
 	e, ok = memberLine(leave)
-	if !ok || e.Body != "sam left" { // no displayname: the MXID's local part
+	if !ok || e.Body != "sam left" || e.Membership != "leave" { // no displayname: the MXID's local part
 		t.Fatalf("line = %+v, %v", e, ok)
 	}
 }

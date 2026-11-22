@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -204,19 +206,37 @@ func (a *App) still(m model.Media) ui.ImageSource {
 	if len(m.Local) > 0 && m.Kind == model.MediaImage {
 		return a.localStill(m) // being sent: shown from its own bytes
 	}
-	if m.Kind != model.MediaImage || !strings.HasPrefix(m.URL, "mxc://") {
+	remote := strings.HasPrefix(m.URL, "https://") || strings.HasPrefix(m.URL, "http://")
+	if m.Kind != model.MediaImage || (!strings.HasPrefix(m.URL, "mxc://") && !(remote && a.prefs.previewsDirect)) {
 		return nil
 	}
 	if s, ok := a.stills[m.URL]; ok {
 		return s
 	}
-	loader, ok := a.src.(model.MediaLoader)
-	if !ok || a.runUI == nil || a.stillBusy[m.URL] {
+	// An mxc:// picture comes from the source; a link preview's own, fetched
+	// from this device (the setting for it is on), from its site.
+	fetch := func(done func([]byte, error)) {}
+	if remote {
+		client := a.previewClient()
+		link := m.URL
+		fetch = func(done func([]byte, error)) {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				done(client.Image(ctx, link))
+			}()
+		}
+	} else if loader, ok := a.src.(model.MediaLoader); ok {
+		fetch = func(done func([]byte, error)) { loader.LoadMedia(m, done) }
+	} else {
+		return nil
+	}
+	if a.runUI == nil || a.stillBusy[m.URL] {
 		return nil
 	}
 	a.stillBusy[m.URL] = true
 	runUI, url := a.runUI, m.URL
-	loader.LoadMedia(m, func(data []byte, err error) {
+	fetch(func(data []byte, err error) {
 		var bmp *ui.Bitmap
 		if err == nil {
 			bmp, err = ui.DecodeBitmapScaled(data, stillSide)

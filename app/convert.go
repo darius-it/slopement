@@ -41,8 +41,18 @@ func status(s model.Status) kit.Status {
 }
 
 func (a *App) avatar(p model.Person, size float32) kit.AvatarSpec {
-	return kit.AvatarSpec{Name: p.Name, ID: p.ID, Size: size, Presence: presence(p.Presence), Colors: &a.colors,
+	spec := kit.AvatarSpec{Name: p.Name, ID: p.ID, Size: size, Presence: presence(p.Presence), Colors: &a.colors,
 		Image: a.avatarPic(p.Avatar)}
+	if strings.HasPrefix(p.Avatar, "mxc://") {
+		// "Animate profile pictures": a GIF picture plays always with the
+		// setting on, otherwise while the pointer is on it (and in the
+		// profile card). Its file is fetched only when it would play.
+		url := p.Avatar
+		spec.Animate = a.prefs.animatedAvatars
+		spec.Anim = a.avatarAnims[url]
+		spec.WantAnim = func() { a.wantAvatarAnim(url) }
+	}
+	return spec
 }
 
 func (a *App) kitPerson(p model.Person) kit.Person {
@@ -73,7 +83,9 @@ func (a *App) contacts() []kit.Person {
 
 func (a *App) profile(id string) *kit.ProfileSpec {
 	p, _ := a.src.Person(id)
-	spec := &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: a.avatar(p, 0), Status: status(p.Status),
+	av := a.avatar(p, 0)
+	av.Animate = true // in the profile card a GIF picture plays
+	spec := &kit.ProfileSpec{Name: p.Name, MXID: p.ID, Avatar: av, Status: status(p.Status),
 		Trust: trust(p.Trust), Pronouns: p.Pronouns, Self: p.ID == a.src.Me().ID,
 		Recolor: true, ColorIndex: a.colorOf(p.ID), Picture: strings.HasPrefix(p.Avatar, "mxc://")}
 	if ig, ok := a.src.(model.Ignorer); ok {

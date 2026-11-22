@@ -42,6 +42,14 @@ type AvatarSpec struct {
 	Trust    Trust
 	// Colors resolves user color overrides; nil uses the hash.
 	Colors *UserColors
+	// Anim is the picture's animation (a GIF), once the app has it. The
+	// picture is a still unless it animates: always (Animate, the setting
+	// or the profile card) or while the pointer is on it. WantAnim asks the
+	// app to fetch the animation, and is called only while it would play.
+	// With reduced motion it never plays.
+	Anim     *ui.VideoPlayer
+	Animate  bool
+	WantAnim func()
 }
 
 // Initials returns up to two initials of name, skipping a leading @, # or !.
@@ -85,9 +93,24 @@ func Avatar(c *ui.Context, a AvatarSpec) ui.Element {
 	r := avatarRadius(a)
 	box := ui.Box(c).Size(a.Size, a.Size).Shrink(0).Label(a.Name)
 	box.Children(func() {
-		if a.Image != nil {
+		play := (a.Animate || box.Hovered()) && !c.Preferences().ReduceMotion
+		if play && a.WantAnim != nil {
+			a.WantAnim()
+		}
+		switch {
+		case a.Anim != nil && play:
+			if !a.Anim.Playing() {
+				a.Anim.Play()
+			}
+			ui.Box(c).Size(a.Size, a.Size).Radius(r).Clip().Children(func() {
+				ui.Video(c, a.Anim).Size(a.Size, a.Size).Fit(ui.Cover)
+			})
+		case a.Image != nil:
+			if a.Anim != nil {
+				a.Anim.Pause() // idle again: it stops, drawing no more frames
+			}
 			ui.Image(c, a.Image).Size(a.Size, a.Size).Fit(ui.Cover).Radius(r)
-		} else {
+		default:
 			ui.Box(c).Size(a.Size, a.Size).Radius(r).Background(col.Alpha(0.16).Over(p.Bg)).
 				AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 				ui.Text(c, Initials(a.Name)).FontSize(a.Size * 0.4).FontWeight(WeightSemibold).

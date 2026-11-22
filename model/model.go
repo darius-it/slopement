@@ -126,6 +126,9 @@ type Event struct {
 	// Body is the text as Markdown (the formatted body converted), or the
 	// system line.
 	Body string
+	// Membership, on a system line about someone's membership, is what
+	// happened: "join", "leave", "ban", "invite" or "knock".
+	Membership string
 	// Formatted is the message's HTML body as the sender wrote it
 	// (org.matrix.custom.html), shown in place of Body; Plain says there is
 	// none and Body is plain text, shown as typed. With neither, Body is

@@ -31,6 +31,9 @@ func (a *App) rows(room string) []trow {
 		if threads && ev.ThreadRoot != "" {
 			continue // a reply in a thread shows in its thread's panel
 		}
+		if a.prefs.hideJoins && ev.Kind == model.EventSystem && (ev.Membership == "join" || ev.Membership == "leave") {
+			continue // "Hide joins and leaves"
+		}
 		newDay := prev == nil || !sameDay(prev.Time, ev.Time)
 		if newDay {
 			out = append(out, trow{key: "day:" + ev.Time.Format("2006-01-02"), day: dayLabel(ev.Time, a.now)})

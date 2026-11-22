@@ -241,8 +241,8 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "GIF previews", "A message that is only a GIF link shows as the GIF", &a.prefs.gifPreviews)
 			switchRow(c, "Animate GIFs", "Only while they're on screen", &a.prefs.gifAutoplay)
 			switchRow(c, "Send GIFs as files", "Off: the picker sends a link, which costs your homeserver nothing, and shows as the GIF here and in clients that preview links. On: the GIF is uploaded, so every client animates it.", &a.prefs.gifFiles)
-			a.soonSwitch(c, "Animate profile pictures", "Otherwise only on hover")
-			a.soonSwitch(c, "Hide joins and leaves", "In large rooms they're collapsed anyway")
+			switchRow(c, "Animate profile pictures", "Off: a GIF picture plays only while the pointer is on it, and in a profile card. On: always.", &a.prefs.animatedAvatars)
+			switchRow(c, "Hide joins and leaves", "Lines like “Mira joined” and “Sam left” are not shown in chats", &a.prefs.hideJoins)
 		})
 	case "Notifications":
 		group(c, "This device", "", func() {
@@ -260,7 +260,7 @@ func (a *App) settingsPage(c *ui.Context) {
 		a.ignoredGroup(c)
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)
-			a.soonSwitch(c, "Fetch previews from this device", "")
+			switchRow(c, "Fetch previews from this device", "Off: your homeserver fetches them and sites never see you. On: this device does, no link goes to the homeserver, and every site linked sees your IP address. Addresses on your own network are never fetched.", &a.prefs.previewsDirect)
 		})
 	case "Security":
 		group(c, "This session", "", func() {

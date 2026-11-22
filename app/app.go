@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slopement/kit"
+	"slopement/linkpreview"
 	"slopement/model"
 	"slopement/picker"
 	"slopement/platform"
@@ -80,6 +81,8 @@ type App struct {
 	pickFileFn       func(title, ext string, done func(path string))
 	saveFileFn       func(title, name string, done func(path string))
 	keys             keysDialog
+	previewFetcher   *linkpreview.Client                 // fetches previews from this device (previews.go)
+	previewsDirect   bool                                // which source previews were asked from
 	keysAsked        bool                                // the key status was asked for since the Security page opened
 	confirmLogs      func(answer func(include, ok bool)) // tests' answer to the export logs dialog
 	gifFolders       []string                            // folders of pictures the GIF picker also offers (gifsettings.go)
@@ -121,6 +124,11 @@ type App struct {
 	avatars     map[string]*ui.Bitmap // profile pictures by mxc URL (media.go)
 	avatarOrder []string
 	avatarBusy  map[string]bool
+	// The animations of GIF profile pictures by mxc URL, nil for one that is
+	// not a GIF (avataranim.go).
+	avatarAnims     map[string]*ui.VideoPlayer
+	avatarAnimBusy  map[string]bool
+	avatarAnimOrder []string
 
 	// Overlays.
 	switcher     kit.SwitcherState
@@ -227,8 +235,11 @@ func New(src model.Source, pick *picker.Controller) *App {
 		avatars:    map[string]*ui.Bitmap{},
 		avatarBusy: map[string]bool{},
 		call:       kit.NewCall(),
-		replyTo:    map[string]string{},
-		prefs:      defaultPrefs(),
+
+		avatarAnims:    map[string]*ui.VideoPlayer{},
+		avatarAnimBusy: map[string]bool{},
+		replyTo:        map[string]string{},
+		prefs:          defaultPrefs(),
 	}
 	a.pollDraft = kit.NewPollDraft()
 	a.menuNav = a.nav

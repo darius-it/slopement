@@ -142,6 +142,8 @@ func memberLine(evt *event.Event) (model.Event, bool) {
 		Time:   eventTime(evt),
 		Kind:   model.EventSystem,
 		Body:   who + " " + what,
+		// join, leave, ban, invite or knock: the app can hide the first two.
+		Membership: string(c.Membership),
 	}, true
 }
 
