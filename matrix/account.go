@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.mau.fi/util/dbutil"
 
@@ -70,8 +71,19 @@ func dbDSN(path string) string {
 	q := make(url.Values, 2)
 	q.Add("_pragma", "busy_timeout(10000)")
 	q.Add("_pragma", "journal_mode(WAL)")
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: q.Encode()}
+	u := url.URL{Scheme: "file", Path: dsnPath(path), RawQuery: q.Encode()}
 	return u.String()
+}
+
+// dsnPath is a file path as the path of a SQLite file: URI. A Windows path
+// starts with its drive, "C:\Users\me\state.db", which in "file://C:/…" would
+// read as a host: the URI needs a slash first, "file:///C:/Users/me/state.db".
+func dsnPath(path string) string {
+	p := filepath.ToSlash(path)
+	if len(p) >= 2 && p[1] == ':' && (p[0]|0x20 >= 'a' && p[0]|0x20 <= 'z') {
+		return "/" + strings.ReplaceAll(p, `\`, "/")
+	}
+	return p
 }
 
 // Open prepares an account: its directory, the session lock on it, and

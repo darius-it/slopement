@@ -254,6 +254,7 @@ func (s *Source) roomOf(roomID string) *room {
 func (s *Source) onSync(resp *mautrix.RespSync) {
 	s.post(func() {
 		for roomID, joined := range resp.Rooms.Join {
+			s.gapStart(roomID.String(), joined.Timeline.Limited, joined.Timeline.PrevBatch)
 			r := s.roomOf(roomID.String())
 			if joined.UnreadNotifications != nil {
 				r.unread = joined.UnreadNotifications.NotificationCount

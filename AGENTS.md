@@ -189,7 +189,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   built: mygo's `audio` package only plays (no capture), and has no Opus/AAC
   decoder (`app/audio.go` plays WAV/MP3/Vorbis/FLAC/ALAC). Events
   paged in are marked `sourceHistory` and placed by time by `insertOlder`
-  (no unread, no preview change).
+  (no unread, no preview change). A limited sync (more events since the last
+  one than its 30-event timeline) leaves a hole between the cache and the sync:
+  `matrix/gapfill.go` fetches it from `prev_batch` (up to 500 events; a bigger
+  hole drops the old cached events and continues history from the fill).
 - `kit/`: design tokens, theme, and components (the design kit).
 - `gallery/`: the component gallery and mock screens, built only from `kit`.
   It opens from **Debug → Component Gallery** (⌘⌥G) in its own window.
