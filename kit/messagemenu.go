@@ -55,19 +55,21 @@ func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 	if m.Item("Reply").Icon(MenuIcon(IconReply)).Chosen() {
 		ch = MsgReply
 	}
-	if s.Thread && m.Item("Reply in thread").Icon(MenuIcon(IconMessage)).Chosen() {
+	// Icons only where they are descriptive and the action is a main one
+	// (Reply, Forward, Pin, Edit, Delete); the rest are words alone.
+	if s.Thread && m.Item("Reply in thread").Chosen() {
 		ch = MsgThread
 	}
-	if s.HasText && m.Item("Copy text").Icon(MenuIcon(IconCopy)).Chosen() {
+	if s.HasText && m.Item("Copy text").Chosen() {
 		ch = MsgCopyText
 	}
-	if m.Item("Copy message link").Icon(MenuIcon(IconLink)).Chosen() {
+	if m.Item("Copy message link").Chosen() {
 		ch = MsgCopyLink
 	}
 	if s.Forward && m.Item("Forward").Icon(MenuIcon(IconForward)).Chosen() {
 		ch = MsgForward
 	}
-	if s.Sticker && m.Item("Add to my emoji").Icon(MenuIcon(IconPlus)).Chosen() {
+	if s.Sticker && m.Item("Add to my emoji").Chosen() {
 		ch = MsgAddToPack
 	}
 	if s.Pinned {
@@ -77,7 +79,7 @@ func MessageMenu(m *ui.Menu, s MessageMenuState) (ch MessageChoice) {
 	} else if m.Item("Pin").Icon(MenuIcon(IconPin)).Chosen() {
 		ch = MsgPin
 	}
-	if s.Source && m.Item("View source").Icon(MenuIcon(IconCode)).Chosen() {
+	if s.Source && m.Item("View source").Chosen() {
 		ch = MsgViewSource
 	}
 	if s.Mine {
