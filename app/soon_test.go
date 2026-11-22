@@ -16,7 +16,6 @@ func TestUnbuiltSettingsSaySoon(t *testing.T) {
 		{"Security", "Export room keys"},
 		{"Advanced", "Export logs"},
 		{"Advanced", "Reset local cache"},
-		{"Privacy", "Send typing notifications"},
 		{"Privacy", "Fetch previews from this device"},
 		{"Appearance", "Hide joins and leaves"},
 		{"Calls", "Camera off when joining"},

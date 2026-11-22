@@ -192,6 +192,12 @@ type Actions interface {
 	Pinned(room string) []string
 }
 
+// Typist is what a Source may offer: telling a room the user is typing (or
+// that they stopped), as the other people there see "… is typing".
+type Typist interface {
+	SetTyping(room string, typing bool)
+}
+
 // Notice is a message that may deserve a desktop notification: new (live,
 // not history), from someone else, in a room that is not muted, and a chat
 // with a person or a mention of the user. The app decides whether to show

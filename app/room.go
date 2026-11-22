@@ -403,6 +403,7 @@ func (a *App) composer(c *ui.Context, r model.Room) {
 	if r.Kind == model.KindRoom {
 		place = "Message #" + r.Name
 	}
+	a.typingStep(r.ID, st.Text) // tell the room they are typing
 	st.Suggest = a.suggestions(r.ID, st)
 	st.OnPick = func(it kit.SuggestItem) { a.applySuggestion(r.ID, st, it) }
 	var res kit.ComposerResult

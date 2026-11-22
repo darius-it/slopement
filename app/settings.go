@@ -222,7 +222,7 @@ func (a *App) settingsPage(c *ui.Context) {
 	case "Privacy":
 		group(c, "Activity", "", func() {
 			switchRow(c, "Read receipts", "Show who has read your messages, and let others see what you've read. Off: nothing is shown, and your receipts stay private.", &a.prefs.receipts)
-			a.soonSwitch(c, "Send typing notifications", "")
+			switchRow(c, "Send typing notifications", "Others in a chat see \"… is typing\" while you write", &a.prefs.typing)
 		})
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)

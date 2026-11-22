@@ -138,6 +138,7 @@ type App struct {
 	focused bool // the window is in front (notifications stay quiet for the room in view)
 	srch    searchState
 	find    findState // ⌘F: find in this chat (find.go)
+	typing  map[string]*typingRoom // typing notices told to rooms (typing.go)
 	// narrow: the window is phone-sized this frame (no side panels);
 	// thread is the open thread, inThread says one is being drawn.
 	narrow   bool
@@ -274,6 +275,9 @@ func (a *App) open(id string) {
 	if _, ok := a.src.Room(id); !ok {
 		return
 	}
+	if a.room != id {
+		a.stopTyping(a.room) // they left the room they were typing in
+	}
 	a.room, a.view, a.pushed = id, viewRoom, true
 	a.restoreRoom = "" // the user chose; the last run's room no longer applies
 	a.profileMsg = ""
@@ -290,6 +294,7 @@ func (a *App) open(id string) {
 // View is the window's content.
 func (a *App) View(c *ui.Context) {
 	a.now = time.Now()
+	a.typingTick()
 	a.narrow = kit.Compact(c)
 	a.receiptsSync()
 	a.syncColors()

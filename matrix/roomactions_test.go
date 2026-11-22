@@ -187,6 +187,29 @@ func TestPushRulesMarkRoomsMuted(t *testing.T) {
 	}
 }
 
+// A typing notice goes to the room's typing endpoint, with how long the
+// server should show it; a stop is the same with typing off.
+func TestSetTyping(t *testing.T) {
+	fake := &actionServer{}
+	s, _ := actionSetup(t, fake)
+	s.SetTyping("!a", true)
+	waitFor(t, "the typing notice", func() bool {
+		b, ok := fake.has("PUT", "/typing/@me:example.org")
+		return ok && strings.Contains(b, `"typing":true`) && strings.Contains(b, `"timeout":30000`)
+	})
+	s.SetTyping("!a", false)
+	waitFor(t, "the stop", func() bool {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		for i, r := range fake.reqs {
+			if strings.HasPrefix(r, "PUT ") && strings.Contains(r, "/typing/") && strings.Contains(fake.bodies[i], `"typing":false`) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 // Leaving takes the room from the lists at once and tells the server (and
 // asks it to forget).
 func TestLeaveRoom(t *testing.T) {
