@@ -142,7 +142,15 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 			// by position it would be a new one, and the focus would be gone.
 			ui.Row(c.Key("composer-row")).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
 				plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
-				composerField(c.Key("composer-input"), st, placeholder, fieldSize(c), 8, touch).MarginY(6)
+				// The row is bottom-aligned (it grows upward with the text), so
+				// the margin that centers one line on the buttons is what is
+				// left of the control's height around the line. The glyphs sit
+				// a little high in their line box (the ascenders' room), so the
+				// text goes down by optical nudge to read centered on the icons.
+				size := fieldSize(c)
+				gap := max((controlHeight(c)-size*1.45)/2, 0)
+				const nudge = 1.5
+				composerField(c.Key("composer-input"), st, placeholder, size, 8, touch).Margin(gap+nudge, 0, max(gap-nudge, 0), 0)
 				r.EmojiButton = IconButton(c, Ghost, IconSmile, "Emoji")
 				r.Emoji = r.EmojiButton.Clicked()
 				r.GIFButton = IconButton(c, Ghost, IconGIF, "GIFs and stickers")
