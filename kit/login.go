@@ -67,7 +67,8 @@ func Login(c *ui.Context, st *LoginState, act *LoginAction) {
 		ui.Column(c).Width(400).MaxWidthPercent(92).Gap(S1).Padding(S8, S8, S8, S8).Radius(RadiusLg+4).
 			Background(p.Bg).Border(1, p.Border).Children(func() {
 			// The wordmark: the name and the accent's dot.
-			ui.Row(c).Gap(S2).AlignItems(ui.Center).Children(func() {
+			// A tad of room below it, before the step's first line.
+			ui.Row(c).Gap(S2).AlignItems(ui.Center).Margin(0, 0, S4, 0).Children(func() {
 				ui.Text(c, "slopement").FontSize(SizeTitle + 2).FontWeight(WeightSemibold)
 				ui.Box(c).Size(8, 8).Radius(RadiusFull).Background(p.Accent)
 				ui.Spacer(c)
