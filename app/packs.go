@@ -92,6 +92,17 @@ func (a *App) packAct(room string, st *kit.ComposerState, r kit.PickerResult) {
 	}
 }
 
+// reactCustom reacts to a message with a pack's custom emoji (MSC4027), where
+// the account can; else it says so.
+func (a *App) reactCustom(room, eventID string, e model.PackEmoji) {
+	cr, ok := a.src.(model.CustomReactor)
+	if !ok {
+		a.toast = "This account cannot react with custom emoji"
+		return
+	}
+	cr.ReactCustom(room, eventID, e.URL, e.Shortcode)
+}
+
 // sendPackSticker sends a pack's sticker as an m.sticker: it is on the
 // media repo already, so nothing is uploaded.
 func (a *App) sendPackSticker(room string, e model.PackEmoji) {

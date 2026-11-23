@@ -114,6 +114,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	syncer.OnEventType(event.AccountDataIgnoredUserList, s.onIgnored)
 	syncer.OnEventType(railOrderType, s.onRailOrder)
 	syncer.OnEventType(statusType, s.onStatusData)
+	syncer.OnEventType(personNotesType, s.onPersonNotes)
 	syncer.OnEventType(userEmotesType, s.onUserEmotes)
 	syncer.OnEventType(emoteRoomsType, s.onEmoteRooms)
 	syncer.OnEventType(roomPackType, s.onRoomEmotes)
@@ -889,7 +890,21 @@ func (s *Source) sendMessage(room, markdown, replyTo, threadRoot string) {
 // reaction event is redacted), otherwise it is made. Each shows at once; the
 // server's answer settles it, and a refusal undoes it with a quiet line in
 // the room.
-func (s *Source) React(room, eventID, key string) {
+func (s *Source) React(room, eventID, key string) { s.react(room, eventID, key, "") }
+
+// ReactCustom reacts with a custom emoji: the key is its mxc:// URI, and the
+// shortcode goes with it (MSC4027), so clients that cannot show the picture
+// can still say ":wave:".
+func (s *Source) ReactCustom(room, eventID, url, shortcode string) {
+	if !strings.HasPrefix(url, "mxc://") {
+		return
+	}
+	s.react(room, eventID, url, shortcode)
+}
+
+var _ model.CustomReactor = (*Source)(nil)
+
+func (s *Source) react(room, eventID, key, shortcode string) {
 	if s.cli == nil || key == "" || eventID == "" {
 		return
 	}
@@ -926,7 +941,14 @@ func (s *Source) React(room, eventID, key string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		content := &event.ReactionEventContent{RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID(eventID), Key: key}}
+		var content any = &event.ReactionEventContent{RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: id.EventID(eventID), Key: key}}
+		if shortcode != "" {
+			// A custom emoji: its name travels with the key.
+			content = &event.Content{
+				Parsed: content,
+				Raw:    map[string]any{"shortcode": shortcode, "com.beeper.reaction.shortcode": shortcode},
+			}
+		}
 		resp, err := s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventReaction, content, mautrix.ReqSendEvent{TransactionID: txn})
 		s.post(func() {
 			rr := s.roomOf(room)

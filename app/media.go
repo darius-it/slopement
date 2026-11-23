@@ -1,14 +1,18 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"slopement/animwebp"
 	"slopement/model"
 )
 
@@ -65,6 +69,33 @@ const (
 	gifMaxBytes = 20 << 20 // a GIF larger than this stays a still
 )
 
+// newAnimDecoder decodes an animation's bytes: a GIF or an animated WebP.
+func newAnimDecoder(data []byte) (ui.VideoDecoder, error) {
+	switch {
+	case bytes.HasPrefix(data, []byte("GIF8")):
+		return ui.NewGIFDecoder(data)
+	case animwebp.Animated(data):
+		return animwebp.NewDecoder(data)
+	}
+	return nil, errors.New("not an animation")
+}
+
+// isAnimFile says the bytes are an animation newAnimDecoder reads.
+func isAnimFile(data []byte) bool {
+	return bytes.HasPrefix(data, []byte("GIF8")) || animwebp.Animated(data)
+}
+
+// keepPlayer keeps a looping player by key, the newest gifMax of them.
+func (a *App) keepPlayer(key string, pl *ui.VideoPlayer) {
+	a.gifs[key] = pl
+	a.gifOrder = append(a.gifOrder, key)
+	if len(a.gifOrder) > gifMax {
+		delete(a.gifs, a.gifOrder[0])
+		delete(a.gifBusy, a.gifOrder[0])
+		a.gifOrder = a.gifOrder[1:]
+	}
+}
+
 // isGIFFile reports an attachment that is a real GIF (image/gif bytes),
 // which animates; a "GIF" that is a short video is not one.
 func isGIFFile(m model.Media) bool {
@@ -94,7 +125,7 @@ func (a *App) gifPlayer(m model.Media) *ui.VideoPlayer {
 	finish := func(data []byte, err error) {
 		var d ui.VideoDecoder
 		if err == nil && len(data) <= gifMaxBytes {
-			d, err = ui.NewGIFDecoder(data)
+			d, err = newAnimDecoder(data)
 		} else if err == nil {
 			err = errors.New("gif too large")
 		}
@@ -238,12 +269,32 @@ func (a *App) still(m model.Media) ui.ImageSource {
 	runUI, url := a.runUI, m.URL
 	fetch(func(data []byte, err error) {
 		var bmp *ui.Bitmap
-		if err == nil {
+		var player *ui.VideoPlayer
+		if err == nil && animwebp.Animated(data) {
+			// An animated WebP: its first frame is the still, and it plays
+			// (message media takes the player from a.gifs, by URL).
+			var first image.Image
+			if first, err = animwebp.FirstFrame(data); err == nil {
+				var buf bytes.Buffer
+				if err = png.Encode(&buf, first); err == nil {
+					bmp, err = ui.DecodeBitmapScaled(buf.Bytes(), stillSide)
+				}
+			}
+			if d, derr := animwebp.NewDecoder(data); derr == nil && len(data) <= gifMaxBytes {
+				if p, perr := ui.NewVideoPlayer(d); perr == nil {
+					p.SetLoop(true).SetMuted(true)
+					player = p
+				}
+			}
+		} else if err == nil {
 			bmp, err = ui.DecodeBitmapScaled(data, stillSide)
 		}
 		runUI(func() {
 			if err != nil || bmp == nil {
 				return // the placeholder stays; busy stays set, so no retry storm
+			}
+			if player != nil {
+				a.keepPlayer(url, player)
 			}
 			delete(a.stillBusy, url)
 			a.stills[url] = bmp

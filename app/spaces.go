@@ -15,6 +15,19 @@ import (
 // railDrag is a community being dragged on the rail.
 type railDrag struct{ ID string }
 
+// reorderable makes a community's row, card or rail item draggable to where it
+// should be among the others, and a place to drop one: the one dragged takes
+// the target's place, and the target shows an outline while it is over.
+func (a *App) reorderable(c *ui.Context, item ui.Element, cm model.Community) {
+	item.Drag(railDrag{cm.ID})
+	if d, over := ui.DragOver[railDrag](item); over && d.ID != cm.ID {
+		item.Border(2, kit.Of(c).Accent)
+	}
+	if d, ok := ui.Drop[railDrag](item); ok && d.ID != cm.ID {
+		a.moveCommunity(d.ID, cm.ID)
+	}
+}
+
 // communityIDs are the communities of the rail, in the order shown.
 func (a *App) communityIDs() []string {
 	var out []string
@@ -28,6 +41,23 @@ func (a *App) communityIDs() []string {
 // dragged goes where the target was (after it when dragged down, before it
 // when dragged up). Kept with the account where the source can.
 func (a *App) moveCommunity(id, target string) {
+	// Favourites are listed first: dropped among them (or among the rest), a
+	// community joins that group, or it would seem not to have moved.
+	var dragged, onto model.Community
+	var found int
+	for _, cm := range a.communities() {
+		switch cm.ID {
+		case id:
+			dragged = cm
+			found++
+		case target:
+			onto = cm
+			found++
+		}
+	}
+	if found == 2 && dragged.Favourite != onto.Favourite {
+		a.src.SetCommunityFavourite(id, onto.Favourite)
+	}
 	ids := a.communityIDs()
 	from, to := -1, -1
 	for i, x := range ids {

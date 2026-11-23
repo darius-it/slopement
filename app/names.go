@@ -21,25 +21,54 @@ func usernameOf(mxid string) string {
 // card keeps the display name: it shows the ID beside it.)
 func (a *App) person(id string) (model.Person, bool) {
 	p, ok := a.src.Person(id)
-	if a.prefs.usernames && id != "" {
-		p.Name = usernameOf(id)
-	}
+	p.Name = a.nameFor(id, p.Name)
 	return p, ok
 }
 
-// shownName is the name a person is shown by.
-func (a *App) shownName(p model.Person) string {
-	if a.prefs.usernames && p.ID != "" {
-		return usernameOf(p.ID)
+// nameFor is the name a person is shown by: the nickname the user privately
+// gave them, else their username or display name, as chosen in Settings.
+func (a *App) nameFor(id, display string) string {
+	if n := a.noteOf(id); n.Nick != "" {
+		return n.Nick
 	}
-	return p.Name
+	if a.prefs.usernames && id != "" {
+		return usernameOf(id)
+	}
+	return display
+}
+
+// shownName is the name a person is shown by.
+func (a *App) shownName(p model.Person) string { return a.nameFor(p.ID, p.Name) }
+
+// noteOf is the nickname and note the user gave someone.
+func (a *App) noteOf(id string) model.PersonNote {
+	if pn, ok := a.src.(model.PrivateNotes); ok {
+		return pn.PersonNotes()[id]
+	}
+	return model.PersonNote{}
+}
+
+// namesMatter says names are not shown as the source gives them (usernames, or
+// some nickname), so a DM must be renamed.
+func (a *App) namesMatter() bool {
+	if a.prefs.usernames {
+		return true
+	}
+	if pn, ok := a.src.(model.PrivateNotes); ok {
+		for _, n := range pn.PersonNotes() {
+			if n.Nick != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // namedRoom is a room as the lists show it: a chat with one person is named
-// after them, so it follows the choice of names too.
+// after them, so it follows the nickname and the choice of names too.
 func (a *App) namedRoom(r model.Room) model.Room {
-	if a.prefs.usernames && r.Kind == model.KindDM && r.Partner != "" {
-		r.Name = usernameOf(r.Partner)
+	if r.Kind == model.KindDM && r.Partner != "" {
+		r.Name = a.nameFor(r.Partner, r.Name)
 	}
 	return r
 }

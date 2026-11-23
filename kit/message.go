@@ -2,6 +2,7 @@ package kit
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -193,7 +194,7 @@ func profilePopover(c *ui.Context, anchor ui.Element, m MessageData, colors *Use
 			Shadow(0, 12, 32, -6, p.Shadow).Transition(PopIn())
 		a.ProfileAct = ProfileCard(c, *m.Profile, colors, time.Now())
 	})
-	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify || a.ProfileAct.EditStatus || a.ProfileAct.Ignore || a.ProfileAct.Unignore {
+	if !open || a.ProfileAct.Message || a.ProfileAct.Call || a.ProfileAct.Verify || a.ProfileAct.EditStatus || a.ProfileAct.EditNote || a.ProfileAct.Ignore || a.ProfileAct.Unignore {
 		a.ProfileClosed = true
 	}
 }
@@ -536,6 +537,31 @@ func toolButton(c *ui.Context, label string, content func(fg ui.Color)) ui.Eleme
 	return b
 }
 
+// reactionKey draws what a reaction is: its emoji, or — when the key is an
+// mxc:// URI, a custom emoji — its picture (nothing yet while it loads).
+func reactionKey(c *ui.Context, key string) {
+	if strings.HasPrefix(key, "mxc://") {
+		if EmojiImage != nil {
+			if src := EmojiImage(key); src != nil {
+				ui.Image(c, src).Size(16, 16).Fit(ui.Contain)
+				return
+			}
+		}
+		ui.Box(c).Size(16, 16) // its place, until the picture is there
+		return
+	}
+	ui.Text(c, key).FontSize(13)
+}
+
+// reactionLabel is what a screen reader says of a reaction.
+func reactionLabel(r Reaction) string {
+	key := r.Key
+	if strings.HasPrefix(key, "mxc://") {
+		key = "Custom emoji"
+	}
+	return key + " " + strconv.Itoa(r.Count)
+}
+
 // ReactionPill is a reaction under a message: its key and count, tinted
 // when the user reacted. Clicked toggles it.
 func ReactionPill(c *ui.Context, r Reaction) ui.Element {
@@ -553,10 +579,10 @@ func ReactionPill(c *ui.Context, r Reaction) ui.Element {
 	}
 	b.Height(24).PaddingX(S2).Gap(S1).Radius(RadiusFull).AlignItems(ui.Center).
 		Background(bg).Border(1, b.AnimateColor("bd", border, Color)).Checked(r.Mine).
-		Label(r.Key + " " + strconv.Itoa(r.Count))
+		Label(reactionLabel(r))
 	Pressable(b)
 	b.Children(func() {
-		ui.Text(c, r.Key).FontSize(13)
+		reactionKey(c, r.Key)
 		ui.Text(c, strconv.Itoa(r.Count)).FontSize(SizeCaption + 1).FontWeight(WeightMedium).FontFeatures("tnum").
 			TextColor(fg).ContentTransition(ui.ContentTransition{Numeric: true})
 	})

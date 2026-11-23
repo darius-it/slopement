@@ -144,6 +144,10 @@ func (a *App) profile(id string) *kit.ProfileSpec {
 	if ig, ok := a.src.(model.Ignorer); ok {
 		spec.Ignorable, spec.Ignored = true, ig.IsIgnored(p.ID)
 	}
+	if _, ok := a.src.(model.PrivateNotes); ok {
+		n := a.noteOf(p.ID)
+		spec.Noteable, spec.Nickname, spec.Note = true, n.Nick, n.Note
+	}
 	return spec
 }
 
@@ -353,6 +357,11 @@ func (a *App) content(ev model.Event) (doc *format.Node, media []kit.MediaSpec, 
 					spec.W, spec.H = float32(w), float32(h)
 				}
 			}
+		}
+		if pl, ok := a.gifs[m.URL]; ok && m.Mime == "image/webp" && m.Kind == model.MediaImage {
+			// An animated WebP (found so when its picture was fetched): it plays
+			// like a GIF, and holds its first frame with "Animate GIFs" off.
+			spec.Kind, spec.Paused, spec.Player = kit.MediaGIF, !a.prefs.gifAutoplay, pl
 		}
 		if m.Sticker {
 			// A sticker is small, as itself: at most stickerSize a side.

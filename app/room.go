@@ -22,19 +22,23 @@ type trow struct {
 // rows lays out a room's timeline: separators between days, runs of one
 // sender within five minutes grouped.
 func (a *App) rows(room string) []trow {
-	evs := a.src.Timeline(room)
-	out := make([]trow, 0, len(evs)+2)
+	held := a.src.Timeline(room)
 	var prev *model.Event
 	threads := a.threadsOn()
 	// Messages from before the user joined were never encrypted to this
 	// device: they are no key's to wait for. They show as one quiet line.
 	var joined time.Time
 	me := a.src.Me().ID
-	for i := range evs {
-		if e := &evs[i]; e.Kind == model.EventSystem && e.Membership == "join" && e.Sender == me && e.Time.After(joined) {
+	for i := range held {
+		if e := &held[i]; e.Kind == model.EventSystem && e.Membership == "join" && e.Sender == me && e.Time.After(joined) {
 			joined = e.Time
 		}
 	}
+	evs := held
+	if !a.prefs.hideJoins {
+		evs = a.collapseMembership(held) // a run of joins is one line
+	}
+	out := make([]trow, 0, len(evs)+2)
 	saidBefore := false
 	for i := range evs {
 		ev := &evs[i]
@@ -407,6 +411,9 @@ func (a *App) profileActs(person string, act kit.ProfileAction) {
 		a.setIgnore(person, act.Ignore)
 	case act.OpenPicture:
 		a.openProfilePicture(person)
+	case act.EditNote:
+		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
+		a.openNoteEditor(person)
 	case act.Message:
 		a.profileOpen, a.profileMsg, a.profileSheet.Open = "", "", false
 		a.openDM(person, a.open)
@@ -497,14 +504,21 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 			anchor = res.EmojiButton
 		}
 		m := a.pick.Model(&a.picker)
-		if a.reactTo == "" {
-			a.fillPacks(r.ID, m) // a reaction is not a custom emoji (yet)
-		}
+		a.fillPacks(r.ID, m)
 		pr := kit.Picker(c, anchor, &a.picker, m)
 		if pr.ImportDiscord {
 			a.importDiscordGIFs()
 		}
-		a.packAct(r.ID, st, pr)
+		if a.reactTo != "" && pr.CustomEmoji != nil {
+			// A custom emoji picked to react with: the reaction's key is its
+			// image's mxc:// URI, its shortcode goes with it.
+			if e, ok := a.findPackEmoji(r.ID, pr.CustomEmoji); ok {
+				a.reactCustom(r.ID, a.reactTo, e)
+			}
+			a.reactTo, a.picker.Open = "", false
+		} else {
+			a.packAct(r.ID, st, pr)
+		}
 		ch := a.pick.Handle(&a.picker, pr)
 		switch {
 		case ch.Emoji != "" && a.reactTo != "":

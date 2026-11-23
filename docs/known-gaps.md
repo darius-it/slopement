@@ -7,15 +7,17 @@ of 2026-11-22. It is not a promise of when anything lands.
 - **Calls** (voice, video, screen share): the buttons are there and do nothing
   useful; call settings are marked "Soon". Planned: Jitsi and MatrixRTC.
 - **Moderation:** no kick, ban, report or bulk delete from the app.
-- **Private nicknames, notes and room names** (visible only to you).
-- **Voice message recording.** Playing them works; recording needs a device
-  pass. Opus and AAC audio files do not play (WAV, MP3, Vorbis, FLAC and ALAC do).
+- **Private names for rooms** (nicknames and notes for people work: open
+  someone's profile card; they are stored in your account, which your
+  homeserver can read).
+- **Voice message recording.** Playing them works (Opus, AAC and the usual
+  formats); recording needs a device pass.
 - **Creating a new key backup.** Restoring one works; make it in Element.
-- **Custom emoji as reactions** (custom emoji work in messages).
-- **Joins collapsed into one line** ("Mira, Sam and 3 others joined"); the
-  setting hides them, it does not group them.
 - **Live maps:** a shared location is a static card that opens in OpenStreetMap.
-- **Animated WebP** does not animate. GIF avatars and GIFs do.
+- **Hardly tested:** animated WebP, Opus and AAC playback and custom emoji
+  reactions are checked against samples and a fake server only; the Opus and AAC
+  decoders are young pure-Go libraries, so report a voice message that sounds
+  wrong or won't play.
 
 ## Phones
 The phone layout exists and renders, but the app has **never been run on an

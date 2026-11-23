@@ -25,6 +25,19 @@ type secretStore interface {
 
 var secrets secretStore = pickSecrets()
 
+// ErrKeychain wraps what the system's keychain said when it could not keep
+// or read a secret: on Linux, no Secret Service (GNOME Keyring, KWallet's
+// Secret Service) is running or it is locked. The sign-in says so, instead of
+// blaming the server.
+var ErrKeychain = errors.New("the system keychain refused")
+
+func keychainErr(err error) error {
+	if err == nil || errors.Is(err, mygo.ErrSecretNotFound) {
+		return err
+	}
+	return fmt.Errorf("%w: %w", ErrKeychain, err) // both: errors.Is(err, errors.ErrUnsupported) still holds
+}
+
 // ErrNoToken is returned when the account has no token saved: a revoked
 // login (M_UNKNOWN_TOKEN soft-logout keeps the stores) shows sign-in
 // again, never wiping the keys.
@@ -50,7 +63,7 @@ func SaveTokens(userID, deviceID string, t Tokens) error {
 	if err != nil {
 		return err
 	}
-	return secrets.Set(secretKey(userID, deviceID, "tokens"), b)
+	return keychainErr(secrets.Set(secretKey(userID, deviceID, "tokens"), b))
 }
 
 // TokensOf returns a login's saved tokens.
@@ -60,7 +73,7 @@ func TokensOf(userID, deviceID string) (Tokens, error) {
 		return Tokens{}, fmt.Errorf("%w for %s/%s", ErrNoToken, userID, deviceID)
 	}
 	if err != nil {
-		return Tokens{}, err
+		return Tokens{}, keychainErr(err)
 	}
 	var t Tokens
 	if err := json.Unmarshal(b, &t); err != nil {
@@ -83,14 +96,14 @@ func PickleKey(userID, deviceID string) ([]byte, error) {
 	if b, err := secrets.Get(key); err == nil {
 		return b, nil
 	} else if !errors.Is(err, mygo.ErrSecretNotFound) {
-		return nil, err
+		return nil, keychainErr(err)
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
 	if err := secrets.Set(key, b); err != nil {
-		return nil, err
+		return nil, keychainErr(err)
 	}
 	return b, nil
 }

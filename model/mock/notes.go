@@ -1,0 +1,30 @@
+package mock
+
+import "slopement/model"
+
+// PersonNotes is the nicknames and notes given in this run.
+func (s *Source) PersonNotes() map[string]model.PersonNote { return s.notes }
+
+// SetPersonNote gives someone a nickname and a note.
+func (s *Source) SetPersonNote(mxid string, n model.PersonNote) {
+	next := make(map[string]model.PersonNote, len(s.notes)+1)
+	for k, v := range s.notes {
+		next[k] = v
+	}
+	if n.Nick == "" && n.Note == "" {
+		delete(next, mxid)
+	} else {
+		next[mxid] = n
+	}
+	s.notes = next
+	for _, fn := range s.changed {
+		fn()
+	}
+}
+
+var _ model.PrivateNotes = (*Source)(nil)
+
+// ReactCustom reacts with a custom emoji: its URL is the key.
+func (s *Source) ReactCustom(room, event, url, shortcode string) { s.React(room, event, url) }
+
+var _ model.CustomReactor = (*Source)(nil)

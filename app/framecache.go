@@ -69,7 +69,7 @@ func (a *App) roomList() []model.Room {
 	a.scEnsure()
 	if !a.sc.roomsOK {
 		rooms := a.src.Rooms()
-		if a.prefs.usernames { // chats with a person are named after them, by username
+		if a.namesMatter() { // chats with a person are named after them: by nickname or username
 			named := make([]model.Room, len(rooms))
 			for i, r := range rooms {
 				named[i] = a.namedRoom(r)

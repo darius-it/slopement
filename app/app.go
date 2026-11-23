@@ -93,7 +93,8 @@ type App struct {
 	srcGen           uint64                              // counts the source's changes
 	inboxLS          ui.ListState                        // One inbox's scroll
 	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
-	updCheck         bool                                // the switch "Check for updates at startup"
+	noteEd           noteEditor                          // a person's private nickname and note (notes.go)
+	updCheck         bool                               // the switch "Check for updates at startup"
 	updInit          bool                                // updCheck was read from the saved choice
 	upd              updateDialog                        // an update found (updates.go)
 	fwd              forwardDialog                       // "Forward" (forward.go)

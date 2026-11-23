@@ -18,6 +18,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	_ "golang.org/x/image/webp"
 
+	"slopement/animwebp"
 	"slopement/klipy"
 )
 
@@ -233,6 +234,8 @@ func newDecoder(data []byte) (ui.VideoDecoder, error) {
 		return ui.NewGIFDecoder(data)
 	case bytes.HasPrefix(data, []byte("\x89PNG")):
 		return ui.NewAPNGDecoder(data)
+	case animwebp.Animated(data):
+		return animwebp.NewDecoder(data)
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {

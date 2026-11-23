@@ -217,6 +217,23 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
+## Newer pieces
+- `animwebp/`: animated WebP decoder (a `ui.VideoDecoder`); `app/media.go`
+  plays them like GIFs (the player comes from the fetched bytes, by URL).
+- `audiodec/`: Ogg Opus and AAC-in-m4a to WAV (pure-Go libraries
+  `kazzmir/opus-go`, `tphakala/go-m4a`), used by `app/audio.go`'s `openSound`.
+- Private nicknames and notes: `model.PrivateNotes`, `matrix/notes.go` (account
+  data `com.slopement.person_notes`), `app/notes.go`, `app/names.go`
+  (`nameFor`: nickname, else username/display name by the setting).
+- Custom emoji reactions: `model.CustomReactor` (`ReactCustom`), key = mxc URI
+  plus `shortcode` (MSC4027); kit pills draw the picture.
+- Runs of joins/leaves are one line (`app/membership.go`); communities reorder
+  by drag on the rail, the tabs' cards and the inbox (`reorderable`).
+- A DM without a chosen name is named by its partner's display name now
+  (`Source.dmName`, `room.nameSet`).
+- Account data a resumed sync does not resend is fetched at start
+  (`matrix/accountdata.go`): add new `com.slopement.*` account data there.
+
 ## Updates
 Opt-in, never automatic (`app/updates.go`): Settings → Privacy switch (off by
 default, kept per device in `<config>/slopement/updates.json`), one check at

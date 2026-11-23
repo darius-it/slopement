@@ -1,8 +1,6 @@
 package app
 
 import (
-	"bytes"
-
 	"github.com/egoist/mygo/ui"
 
 	"slopement/model"
@@ -33,8 +31,8 @@ func (a *App) wantAvatarAnim(url string) {
 	runUI := a.runUI
 	loader.LoadMedia(model.Media{URL: url, Kind: model.MediaImage}, func(data []byte, err error) {
 		var player *ui.VideoPlayer
-		if err == nil && len(data) <= avatarAnimBytes && bytes.HasPrefix(data, []byte("GIF8")) {
-			if d, derr := ui.NewGIFDecoder(data); derr == nil {
+		if err == nil && len(data) <= avatarAnimBytes && isAnimFile(data) {
+			if d, derr := newAnimDecoder(data); derr == nil {
 				if p, perr := ui.NewVideoPlayer(d); perr == nil {
 					p.SetLoop(true).SetMuted(true)
 					player = p

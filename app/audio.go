@@ -10,15 +10,17 @@ import (
 	_ "github.com/egoist/mygo/audio/mp4" // .m4a with Apple Lossless
 	_ "github.com/egoist/mygo/audio/vorbis"
 
+	"slopement/audiodec"
 	"slopement/kit"
 	"slopement/model"
 )
 
 // Audio messages play in their card. What the audio package decodes is what
-// plays: WAV, MP3, Ogg Vorbis, FLAC, and Apple Lossless in .m4a. Opus (what
-// Element's voice messages are) and AAC (most phones' .m4a) are not among
-// them: the card says so, and the file card beside it saves the file. One
-// message plays at a time: starting another stops the first.
+// plays: WAV, MP3, Ogg Vorbis, FLAC, and Apple Lossless in .m4a, and — decoded
+// to WAV first by package audiodec — Ogg Opus (what Element's voice messages
+// are) and AAC-LC in .m4a (most phones' recordings). Anything else: the card
+// says so, and the file card beside it saves the file. One message plays at a
+// time: starting another stops the first.
 
 // soundPlayer is what the app needs of a player (audio.Player's, so tests
 // need no sound device).
@@ -33,13 +35,20 @@ type soundPlayer interface {
 	Close()
 }
 
-// openSound decodes audio bytes into a player: a variable, for the tests.
+// openSound decodes audio bytes into a player: a variable, for the tests. What
+// the audio package does not decode — Ogg Opus, AAC in .m4a — is decoded to WAV
+// first (audiodec), which it plays.
 var openSound = func(data []byte) (soundPlayer, error) {
 	p, err := audio.OpenStream(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return p, nil
 	}
-	return p, nil
+	if wavData, derr := audiodec.ToWAV(data); derr == nil {
+		if p, perr := audio.OpenStream(bytes.NewReader(wavData)); perr == nil {
+			return p, nil
+		}
+	}
+	return nil, err
 }
 
 // clip is one audio message's playing state.

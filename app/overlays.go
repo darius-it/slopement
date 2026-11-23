@@ -69,6 +69,7 @@ func (a *App) overlays(c *ui.Context) {
 	a.keysDialogView(c)
 	a.sourceDialogView(c)
 	a.updateDialogView(c)
+	a.noteEditorView(c)
 	a.forwardDialogView(c)
 	a.phoneSheets(c)
 }

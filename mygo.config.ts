@@ -42,8 +42,11 @@ export default defineConfig({
   linux: {
     comment: "A minimal Matrix client (super early alpha)",
     categories: ["Network", "Chat"],
-    // No WebKitGTK: the packages depend on GTK alone.
+    // No WebKitGTK: the packages depend on GTK alone, and on libsecret, which
+    // keeps the login in the Secret Service (GNOME Keyring, KWallet…): without
+    // it nothing can be saved and signing in fails.
     webview: false,
+    depends: { deb: ["libsecret-1-0"], rpm: ["libsecret"], arch: ["libsecret"] },
   },
   macos: { dmgTitle: "slopement" },
   // Phones: `mygo dev -platform ios` and `-platform android` run the app on a

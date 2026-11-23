@@ -379,6 +379,25 @@ type DMCreator interface {
 	OpenDMAsync(person string, done func(room string))
 }
 
+// CustomReactor is what a Source may offer: reacting with a custom emoji, an
+// image of the media repo (mxc://) that a pack names, with its shortcode.
+type CustomReactor interface {
+	ReactCustom(room, eventID, url, shortcode string)
+}
+
+// PersonNote is what the user privately calls someone, and a note about them.
+type PersonNote struct{ Nick, Note string }
+
+// PrivateNotes is what a Source may offer: a nickname and a note for any
+// person, kept with the user's account and seen by nobody else. The nickname is
+// what they are shown by.
+type PrivateNotes interface {
+	// PersonNotes is the notes by MXID (read only: it is replaced on change).
+	PersonNotes() map[string]PersonNote
+	// SetPersonNote sets them; both empty takes them away.
+	SetPersonNote(mxid string, n PersonNote)
+}
+
 // Forwarder is what a Source may offer: sending a copy of a message to
 // another room. The copy has the message's content (words, formatting,
 // attachments), not its replies, thread, edits or mentions. done is called on

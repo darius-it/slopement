@@ -227,11 +227,18 @@ type ProfileSpec struct {
 	Ignorable, Ignored bool
 	// Picture: they have a profile picture, which a click on it enlarges.
 	Picture bool
+	// Nickname and Note are what the user privately calls them, and a note
+	// about them; Noteable shows the button to edit both. With a nickname, Name
+	// is their own display name, shown under it.
+	Nickname, Note string
+	Noteable       bool
 }
 
 // ProfileAction is what the card asked for.
 type ProfileAction struct {
 	Message, Call, Verify, EditStatus bool
+	// EditNote: the button for the nickname and note was pressed.
+	EditNote bool
 	// OpenPicture: the profile picture was clicked, to see it enlarged.
 	OpenPicture bool
 	// Ignore and Unignore are explicit, not a toggle: a card may be built
@@ -264,7 +271,14 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 				Avatar(c, av)
 			}
 			ui.Column(c).MinWidth(0).Gap(1).Children(func() {
-				ui.Text(c, s.Name).FontSize(SizeTitle - 1).FontWeight(WeightSemibold).TextColor(colors.Color(p, s.MXID)).SingleLine()
+				title := s.Name
+				if s.Nickname != "" {
+					title = s.Nickname
+				}
+				ui.Text(c, title).FontSize(SizeTitle - 1).FontWeight(WeightSemibold).TextColor(colors.Color(p, s.MXID)).SingleLine()
+				if s.Nickname != "" && s.Name != "" && s.Name != s.Nickname {
+					ui.Text(c, s.Name).FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
+				}
 				sub := s.MXID
 				if s.Pronouns != "" {
 					sub += " · " + s.Pronouns
@@ -276,6 +290,13 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 			// The status in a soft bubble, as Discord's profile shows it.
 			ui.Row(c).Padding(S2, S3).Radius(RadiusMd).Background(p.BgInset).Children(func() {
 				StatusLine(c, s.Status, now, false).Grow(1)
+			})
+		}
+		if s.Note != "" {
+			// What the user wrote about them, in a soft box: private to them.
+			ui.Column(c.Key("note")).Gap(1).Padding(S2, S3).Radius(RadiusMd).Background(p.BgInset).Children(func() {
+				ui.Text(c, "Your note").FontSize(SizeCaption).FontWeight(WeightMedium).TextColor(p.TextMuted)
+				ui.Text(c, s.Note).FontSize(SizeSmall).MaxLines(6)
 			})
 		}
 		if s.Recolor {
@@ -301,6 +322,17 @@ func ProfileCard(c *ui.Context, s ProfileSpec, colors *UserColors, now time.Time
 			a.Message = Button(c, Primary, "Message", IconMessage).Grow(1).Clicked()
 			a.Call = IconButton(c, Secondary, IconPhone, "Call").Clicked()
 		})
+		if s.Noteable && !s.Self {
+			label := "Add a nickname or note"
+			if s.Nickname != "" || s.Note != "" {
+				label = "Edit nickname and note"
+			}
+			ui.Row(c).Justify(ui.Center).Children(func() {
+				if Button(c, Ghost, label, IconPencil).Height(26).Clicked() {
+					a.EditNote = true
+				}
+			})
+		}
 		if s.Ignorable && !s.Self {
 			label := "Ignore"
 			if s.Ignored {

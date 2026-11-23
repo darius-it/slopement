@@ -26,6 +26,7 @@ type Source struct {
 	spaceCache map[string]string
 	// savedStatus is the status the user set, with its end (account data);
 	// statusTimer ends it on time (status.go).
+	personNotes map[string]model.PersonNote // private nicknames and notes (notes.go)
 	savedStatus model.Status
 	statusSeen  bool // the saved status was compared with the server's once this run
 	statusTimer *time.Timer

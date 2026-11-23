@@ -377,6 +377,7 @@ func (a *App) communityCard(c *ui.Context, cm model.Community) {
 		}
 	})
 	kit.ContextMenu(c, b, func(m *ui.Menu) { a.communityMenu(cm, m) })
+	a.reorderable(c, b, cm) // drag a card to where it belongs
 	if b.Clicked() {
 		a.community = cm.ID
 	}
@@ -544,6 +545,7 @@ func (a *App) inboxCommunity(c *ui.Context, cm model.Community) {
 		}
 		chev.Rotate(chev.AnimateWith("r", r, kit.DurFast, kit.EaseOut))
 	})
+	a.reorderable(c, b, cm) // drag a community to where it belongs
 	if b.Clicked() {
 		a.expanded[cm.ID] = !open
 	}

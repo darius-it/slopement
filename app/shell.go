@@ -203,10 +203,7 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 				a.community == cm.ID && a.view != viewSettings)
 			kit.ContextMenu(c, item, func(m *ui.Menu) { a.communityMenu(cm, m) })
 			// Drag a community to where it should be on the rail.
-			item.Drag(railDrag{cm.ID})
-			if d, ok := ui.Drop[railDrag](item); ok && d.ID != cm.ID {
-				a.moveCommunity(d.ID, cm.ID)
-			}
+			a.reorderable(c, item, cm)
 			if item.Clicked() {
 				a.community = cm.ID
 				a.view = viewRoom

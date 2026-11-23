@@ -22,6 +22,7 @@ func (s *Source) fetchAccountData(ctx context.Context) {
 		{railOrderType, s.onRailOrder},
 		{mutesType, s.onMutes},
 		{statusType, s.onStatusData},
+		{personNotesType, s.onPersonNotes},
 		{event.AccountDataIgnoredUserList, s.onIgnored},
 	} {
 		if ctx.Err() != nil {

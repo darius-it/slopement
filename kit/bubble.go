@@ -307,10 +307,10 @@ func bubbleReaction(c *ui.Context, r Reaction) ui.Element {
 		bg, fg = p.AccentSubtle, p.AccentStrong
 	}
 	b.Height(24).PaddingX(S15).Gap(3).Radius(RadiusFull).AlignItems(ui.Center).
-		Background(bg).Border(2, bd).Checked(r.Mine).Label(r.Key + " " + strconv.Itoa(r.Count))
+		Background(bg).Border(2, bd).Checked(r.Mine).Label(reactionLabel(r))
 	Pressable(b)
 	b.Children(func() {
-		ui.Text(c, r.Key).FontSize(13)
+		reactionKey(c, r.Key)
 		if r.Count > 1 {
 			ui.Text(c, strconv.Itoa(r.Count)).FontSize(SizeCaption).FontWeight(WeightSemibold).FontFeatures("tnum").TextColor(fg)
 		}

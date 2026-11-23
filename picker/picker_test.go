@@ -147,6 +147,9 @@ func TestEmojiRecents(t *testing.T) {
 
 func TestNoKeyNotice(t *testing.T) {
 	t.Setenv("KLIPY_API_KEY", "")
+	// Not the user's own picker.json: it may hold a key they saved in Settings.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	c := New(klipy.New(klipy.Config{}))
 	st := &kit.PickerState{Tab: kit.TabStickers}
 	st.Open = true

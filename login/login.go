@@ -8,6 +8,10 @@ package login
 import (
 	"context"
 	"errors"
+	"log"
+	"net"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -146,8 +150,12 @@ func (l *Login) continueSession(i int) {
 				// saved the token. Signing in again is the answer either
 				// way, and the Apple Development certificate mygo
 				// suggests keeps it from happening twice.
+				log.Printf("login: the saved login could not be used: %v", err)
 				if errors.Is(err, matrix.ErrNoToken) {
 					l.st.Err = "Sign in again — this login has no token."
+				} else if errors.Is(err, matrix.ErrKeychain) {
+					l.st.Err = "The system keychain would not give the saved login: " + short(err.Error()) +
+						". On Linux this needs a Secret Service running and unlocked."
 				} else {
 					l.st.Err = "The saved login could not be read — sign in again."
 				}
@@ -244,6 +252,7 @@ func (l *Login) done(s *matrix.Session) {
 // loginErrText says what went wrong in one quiet line, without homeserver
 // jargon.
 func loginErrText(err error) string {
+	log.Printf("login: failed: %v", err) // the log has the whole error; the screen, the gist
 	var httpErr mautrix.HTTPError
 	if errors.As(err, &httpErr) && httpErr.RespError != nil {
 		switch httpErr.RespError.ErrCode {
@@ -251,7 +260,38 @@ func loginErrText(err error) string {
 			return "Wrong username or password."
 		case "M_LIMIT_EXCEEDED":
 			return "Too many tries. Wait a moment and try again."
+		case "M_USER_DEACTIVATED":
+			return "This account has been deactivated."
+		}
+		// The server's own words, when it gave any.
+		if msg := strings.TrimSpace(httpErr.RespError.Err); msg != "" {
+			return "The server refused the sign-in: " + short(msg) + " (" + httpErr.RespError.ErrCode + ")"
 		}
 	}
-	return "Could not sign in: the server said no."
+	switch {
+	case errors.Is(err, matrix.ErrKeychain) && errors.Is(err, errors.ErrUnsupported):
+		// There is no credential store at all: on Linux, libsecret is not
+		// installed, or no Secret Service is on the session bus.
+		return "Signed in, but there is nowhere to keep the login. On Linux, install libsecret (libsecret-1-0 on Debian and Ubuntu) and run a Secret Service: GNOME Keyring, or KWallet with its Secret Service on."
+	case errors.Is(err, matrix.ErrKeychain):
+		// Signed in, but the system would not keep the login. On Linux that is
+		// a locked Secret Service; on macOS the keychain's refusal.
+		return "Signed in, but the system keychain refused to keep the login: " + short(err.Error()) +
+			". On Linux this needs a Secret Service running and unlocked (GNOME Keyring, or KWallet's Secret Service)."
+	case errors.As(err, new(net.Error)), errors.As(err, new(*url.Error)):
+		return "Could not reach the server: " + short(err.Error())
+	}
+	if httpErr.Response != nil {
+		return "The server answered " + httpErr.Response.Status + ". Check the server address and try again."
+	}
+	return "Could not sign in: " + short(err.Error())
+}
+
+// short is a message cut to one line of at most 200 characters.
+func short(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > 200 {
+		s = s[:200] + "…"
+	}
+	return s
 }

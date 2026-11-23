@@ -24,6 +24,7 @@ type Source struct {
 	comms    []model.Community
 	timeline map[string][]model.Event
 	sessions []model.Session
+	notes    map[string]model.PersonNote // private nicknames and notes (notes.go)
 	seq      int
 	verify   *fakeVerify
 	// Delay scales the simulated replies (0 in tests: none).
