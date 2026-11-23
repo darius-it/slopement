@@ -212,7 +212,7 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   the menu bar and file dialogs are native) rather than raw `PopoverMenu`, and `c.TitleBar()` + `DragWindow` in any toolbar or
   sidebar that touches the window's top edge.
 - `docs/`: `requirements.md`, `design-language.md`, `landscape.md` (other
-  Matrix clients), `calls-research.md` (Jitsi vs Element Call), `ideas.md`
+  Matrix clients), `calls-research.md` (Jitsi vs Element Call; Jitsi dropped 2026-11-23), `ideas.md`
   (far-future ideas, e.g. activities in calls).
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.

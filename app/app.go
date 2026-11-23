@@ -100,6 +100,7 @@ type App struct {
 	inboxLS          ui.ListState                        // One inbox's scroll
 	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
 	noteEd           noteEditor                          // a person's private nickname and note (notes.go)
+	roomNickEd       roomNickEditor                      // a room's private name (roomnick.go)
 	updCheck         bool                                // the switch "Check for updates at startup"
 	updInit          bool                                // updCheck was read from the saved choice
 	upd              updateDialog                        // an update found (updates.go)
@@ -133,6 +134,12 @@ type App struct {
 	stills     map[string]ui.ImageSource
 	stillOrder []string
 	stillBusy  map[string]bool
+	// Maps of shared places, by place and size (maps.go): drawn from OpenStreetMap's
+	// tiles when the user allowed it, bounded, oldest out.
+	maps      map[string]*ui.Bitmap
+	mapOrder  []string
+	mapBusy   map[string]bool
+	mapActive int // maps being fetched now: the tile servers ask for few at once
 	// fulls are the viewer's pictures at full resolution (a few: each is
 	// big), fetched when one is opened.
 	fulls     map[string]*ui.Bitmap
@@ -256,6 +263,8 @@ func New(src model.Source, pick *picker.Controller) *App {
 		roomMenu:   map[string]bool{},
 		stills:     map[string]ui.ImageSource{},
 		stillBusy:  map[string]bool{},
+		maps:       map[string]*ui.Bitmap{},
+		mapBusy:    map[string]bool{},
 		fulls:      map[string]*ui.Bitmap{},
 		fullBusy:   map[string]bool{},
 		readMarked: map[string]string{},
@@ -485,6 +494,8 @@ func (a *App) roomAction(id string, act kit.RoomAction) {
 		a.src.MarkRead(id)
 	case act.MarkUnread:
 		a.src.MarkUnread(id)
+	case act.Rename:
+		a.openRoomNick(id)
 	case act.CopyLink:
 		target := r.Alias // the room's address, else its ID
 		if target == "" {

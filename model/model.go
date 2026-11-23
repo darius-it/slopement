@@ -470,6 +470,16 @@ type PrivateNotes interface {
 	SetPersonNote(mxid string, n PersonNote)
 }
 
+// PrivateRoomNames is what a Source may offer: a name of the user's own for any
+// room or chat, kept with their account and seen by nobody else. It is what the
+// room is shown by, whatever it is called for everyone.
+type PrivateRoomNames interface {
+	// RoomNicknames is the names by room ID (read only: replaced on change).
+	RoomNicknames() map[string]string
+	// SetRoomNickname gives a room its private name; "" takes it away.
+	SetRoomNickname(room, name string)
+}
+
 // Forwarder is what a Source may offer: sending a copy of a message to
 // another room. The copy has the message's content (words, formatting,
 // attachments), not its replies, thread, edits or mentions. done is called on

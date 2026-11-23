@@ -64,6 +64,10 @@ type settingsPrefs struct {
 	// closeMode: what closing the window does: closeQuit (the default) or
 	// closeToTray, which keeps the app running in the tray (tray.go).
 	closeMode int
+	// showMaps: a shared place is drawn as a map from OpenStreetMap's tiles,
+	// fetched from this device (off by default: OpenStreetMap sees the user's IP
+	// address and the place; maps.go).
+	showMaps bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -290,6 +294,9 @@ func (a *App) settingsPage(c *ui.Context) {
 		group(c, "Link previews", "Previews in encrypted rooms send the link to your homeserver; fetching them from this device shows your IP address to the site.", func() {
 			switchRow(c, "Previews in encrypted rooms", "", &a.prefs.previewsE2EE)
 			switchRow(c, "Fetch previews from this device", "Off: your homeserver fetches them and sites never see you. On: this device does, no link goes to the homeserver, and every site linked sees your IP address. Addresses on your own network are never fetched.", &a.prefs.previewsDirect)
+		})
+		group(c, "Maps", "A place someone shares shows as a small map. The map's pictures come from OpenStreetMap's servers: they see your IP address and the area shown, never your account. Off: a card with the coordinates and a link, nothing fetched.", func() {
+			switchRow(c, "Show maps for shared places", "", &a.prefs.showMaps)
 		})
 	case "Security":
 		group(c, "This session", "", func() {

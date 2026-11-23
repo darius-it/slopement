@@ -55,8 +55,8 @@ None of the sources mentions any client with these:
 1. **Calls.** Most of the ecosystem is moving to Element Call (MatrixRTC):
    Element, Element X, FluffyChat and Cinny list it, and only Element Web
    still lists Jitsi as well. A Jitsi-only slopement would mostly call
-   itself. **Decided 2026-11-21:** MatrixRTC is the main call system and
-   Jitsi the fallback, both in v1. See [calls-research.md](calls-research.md).
+   itself. **Decided 2026-11-23:** MatrixRTC is the only call system; Jitsi
+   is dropped. See [calls-research.md](calls-research.md).
 2. **Matrix core.** gomuks's backend is Go on mautrix-go. Check whether
    mautrix-go ships it as a reusable package (believed to be `hicli`: SQLite
    store, sync loop, crypto, a high-level timeline) **before** writing our

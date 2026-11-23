@@ -1,5 +1,12 @@
 # Calls: Jitsi vs Element Call (MatrixRTC) (researched 2026-11-21)
 
+> **Update 2026-11-23: Jitsi is dropped.** slopement supports MatrixRTC
+> (Element Call) only, with no fallback provider and no provider setting. This
+> file is kept as the research record; everything below about Jitsi, the
+> fallback, "Move this call to Jitsi" and the v1.1 provider setting is
+> **not planned**. What is built is described in `docs/requirements.md` →
+> Calls.
+
 The question: which call system should slopement use? Can we support both,
 switch between them, or fall back from one to the other?
 

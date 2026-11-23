@@ -10,8 +10,8 @@ without a tag are v1. Merged on 2026-11-21 with a friend's consolidated
 feature list; its technical notes are folded into the sections below.
 
 ## Non-functional
-- Native UI only. `ui.WebView` is used only for the call views (Jitsi,
-  Element Call) and the optional inline YouTube player.
+- Native UI only. `ui.WebView` is used only for the call view (Element Call)
+  and the optional inline YouTube player.
 - Phone layout below 720 DIP (system stack and tab bar). Desktop layout
   otherwise: rail, room list, timeline, optional right panel. The right
   panel (members, thread, room info, search) **stays open across room
@@ -586,70 +586,30 @@ so Element and FluffyChat messages look right too.
     inline (`format.Emoji`, `kit.EmojiImage`). Custom emoji as *reactions*
     are not built.
 
-## Calls (MatrixRTC first, Jitsi as the fallback)
-Full research and design: [calls-research.md](calls-research.md)
-(2026-11-21).
+## Calls (MatrixRTC only)
+Research and history: [calls-research.md](calls-research.md).
 
-**Decided 2026-11-21, the v1 scope:** **MatrixRTC (Element Call) is the
-main call system; Jitsi is the fallback** when MatrixRTC isn't available
-or doesn't work. Both are in v1. The rules below are the v1 behaviour,
-except where marked v1.1.
-- One Call button. Calls start with the camera off and the mic on; the
-  camera toggles.
-- **Two providers behind one `calls` interface,** because Jitsi and Element
-  Call (MatrixRTC, MSC4143 + LiveKit MSC4195) **don't interoperate**:
-  - Jitsi has been the more reliable experience for us.
-  - Element Call is where the ecosystem is going (Element X, FluffyChat,
-    Cinny), and it is the only one with real Matrix E2EE.
-- **Which one:**
-  - **Join what's already in the room,** never splitting a call: a running
-    MatrixRTC call or a running Jitsi widget call.
-  - **New calls use MatrixRTC** when the homeserver advertises a MatrixRTC
-    transport (LiveKit SFU + authorization service).
-  - **Fall back to Jitsi** when it doesn't, so homeservers without LiveKit
-    still get calls.
-- **Fallback when MatrixRTC fails, before anyone else has joined:**
-  - Failures that count: the JWT service refuses, the SFU is unreachable,
-    ICE fails, or there's no media within ~8 s.
-  - Then we offer **"MatrixRTC isn't working here. Use Jitsi instead?"**
-    with the reason, and start a Jitsi call on a click.
-  - Errors in the transport discovery itself go straight to Jitsi, with a
-    short note.
-- Mid-call there's no silent switch: **"Move this call to Jitsi"** (in the
-  call menu) starts a Jitsi call and posts a notice in the room
-  ("Mira moved the call to Jitsi · Join") so everyone follows deliberately.
-- **Implementation (v1):** Element Call's **embedded package** in a web
-  view, with us as the **widget API host**. That means:
-  - capabilities;
-  - call membership state;
-  - to-device encryption keys;
-  - delayed events (MSC4140);
-  - join and hangup.
-
-  Jitsi runs through its iframe API.
-- **v1.1:** a **Settings → Calls → Call system** setting (MatrixRTC with
-  Jitsi fallback (default) / Always Jitsi) and a per-room override
-  (`com.slopement.call_provider`), for rooms where Jitsi works better;
-  automatic fallback without asking, if chosen.
+**Decided 2026-11-23: Jitsi is dropped.** slopement has one call system,
+MatrixRTC through Element Call, which is where the ecosystem is going
+(Element X, FluffyChat, Cinny) and the only one with real Matrix E2EE. There
+is no fallback provider, no "Move this call to Jitsi" and no provider setting.
+A homeserver without a MatrixRTC (LiveKit) call service gets a plain message
+saying so in the call area.
+- One Call button. Calls start with the settings of Settings → Calls
+  (microphone off, camera on, ask first); the call page's own buttons change
+  them as you go.
+- **Built:** Element Call's page, loaded from call.element.io (it is
+  AGPL-3.0, so it is hosted, not bundled; the app asks before the first call),
+  in a web view, with slopement as the **widget API host**: capabilities, call
+  membership state, to-device encryption keys, delayed events (MSC4140),
+  join and hangup. In the chat: "started a call" and "The call ended" with
+  times and duration, a "Call in progress · Join" banner, a notification when
+  somebody calls you, and a bar to get back to a call from another chat.
+- **Not yet:** group calls, screen sharing, Linux, Windows and phones are
+  untested. Picture-in-picture when navigating away, an explicit **Audio
+  only** mode, local call stats (round-trip time, packet loss, jitter) in
+  Settings → Calls, and camera and microphone permission prompts on phones.
 - **Later:** native MatrixRTC through LiveKit's Go SDK, with no web view.
-- Jitsi: uses the room's widget, or creates one from `.well-known`'s Jitsi
-  domain (falling back to meet.element.io).
-- Native control bar over the provider's web view (its own UI hidden, the
-  prejoin page skipped). A "call in progress · Join" banner.
-  Picture-in-picture when navigating away.
-- Camera and microphone permissions on phones. WebRTC in WebKitGTK must be
-  verified early (Linux).
-- Local, private call stats (round-trip time, packet loss, jitter, time to
-  first media) in Settings → Calls → Last call, to compare the two
-  providers honestly.
-- Buttons: **Call** (mic on, camera off, camera toggle available) and an
-  explicit **Audio only** in the call menu (`startAudioOnly`: no camera
-  control at all, lower bandwidth). There are no separate voice and video
-  modes.
-- Jitsi config passed via the iframe API: `startWithVideoMuted: true`,
-  `startWithAudioMuted: false`, `prejoinConfig.enabled: false`,
-  `disableDeepLinking: true`, `toolbarButtons: []`, plus the user's display
-  name and avatar URL. We don't send the Matrix ID to the Jitsi server.
 
 ## Notifications & settings
 - Desktop notifications, plus push via mygo `push` and a gateway (v1.1),
@@ -752,5 +712,5 @@ except where marked v1.1.
   status of each request and links to issues.
 - **Compatibility is a release blocker:** a release is held if the fixture
   suite or the interop checklist (verify with Element, vote in an Element
-  poll, join an Element X / Element Web MatrixRTC call, join an Element Web
-  Jitsi call, read Element threads) fails.
+  poll, join an Element X / Element Web MatrixRTC call, read Element
+  threads) fails.

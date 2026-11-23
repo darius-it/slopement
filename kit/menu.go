@@ -83,6 +83,8 @@ type RoomMenuState struct {
 	Favourite  bool
 	LowPrio    bool
 	Unread     bool
+	// CanRename offers "Private name…" (the source keeps names of the user's own).
+	CanRename bool
 	// Level is the room's notification level: 0 default, 1 all messages,
 	// 2 mentions only (model.NotifyLevel).
 	Level int
@@ -102,6 +104,7 @@ type RoomAction struct {
 	MarkRead   bool
 	MarkUnread bool
 	CopyLink   bool
+	Rename     bool // "Private name…": the user's own name for the room
 	Settings   bool
 	Leave      bool
 }
@@ -152,6 +155,9 @@ func RoomMenu(m *ui.Menu, s RoomMenuState, now time.Time) (a RoomAction) {
 		a.ToggleLow = true
 	}
 	m.Separator()
+	if s.CanRename && m.Item("Private name…").Chosen() {
+		a.Rename = true
+	}
 	if m.Item("Copy link").Chosen() {
 		a.CopyLink = true
 	}

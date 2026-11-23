@@ -233,8 +233,9 @@ func (a *App) row(r model.Room) kit.RoomRowData {
 }
 
 func (a *App) menuState(r model.Room) kit.RoomMenuState {
+	_, canRename := a.src.(model.PrivateRoomNames)
 	return kit.RoomMenuState{Muted: r.Muted, MutedUntil: r.MutedUntil, Favourite: r.Favourite, LowPrio: r.LowPriority,
-		Unread: r.Unread > 0 || r.Mentions > 0, Level: int(r.Notify)}
+		Unread: r.Unread > 0 || r.Mentions > 0, Level: int(r.Notify), CanRename: canRename}
 }
 
 // pollData is a poll as the kit's card shows it.
@@ -319,6 +320,7 @@ func (a *App) locationSpec(ev model.Event) *kit.LocationSpec {
 		Title:       l.Description,
 		Coordinates: strconv.FormatFloat(l.Lat, 'f', 4, 64) + ", " + strconv.FormatFloat(l.Lon, 'f', 4, 64),
 		URL:         "https://www.openstreetmap.org/?mlat=" + lat + "&mlon=" + lon + "#map=16/" + lat + "/" + lon,
+		Map:         a.mapPicture(l), // nil unless the user allowed maps and it has been fetched
 	}
 }
 

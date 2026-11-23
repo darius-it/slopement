@@ -29,6 +29,7 @@ type Source struct {
 	// savedStatus is the status the user set, with its end (account data);
 	// statusTimer ends it on time (status.go).
 	personNotes map[string]model.PersonNote // private nicknames and notes (notes.go)
+	roomNicks   map[string]string           // private room names (roomnames.go)
 	savedStatus model.Status
 	statusSeen  bool // the saved status was compared with the server's once this run
 	statusTimer *time.Timer

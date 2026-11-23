@@ -19,6 +19,13 @@ would notice; when you tag a release, rename that heading to the tag
   messages and notifications still arrive. Quit from the tray menu or ⌘Q still
   ends it.
 - **↑ in an empty message box edits your last message** (on a computer).
+- **Private names for rooms and chats:** "Private name…" in a room's menu (and
+  the phone's room sheet) gives it a name only you see, on all your devices. It
+  is stored with your account, so your homeserver can read it.
+- **Maps for shared places** (Settings → Privacy → Maps, off by default): a
+  place someone shares is drawn as a small map with a pin. The map's pictures
+  come from OpenStreetMap's servers, which see your IP address and the area;
+  nothing is fetched while it is off.
 
 ### Changed
 - A message that is still sending while there is no connection is drawn in red,

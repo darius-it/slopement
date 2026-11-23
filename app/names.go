@@ -54,6 +54,9 @@ func (a *App) namesMatter() bool {
 	if a.prefs.usernames {
 		return true
 	}
+	if pn, ok := a.src.(model.PrivateRoomNames); ok && len(pn.RoomNicknames()) > 0 {
+		return true
+	}
 	if pn, ok := a.src.(model.PrivateNotes); ok {
 		for _, n := range pn.PersonNotes() {
 			if n.Nick != "" {
@@ -67,10 +70,22 @@ func (a *App) namesMatter() bool {
 // namedRoom is a room as the lists show it: a chat with one person is named
 // after them, so it follows the nickname and the choice of names too.
 func (a *App) namedRoom(r model.Room) model.Room {
+	if n := a.roomNickname(r.ID); n != "" {
+		r.Name = n // the user's own name for it wins over everything
+		return r
+	}
 	if r.Kind == model.KindDM && r.Partner != "" {
 		r.Name = a.nameFor(r.Partner, r.Name)
 	}
 	return r
+}
+
+// roomNickname is the private name the user gave a room ("" for none).
+func (a *App) roomNickname(id string) string {
+	if pn, ok := a.src.(model.PrivateRoomNames); ok {
+		return pn.RoomNicknames()[id]
+	}
+	return ""
 }
 
 // roomByID is a room by its ID, named as the user chose to see names.

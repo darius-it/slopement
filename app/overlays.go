@@ -70,6 +70,7 @@ func (a *App) overlays(c *ui.Context) {
 	a.sourceDialogView(c)
 	a.updateDialogView(c)
 	a.noteEditorView(c)
+	a.roomNickView(c)
 	a.forwardDialogView(c)
 	a.phoneSheets(c)
 }
@@ -324,6 +325,9 @@ func (a *App) phoneSheets(c *ui.Context) {
 			} else if d := kit.MuteList(c, a.now); d != nil {
 				a.roomAction(r.ID, kit.RoomAction{Mute: d})
 				a.roomSheet.Open = false
+			}
+			if st.CanRename {
+				row(kit.IconPencil, "Private name…", kit.RoomAction{Rename: true})
 			}
 			row(kit.IconLink, "Copy link", kit.RoomAction{CopyLink: true})
 			row(kit.IconLogOut, "Leave", kit.RoomAction{Leave: true})

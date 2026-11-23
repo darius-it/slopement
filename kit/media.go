@@ -288,7 +288,16 @@ type LocationSpec struct {
 	Title       string // what the sender called it ("" for "Shared location")
 	Coordinates string // "52.5200, 13.4050"
 	URL         string // where "Open in maps" goes
+	// Map is a picture of the place (OpenStreetMap's tiles, with a pin) once it
+	// has been fetched and the user allowed it; nil: the plain card.
+	Map ui.ImageSource
 }
+
+// MapWidth and MapHeight are the size of a map on the card, in DIP.
+const (
+	MapWidth  = 256
+	MapHeight = 144
+)
 
 // LocationCard shows a LocationSpec.
 func LocationCard(c *ui.Context, l LocationSpec) ui.Element {
@@ -296,6 +305,9 @@ func LocationCard(c *ui.Context, l LocationSpec) ui.Element {
 	title := l.Title
 	if title == "" {
 		title = "Shared location"
+	}
+	if l.Map != nil {
+		return mapCard(c, l, title)
 	}
 	card := ui.Row(c.Key("loc:"+l.ID)).Gap(S3).Padding(S2, S3, S2, S2).Radius(RadiusMd).
 		Background(p.Raised).Border(1, p.Border).AlignItems(ui.Center).MaxWidth(360).Label("Location: " + title)
@@ -306,6 +318,25 @@ func LocationCard(c *ui.Context, l LocationSpec) ui.Element {
 			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium).MaxLines(2)
 			ui.Text(c, l.Coordinates).FontSize(SizeSmall).TextColor(p.TextMuted).SingleLine()
 			ui.Link(c, "Open in maps", l.URL).FontSize(SizeSmall).TextColor(p.AccentStrong)
+		})
+	})
+	return card
+}
+
+// mapCard is a place drawn as a map, its words and link under it, and
+// OpenStreetMap's credit, which its tile policy asks to be shown with every map.
+func mapCard(c *ui.Context, l LocationSpec, title string) ui.Element {
+	p := Of(c)
+	card := ui.Column(c.Key("loc:"+l.ID)).Radius(RadiusMd).Background(p.Raised).Border(1, p.Border).Clip().
+		Width(MapWidth).MaxWidth(MapWidth).Label("Location: " + title)
+	card.Children(func() {
+		ui.Image(c, l.Map).Size(MapWidth, MapHeight).Fit(ui.Cover).Label("Map of " + title)
+		ui.Column(c).Gap(1).Padding(S2, S3).Children(func() {
+			ui.Text(c, title).FontSize(SizeBody).FontWeight(WeightMedium).MaxLines(2)
+			ui.Row(c).Gap(S2).AlignItems(ui.Center).Children(func() {
+				ui.Link(c, "Open in maps", l.URL).FontSize(SizeSmall).TextColor(p.AccentStrong)
+				ui.Text(c, "© OpenStreetMap contributors").FontSize(SizeCaption).TextColor(p.TextFaint).SingleLine().Grow(1).Justify(ui.End)
+			})
 		})
 	})
 	return card

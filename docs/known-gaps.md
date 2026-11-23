@@ -8,27 +8,29 @@ of 2026-11-22. It is not a promise of when anything lands.
   loads from call.element.io (Element's server) — the app asks before the first
   call, and Settings → Calls takes that back. It needs a LiveKit call service on
   your homeserver. Tried between two people on macOS only; group calls, screen
-  sharing, Linux, Windows and phones are untested. Jitsi is not supported.
-  Element Call is AGPL-3.0, so it is not bundled with the app.
+  sharing, Linux, Windows and phones are untested. Jitsi was dropped on
+  purpose: MatrixRTC is the only call system. Element Call is AGPL-3.0, so it
+  is not bundled with the app.
 - **Moderation:** no kick, ban, report or bulk delete from the app.
-- **Private names for rooms** (nicknames and notes for people work: open
-  someone's profile card; they are stored in your account, which your
-  homeserver can read).
 - **Voice message recording.** Playing them works (Opus, AAC and the usual
   formats); recording needs a device pass.
-- **Creating a new key backup.** Restoring one works; make it in Element.
-- **Live maps:** a shared location is a static card that opens in OpenStreetMap.
+- **Creating a new key backup**, on purpose: restoring one works, but a new
+  backup holds the keys to all your encrypted history, so it is left to Element,
+  which has had that code tested for years.
+- **Live location sharing.** A shared place shows as a map when you turn maps
+  on (Settings → Privacy → Maps); a place that moves (a "live location") is not
+  followed, and sending your location is not built.
 - **Hardly tested:** animated WebP, Opus and AAC playback and custom emoji
   reactions are checked against samples and a fake server only; the Opus and AAC
   decoders are young pure-Go libraries, so report a voice message that sounds
   wrong or won't play.
 
 ## Tray
-"Minimize to tray" (Settings → Advanced, off by default) has only been built
-from the documentation, never tried on a real desktop. On Linux it needs
-`libayatana-appindicator3` (and a panel that shows tray icons: GNOME needs its
-AppIndicator extension); without it the setting turns itself off. Closing the
-window still quits the app.
+"Minimize to tray" and "When the window is closed → Keep in tray" (Settings →
+Advanced, off by default) have only been built from the documentation, and the
+unread count on the tray icon too, never tried on a real desktop. On Linux the
+tray needs `libayatana-appindicator3` (and a panel that shows tray icons: GNOME
+needs its AppIndicator extension); without it the settings turn themselves off.
 
 ## Phones
 The phone layout exists and renders, but the app has **never been run on an
@@ -46,10 +48,10 @@ push notifications are not built.
 - Sign-in uses the classic `/sync`; sliding sync is not used.
 
 ## Linux performance
-The UI can feel sluggish on some Linux setups (reported while typing). The
-cause is not known yet. The AppImage and the `.deb` use the same binary and
-your system's GTK 3 and graphics drivers, so they draw the same. To try other
-renderers, set these before starting the app:
+The sluggish typing reported earlier on Linux is fixed (confirmed 2026-11-23).
+If a setup still feels slow, the AppImage and the `.deb` use the same binary
+and your system's GTK 3 and graphics drivers, so they draw the same. To try
+other renderers, set these before starting the app:
 
 ```sh
 MYGO_GPU=0 ./slopement-x86_64.AppImage    # draw on the CPU
