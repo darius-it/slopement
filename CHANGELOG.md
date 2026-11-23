@@ -36,8 +36,8 @@ would notice; when you tag a release, rename that heading to the tag
 - **Notes to self:** a chat with yourself now has a name, and works.
 
 - **Settings → Appearance → Your status:** in the Rail layout, show your status
-  as a bubble beside your picture with its emoji and words, always; a click on
-  it edits the status.
+  as a small thought cloud on your picture's corner (like the chat list's mini
+  pictures) with its emoji and words, always; a click on it edits the status.
 
 ### Changed
 - Favorite GIFs imported from Discord are copied to your device while their

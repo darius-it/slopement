@@ -37,7 +37,7 @@ func TestStatusBubbleInTheRail(t *testing.T) {
 		t.Fatal("no bubble with the status words")
 	}
 	snap(t, "app-status-bubble", tt)
-	if err := tt.Click("Edit your status"); err != nil {
+	if err := tt.Click("Edit your status: 🎧 Heads down until five"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)

@@ -92,10 +92,10 @@ func TestUsernamesSwitchInAppearance(t *testing.T) {
 	a.view, a.settings = viewSettings, "Appearance"
 	tt := ui.NewTesterWith(a.View, 1100, 1500, ui.TesterOptions{Dark: true})
 	settle(tt)
-	if !tt.HasText("Show usernames instead of display names") {
+	if !tt.HasText("Show usernames") {
 		t.Fatal("no switch for it in Settings → Appearance")
 	}
-	clickSwitch(t, tt, "Show usernames instead of display names")
+	clickSwitch(t, tt, "Show usernames")
 	if !a.prefs.usernames {
 		t.Fatal("the switch did not turn it on")
 	}

@@ -245,14 +245,12 @@ func (a *App) settingsPage(c *ui.Context) {
 		group(c, "Layout", "How Chats and Communities are laid out. At phone widths the rail shows as tabs.", func() {
 			ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
 		})
-		group(c, "Names", "People are shown by their display name, as in other Matrix clients. Turn this on to show usernames instead (\"ada\" for @ada:example.org) in the chat list, chats, replies and People.", func() {
-			switchRow(c, "Show usernames instead of display names", "", &a.prefs.usernames)
-		})
-		group(c, "Your status", "In the Rail layout your status is a small emoji on your picture. Turn this on to show it as a speech bubble beside your picture with its words, always; a press on the bubble edits it. The other layouts show it under your name already.", func() {
-			switchRow(c, "Show my status as a bubble with its text", "", &a.prefs.statusBubble)
-		})
-		group(c, "Switching", "Moving between Chats and communities.", func() {
-			switchRow(c, "Jump to last chat on tab switch", "Reopen the chat you had open there, instead of an empty \"Select a chat\" pane", &a.prefs.jumpLast)
+		// The small switches of how chats and people look and behave: one group,
+		// a line under each, no notes between them.
+		group(c, "Chats and people", "", func() {
+			switchRow(c, "Show usernames", "Instead of display names", &a.prefs.usernames)
+			switchRow(c, "Status on my picture", "Rail layout: show its words in a small cloud, not just the emoji", &a.prefs.statusBubble)
+			switchRow(c, "Jump to last chat", "When switching between Chats and communities", &a.prefs.jumpLast)
 		})
 		group(c, "People", "What shows under each name in People: their status (or how they are, when they have none), or when you last chatted.", func() {
 			ui.Column(c).Padding(kit.S2).Children(func() {

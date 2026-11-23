@@ -286,22 +286,13 @@ func (a *App) statusBubble(c *ui.Context) {
 	if !a.prefs.statusBubble || !me.Status.Set(a.now) {
 		return
 	}
-	p := kit.Of(c)
-	bub := ui.ButtonBase(c.Key("my-status-bubble")).Absolute().Left(kit.RailWidth-6).Bottom(kit.S3+2).
-		MaxWidth(240).Padding(kit.S1+2, kit.S2+2).Gap(kit.S1).Radius(kit.RadiusLg).AlignItems(ui.Center).
-		Background(p.Raised).Border(1, p.Border).Label("Edit your status")
-	if bub.Hovered() {
-		bub.Background(p.Hover)
-	}
-	bub.Children(func() {
-		if me.Status.Emoji != "" {
-			ui.Text(c, me.Status.Emoji).FontSize(kit.SizeBody)
+	// The small cloud of the chat list's mini pictures, always open, up on the
+	// picture's corner with its two dots trailing down to it.
+	ui.Box(c.Key("my-status-bubble")).Absolute().Left(kit.RailWidth - 14).Bottom(kit.S3 + 36).Children(func() {
+		if kit.StatusCloud(c, status(me.Status)).Clicked() {
+			a.statusDraft.Edit(status(me.Status))
 		}
-		ui.Text(c, me.Status.Text).FontSize(kit.SizeSmall).TextColor(p.Text).SingleLine().Shrink(1)
 	})
-	if bub.Clicked() {
-		a.statusDraft.Edit(status(me.Status))
-	}
 }
 
 // communityCounts sums a community's rooms.
