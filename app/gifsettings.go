@@ -38,6 +38,54 @@ func (a *App) gifsPage(c *ui.Context) {
 				FontSize(kit.SizeCaption).TextColor(p.TextFaint)
 		}
 	})
+	a.favoritesGroup(c)
+}
+
+// favoritesGroup is Settings → GIFs → Favorites: importing from Discord,
+// dropping what is no longer available, and starting over.
+func (a *App) favoritesGroup(c *ui.Context) {
+	if a.pick == nil {
+		return
+	}
+	note := "Favorites imported from Discord have links that expire after a day, so they are copied to this device as they are imported (and at startup). Reset clears the favorites and those copies; import again right after, while the export's links still work."
+	group(c, "Favorite GIFs", note, func() {
+		if kit.ChoiceRow(c, kit.IconPlus, "Import from Discord…", "A discord-favorite-gifs.json from discord-gif-exporter").Clicked() {
+			a.importDiscordGIFs()
+		}
+		if n := a.pick.UnavailableCount(); n > 0 {
+			label := "Remove " + strconv.Itoa(n) + " unavailable favorite"
+			if n != 1 {
+				label += "s"
+			}
+			if kit.ChoiceRow(c, kit.IconX, label, "Their links expired or the picture was deleted").Clicked() {
+				a.toast = "Removed " + strconv.Itoa(a.pick.RemoveUnavailable()) + " unavailable favorites"
+			}
+		}
+		if kit.ChoiceRow(c, kit.IconTrash, "Reset favorite GIFs…", strconv.Itoa(a.pick.FavoriteCount())+" favorites, and their copies on this device").Clicked() {
+			a.confirmResetFavorites()
+		}
+	})
+}
+
+// confirmResetFavorites asks, in the system's dialog, before clearing every
+// favorite GIF.
+func (a *App) confirmResetFavorites() {
+	if a.win == nil || a.pick == nil {
+		return
+	}
+	win := a.win
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: win, Title: "Reset favorite GIFs?",
+			Message: "Every favorite GIF and the copies kept on this device are removed. Import them again afterwards.",
+			Buttons: []string{"Reset", "Cancel"}, DefaultButton: 1, CancelButton: 1, DestructiveButtons: []int{0}})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		win.Update(func() {
+			n := a.pick.ResetFavorites()
+			a.toast = "Removed " + strconv.Itoa(n) + " favorites. Import again from here."
+		})
+	}()
 }
 
 // klipyGroup is where the user gives their own KLIPY key, which GIF and

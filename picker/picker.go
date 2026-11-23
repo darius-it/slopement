@@ -81,6 +81,9 @@ type Controller struct {
 	scanning    bool
 	rescanAgain bool
 	wasOpen     bool
+
+	pinning  bool // PinExpiring is copying links that will expire (pin.go)
+	pinAgain bool // and favorites were added meanwhile
 }
 
 // saved is what persists across runs.
@@ -176,7 +179,10 @@ func NewWithKey() *Controller {
 }
 
 // SetUpdate gives the function that runs work on the UI thread.
-func (c *Controller) SetUpdate(update func(func())) { c.update = update }
+func (c *Controller) SetUpdate(update func(func())) {
+	c.update = update
+	c.PinExpiring() // favorites whose links will expire are copied while they work (pin.go)
+}
 
 func (c *Controller) post(fn func()) {
 	if c.update != nil {

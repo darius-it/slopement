@@ -238,20 +238,22 @@ func (c *Controller) ImportDiscordFavorites(data []byte) (int, error) {
 	have := map[string]bool{}
 	for _, f := range c.saved.Favorites {
 		have[f.ID] = true
-		have[f.Full.URL] = true
+		have[sourceKey(f.Full.URL)] = true // a new export signs the same attachment again
 	}
 	added := 0
 	for _, it := range items {
-		if have[it.ID] || have[it.Full.URL] {
+		if have[it.ID] || have[sourceKey(it.Full.URL)] {
 			continue
 		}
 		have[it.ID] = true
+		have[sourceKey(it.Full.URL)] = true // twice in one export is one favorite
 		c.saved.Favorites = append(c.saved.Favorites, it)
 		c.items[it.ID] = it
 		added++
 	}
 	if added > 0 {
 		c.save()
+		c.PinExpiring() // the signed links last a day: keep copies while they work
 		if c.browse == "favorites" {
 			c.gifs.Results = c.tiles(c.saved.Favorites)
 			c.gifs.Notice = ""

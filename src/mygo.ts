@@ -2,32 +2,24 @@
 
 import { bind, event } from "mygo-runtime";
 
-// ---- Types ----
-
-/** SystemInfo describes the machine the app runs on. */
-export interface SystemInfo {
-  os: string;
-  arch: string;
-  goVersion: string;
-}
-
 // ---- Services ----
 
 /**
- * Greeter is callable from the frontend: `mygo generate` turns its methods
- * into typed TypeScript functions in src/mygo.ts.
+ * CallBridge is bound for the host page: the widget's messages come in
+ * through Post, and the replies go back to it.
  */
-export const Greeter = {
-  /** Greet returns a greeting for name. */
-  greet: bind<[string], string>("Greeter.Greet", (name: string) => [name]),
-  /** Info returns information about the system. */
-  info: bind<[], SystemInfo>("Greeter.Info", () => []),
+export const CallBridge = {
+  /** Post takes one message from the widget and returns what to post back. */
+  post: bind<[string], string[]>("CallBridge.Post", (msg: string) => [msg]),
 } as const;
 
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
 export const events = {
-  /** Tick is sent to the page every second. */
-  tick: event<string>("tick"),
+  /**
+   * callToWidget carries a message to the widget: the host page forwards it to
+   * the iframe.
+   */
+  callToWidget: event<string>("call-to-widget"),
 } as const;
