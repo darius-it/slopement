@@ -49,6 +49,7 @@ type prefsState struct {
 	Accent, UISize                                             int
 	Dense                                                      bool
 	Usernames                                                  bool
+	JumpLast                                                   bool
 }
 
 func (p settingsPrefs) state() prefsState {
@@ -56,7 +57,7 @@ func (p settingsPrefs) state() prefsState {
 		p.receipts, p.typing, p.previewsE2EE, p.previewsDirect,
 		p.gifAutoplay, p.animatedAvatars, p.hideJoins,
 		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass, p.gifFiles,
-		p.accent, p.uiSize, p.dense, p.usernames}
+		p.accent, p.uiSize, p.dense, p.usernames, p.jumpLast}
 }
 
 func (p prefsState) prefs() settingsPrefs {
@@ -64,7 +65,7 @@ func (p prefsState) prefs() settingsPrefs {
 		p.Receipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
 		p.GifAutoplay, p.AnimatedAvatars, p.HideJoins,
 		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass, p.GifFiles,
-		p.Accent, p.UISize, p.Dense, p.Usernames}
+		p.Accent, p.UISize, p.Dense, p.Usernames, p.JumpLast}
 }
 
 // stateWriter writes the file one write at a time, newest wins.

@@ -197,6 +197,25 @@ func (a *App) communityMenu(cm model.Community, m *ui.Menu) {
 // it, what it is about, Invite and settings.
 func (a *App) communityHome(c *ui.Context, cm model.Community) {
 	p := kit.Of(c)
+	if kit.Compact(c) { // the phone: a page, its header centred (as WhatsApp's community info)
+		ui.Column(c).Gap(kit.S2).Padding(kit.S4, kit.S3, kit.S3, kit.S3).AlignItems(ui.Center).Children(func() {
+			kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 72, Square: true, Image: a.avatarPic(cm.Avatar)})
+			ui.Text(c, cm.Name).FontSize(kit.SizeLabel + 4).FontWeight(kit.WeightSemibold).SingleLine()
+			ui.Text(c, "Community · "+strconv.Itoa(len(a.communityRoomIDs(cm, 0)))+" rooms · "+compact(cm.Members)+" members").
+				FontSize(kit.SizeSmall).TextColor(p.TextMuted).SingleLine()
+			if cm.About != "" {
+				ui.Text(c, cm.About).FontSize(kit.SizeSmall).TextColor(p.TextMuted).TextAlign(ui.Center)
+			}
+			ui.Row(c).Gap(kit.S2).AlignSelf(ui.Stretch).Children(func() {
+				if kit.Button(c, kit.Secondary, "Invite", kit.IconUser).Grow(1).Clicked() {
+					a.openInvite(cm.ID)
+				}
+				menu := kit.IconButton(c, kit.Secondary, kit.IconSettings, "Community settings")
+				kit.MenuButton(c, menu, func(m *ui.Menu) { a.communityMenu(cm, m) })
+			})
+		})
+		return
+	}
 	ui.Column(c).Gap(kit.S2).Padding(kit.S3).Children(func() {
 		ui.Row(c).Gap(kit.S3).AlignItems(ui.Center).Children(func() {
 			kit.Avatar(c, kit.AvatarSpec{Name: cm.Name, ID: cm.ID, Size: 48, Square: true, Image: a.avatarPic(cm.Avatar)})

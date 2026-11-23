@@ -45,6 +45,9 @@ type settingsPrefs struct {
 	// usernames: people are shown by username ("ada"), not display name
 	// (names.go); the default, display names, is what other clients show.
 	usernames bool
+	// jumpLast: switching to Chats or a community reopens the chat last open
+	// there (scope.go); off, the pane says "Select a chat".
+	jumpLast bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -235,6 +238,9 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 		group(c, "Names", "People are shown by their display name, as in other Matrix clients. Turn this on to show usernames instead (\"ada\" for @ada:example.org) in the chat list, chats, replies and People.", func() {
 			switchRow(c, "Show usernames instead of display names", "", &a.prefs.usernames)
+		})
+		group(c, "Switching", "Moving between Chats and communities.", func() {
+			switchRow(c, "Jump to last chat on tab switch", "Reopen the chat you had open there, instead of an empty \"Select a chat\" pane", &a.prefs.jumpLast)
 		})
 		group(c, "People", "What shows under each name in People: their status (or how they are, when they have none), or when you last chatted.", func() {
 			ui.Column(c).Padding(kit.S2).Children(func() {

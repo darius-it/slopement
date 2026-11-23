@@ -97,7 +97,11 @@ func (a *App) emptyMain(c *ui.Context) {
 	p := kit.Of(c)
 	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(kit.S2).DragWindow().Children(func() {
 		ui.Icon(c, kit.IconMessage).Size(32, 32).TextColor(p.TextFaint)
-		ui.Text(c, "Pick a chat to start").FontSize(kit.SizeBody).TextColor(p.TextMuted)
+		title := "Select a chat"
+		if cm, ok := a.communityOf(a.community); ok {
+			title = "Select a room in " + cm.Name
+		}
+		ui.Text(c, title).FontSize(kit.SizeBody).TextColor(p.TextMuted)
 		ui.Row(c).Gap(kit.S1).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "or press").FontSize(kit.SizeSmall).TextColor(p.TextFaint)
 			kit.Kbd(c, kit.CmdK())

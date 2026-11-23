@@ -94,37 +94,26 @@ func TestTopBarArrows(t *testing.T) {
 }
 
 // Coming back to a chat from a space (Chats on the rail), or from Settings,
-// asks for the keyboard in that chat's composer.
+// asks for the keyboard in that chat's composer (Settings here; a space with
+// "Jump to last chat" on is scope_test.go).
 func TestReturningToAChatFocusesItsComposer(t *testing.T) {
 	a, tt := navApp(t)
-	a.open("!crit")
+	a.open("!dm-alex")
 	settle(tt)
-	cms := a.communities()
-	if len(cms) == 0 {
-		t.Skip("needs a community")
-	}
-	a.community = cms[0].ID // into a space
-	settle(tt)
-	a.focusRoom = ""
-	a.community = "" // Chats again: the last open chat shows
-	a.navTrack()
-	if a.focusRoom != "!crit" {
-		t.Fatalf("no focus asked for the chat after leaving the space: %q", a.focusRoom)
-	}
 
 	a.view = viewSettings
 	settle(tt)
 	a.focusRoom = ""
 	a.view = viewRoom
 	a.navTrack()
-	if a.focusRoom != "!crit" {
+	if a.focusRoom != "!dm-alex" {
 		t.Fatalf("no focus asked for the chat after Settings: %q", a.focusRoom)
 	}
 	// Typed now, it goes to the composer.
 	settle(tt)
 	tt.Type("hi")
 	settle(tt)
-	if got := a.draft("!crit").Text; got != "hi" {
+	if got := a.draft("!dm-alex").Text; got != "hi" {
 		t.Fatalf("the draft is %q", got)
 	}
 }
