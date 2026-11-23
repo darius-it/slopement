@@ -44,7 +44,7 @@ jobs:
             > will change, and your data may need resetting between versions.
             > Do not rely on it for anything important.
 
-            slopement can look for updates, but only if you turn it on (Settings → Privacy →
+            slopement can look for updates, but only if you turn it on (Settings → About →
             "Check for updates at startup"): then it asks GitHub once at startup, and downloads
             nothing until you press Install. Copies installed from a `.deb`, `.rpm`, AppImage or
             the Arch package update through where they came from.

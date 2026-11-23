@@ -346,7 +346,7 @@ func (a *App) View(c *ui.Context) {
 	a.frameStart()
 	defer a.frameEnd()
 	a.now = time.Now()
-	a.updatesAtStart() // only if the user turned it on (Settings → Privacy)
+	a.updatesAtStart() // only if the user turned it on (Settings → About)
 	a.typingTick()
 	// Appearance settings: the tint, the timeline's density, the size.
 	kit.SetAccent(a.prefs.accent)

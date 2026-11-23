@@ -14,7 +14,7 @@ import (
 // gone from Advanced.
 func TestAboutListsTheOpenSourceItUses(t *testing.T) {
 	a := testApp()
-	tt := ui.NewTester(a.View, 1100, 1800)
+	tt := ui.NewTester(a.View, 1100, 2600) // tall: the list is long
 	a.view, a.settings = viewSettings, "Advanced"
 	settle(tt)
 	if tt.HasText("mock data") || tt.HasText("slopement 0.1") {

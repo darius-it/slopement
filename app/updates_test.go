@@ -93,14 +93,23 @@ func TestUpdatesAreOffByDefault(t *testing.T) {
 	}
 }
 
-// The switch is in Settings → Privacy, and what it sets is kept for the next run.
+// The switch is in Settings → About, with the check on request, and what it
+// sets is kept for the next run. Nothing about updates is left in Privacy or
+// Advanced.
 func TestUpdateSwitchInSettings(t *testing.T) {
 	f := &fakeUpdater{enabled: true}
 	a, tt, _ := updateApp(t, f)
-	a.view, a.settings = viewSettings, "Privacy"
+	for _, page := range []string{"Privacy", "Advanced"} {
+		a.view, a.settings = viewSettings, page
+		settle(tt)
+		if tt.HasText("Check for updates") {
+			t.Fatalf("updates are still in Settings → %s", page)
+		}
+	}
+	a.view, a.settings = viewSettings, "About"
 	settle(tt)
-	if !tt.HasText("Check for updates at startup") {
-		t.Fatal("no switch for it in Settings → Privacy")
+	if !tt.HasText("Check for updates at startup") || !tt.HasText("Check for updates now") {
+		t.Fatal("no switch and check for updates in Settings → About")
 	}
 	clickSwitch(t, tt, "Check for updates at startup")
 	if !getUpdatePrefs().Check {
@@ -261,7 +270,7 @@ func TestUpdatesDisabledBuild(t *testing.T) {
 	f := &fakeUpdater{enabled: false, offer: &updateOffer{Version: "9.9.9"}}
 	a, tt, _ := updateApp(t, f)
 	setUpdatePrefs(updatePrefs{Check: true})
-	a.view, a.settings = viewSettings, "Advanced"
+	a.view, a.settings = viewSettings, "About"
 	for i := 0; i < 5; i++ {
 		settle(tt)
 	}

@@ -235,9 +235,9 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   (`matrix/accountdata.go`): add new `com.slopement.*` account data there.
 
 ## Updates
-Opt-in, never automatic (`app/updates.go`): Settings → Privacy switch (off by
+Opt-in, never automatic (`app/updates.go`): Settings → About switch (off by
 default, kept per device in `<config>/slopement/updates.json`), one check at
-startup per run, "Check for updates now" in Advanced, a dialog, Install only on
+startup per run, "Check for updates now" beside it, a dialog, Install only on
 a press. Built on `mygo.Updater` (signed archives; `theUpdater` is the test
 seam). `mygo.config.ts` turns the updater on when `mygo-update.pub` exists
 (`mygo keygen`; commit the .pub, keep the .key out of the repo and in the

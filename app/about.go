@@ -20,6 +20,7 @@ func (a *App) aboutPage(c *ui.Context) {
 			ui.Text(c, "A super early alpha of a Matrix client. Not recommended for daily use yet.").FontSize(kit.SizeSmall).TextColor(p.TextMuted)
 		})
 	})
+	a.updatesGroup(c)
 	group(c, "Also used", "Not part of the app's code, but part of what it does.", func() {
 		for _, cr := range licenses.Credits {
 			a.creditRow(c, cr)

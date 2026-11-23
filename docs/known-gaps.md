@@ -66,9 +66,9 @@ and whether it was drawn on the GPU or the CPU.
 - Arch Linux: each release has a `PKGBUILD` (x86-64) and `PKGBUILD-aarch64` that
   fetch that release's files: `curl -LO <release>/PKGBUILD && makepkg -si`. It
   installs the unsigned alpha build, not from the AUR.
-- Updates are opt-in and never automatic. Settings → Privacy → "Check for
-  updates at startup" (off by default) asks GitHub once when the app starts;
-  Settings → Advanced has "Check for updates now". A newer version is offered
+- Updates are opt-in and never automatic. Settings → About → "Check for
+  updates at startup" (off by default) asks GitHub once when the app starts,
+  and "Check for updates now" is beside it. A newer version is offered
   in a dialog and downloaded only when you press Install; it is checked against
   a signing key built into the app. Copies installed from a package (`.deb`,
   `.rpm`, AppImage, Arch) update through where they came from. Versions before

@@ -39,9 +39,11 @@ would notice; when you tag a release, rename that heading to the tag
   as a small thought cloud on your picture's corner (like the chat list's mini
   pictures) with its emoji and words, always; a click on it edits the status.
 
-- **Settings → About:** the version, what else the app uses (icons, services),
-  and the open source software it is built from, each with its full license.
-  Releases carry the same list as THIRD_PARTY_NOTICES.md.
+- **Settings → About:** the version, updates (the startup check switch and
+  "Check for updates now", moved here from Privacy and Advanced), what else the
+  app uses (icons, services), and the open source software it is built from,
+  each with its full license. Releases carry the same list as
+  THIRD_PARTY_NOTICES.md.
 
 ### Changed
 - Favorite GIFs imported from Discord are copied to your device while their

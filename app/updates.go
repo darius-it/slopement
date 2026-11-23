@@ -17,11 +17,11 @@ import (
 )
 
 // Updates. The app never updates on its own and never looks for updates unless
-// the user turned that on (Settings → Privacy): then it asks GitHub once, when
+// the user turned that on (Settings → About): then it asks GitHub once, when
 // the app starts, whether a newer version is published. A newer one is offered
 // in a dialog; nothing is downloaded until the user presses Install. The
 // signatures are checked by mygo's updater against the public key built into
-// the app. "Check for updates now" (Settings → Advanced) asks once, on request.
+// the app. "Check for updates now" (Settings → About) asks once, on request.
 
 // updateOffer is a newer version found.
 type updateOffer struct {
@@ -318,29 +318,21 @@ func (a *App) updateAvailableBody(c *ui.Context) {
 	})
 }
 
-// updatesPrivacyGroup is the choice in Settings → Privacy.
-func (a *App) updatesPrivacyGroup(c *ui.Context) {
-	group(c, "Updates", "slopement never updates by itself. With this on, it asks GitHub once when it starts whether a newer version is out: GitHub sees your IP address and that you asked for slopement's releases for your system, and nothing from your account. You are asked before anything is downloaded.", func() {
-		p := getUpdatePrefs()
+// updatesGroup is everything about updates, in Settings → About: whether to
+// ask at startup (off unless the user turns it on), a check on request, and why
+// there is none where the app cannot update itself.
+func (a *App) updatesGroup(c *ui.Context) {
+	p := kit.Of(c)
+	group(c, "Updates", "slopement never updates by itself. With the switch on, it asks GitHub once when it starts whether a newer version is out: GitHub sees your IP address and that you asked for slopement's releases for your system, and nothing from your account. You are asked before anything is downloaded.", func() {
+		saved := getUpdatePrefs()
 		if !a.updInit {
-			a.updCheck, a.updInit = p.Check, true // the switch's own state, kept between frames
+			a.updCheck, a.updInit = saved.Check, true // the switch's own state, kept between frames
 		}
 		switchRow(c, "Check for updates at startup", "", &a.updCheck)
-		if a.updCheck != p.Check {
-			p.Check = a.updCheck
-			setUpdatePrefs(p)
+		if a.updCheck != saved.Check {
+			saved.Check = a.updCheck
+			setUpdatePrefs(saved)
 		}
-	})
-}
-
-// updatesAdvancedGroup is the version, and a check on request, in Settings → Advanced.
-func (a *App) updatesAdvancedGroup(c *ui.Context) {
-	p := kit.Of(c)
-	group(c, "About", "", func() {
-		ui.Row(c.Key("version")).MinHeight(44).Padding(kit.S2, kit.S3).Gap(kit.S3).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "slopement").FontSize(kit.SizeBody).Grow(1)
-			ui.Text(c, mygo.App.Version()).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
-		})
 		if !theUpdater.Enabled() {
 			ui.Text(c, "This copy updates through where it was installed from (a package manager), or is a development build.").
 				FontSize(kit.SizeSmall).TextColor(p.TextMuted).Padding(kit.S1, kit.S3, kit.S2, kit.S3)
