@@ -58,6 +58,11 @@ would notice; when you tag a release, rename that heading to the tag
   message that failed (text, files, stickers) once more.
 
 ### Fixed
+- Linux: when no keychain (Secret Service) is running, signing in now starts one
+  instead of failing: D-Bus is asked to launch it, then KDE Wallet (ksecretd,
+  kwalletd6 or kwalletd5) or GNOME Keyring is started, whichever the desktop
+  uses. If it still cannot, the error says what to turn on (on KDE, KWallet's
+  Secret Service interface).
 - The "sent" check mark showed on a message that had not been delivered; it
   now only goes on a message the server has.
 - Discord GIF favorites showing "unavailable" the day after importing them.

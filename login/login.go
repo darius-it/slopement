@@ -155,7 +155,7 @@ func (l *Login) continueSession(i int) {
 					l.st.Err = "Sign in again — this login has no token."
 				} else if errors.Is(err, matrix.ErrKeychain) {
 					l.st.Err = "The system keychain would not give the saved login: " + short(err.Error()) +
-						". On Linux this needs a Secret Service running and unlocked."
+						". On Linux this needs a Secret Service running and unlocked. " + matrix.KeychainHelp()
 				} else {
 					l.st.Err = "The saved login could not be read — sign in again."
 				}
@@ -272,12 +272,12 @@ func loginErrText(err error) string {
 	case errors.Is(err, matrix.ErrKeychain) && errors.Is(err, errors.ErrUnsupported):
 		// There is no credential store at all: on Linux, libsecret is not
 		// installed, or no Secret Service is on the session bus.
-		return "Signed in, but there is nowhere to keep the login. On Linux, install libsecret (libsecret-1-0 on Debian and Ubuntu) and run a Secret Service: GNOME Keyring, or KWallet with its Secret Service on."
+		return "Signed in, but there is nowhere to keep the login. On Linux, install libsecret (libsecret-1-0 on Debian and Ubuntu) and run a Secret Service. " + matrix.KeychainHelp()
 	case errors.Is(err, matrix.ErrKeychain):
 		// Signed in, but the system would not keep the login. On Linux that is
 		// a locked Secret Service; on macOS the keychain's refusal.
 		return "Signed in, but the system keychain refused to keep the login: " + short(err.Error()) +
-			". On Linux this needs a Secret Service running and unlocked (GNOME Keyring, or KWallet's Secret Service)."
+			". On Linux this needs a Secret Service running and unlocked. " + matrix.KeychainHelp()
 	case errors.As(err, new(net.Error)), errors.As(err, new(*url.Error)):
 		return "Could not reach the server: " + short(err.Error())
 	}

@@ -63,12 +63,13 @@ func SaveTokens(userID, deviceID string, t Tokens) error {
 	if err != nil {
 		return err
 	}
-	return keychainErr(secrets.Set(secretKey(userID, deviceID, "tokens"), b))
+	return keychainErr(withKeychain(func() error { return secrets.Set(secretKey(userID, deviceID, "tokens"), b) }))
 }
 
 // TokensOf returns a login's saved tokens.
 func TokensOf(userID, deviceID string) (Tokens, error) {
-	b, err := secrets.Get(secretKey(userID, deviceID, "tokens"))
+	var b []byte
+	err := withKeychain(func() (e error) { b, e = secrets.Get(secretKey(userID, deviceID, "tokens")); return })
 	if errors.Is(err, mygo.ErrSecretNotFound) {
 		return Tokens{}, fmt.Errorf("%w for %s/%s", ErrNoToken, userID, deviceID)
 	}
@@ -93,8 +94,9 @@ func DeleteTokens(userID, deviceID string) error {
 // per device, not some global secret.
 func PickleKey(userID, deviceID string) ([]byte, error) {
 	key := secretKey(userID, deviceID, "pickle-key")
-	if b, err := secrets.Get(key); err == nil {
-		return b, nil
+	var got []byte
+	if err := withKeychain(func() (e error) { got, e = secrets.Get(key); return }); err == nil {
+		return got, nil
 	} else if !errors.Is(err, mygo.ErrSecretNotFound) {
 		return nil, keychainErr(err)
 	}
@@ -102,7 +104,7 @@ func PickleKey(userID, deviceID string) ([]byte, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
-	if err := secrets.Set(key, b); err != nil {
+	if err := withKeychain(func() error { return secrets.Set(key, b) }); err != nil {
 		return nil, keychainErr(err)
 	}
 	return b, nil
