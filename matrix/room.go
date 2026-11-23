@@ -92,6 +92,7 @@ type room struct {
 	// from its call member events; callAsked says this run has read them (rtc.go).
 	callMembers map[string]string
 	callAsked   bool
+	callStart   time.Time // when the call going now began (the first person in), for its length
 
 	// memberList is who is joined, by name, once fetched (members.go);
 	// membersAsked says this run has asked (a join or a leave resets it).

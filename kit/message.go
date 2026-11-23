@@ -615,6 +615,19 @@ func SystemEvent(c *ui.Context, text string) {
 	})
 }
 
+// CallEvent is a quiet line for a call's start or end: a phone, what happened
+// (and for how long) and when.
+func CallEvent(c *ui.Context, text, at string) {
+	p := Of(c)
+	ui.Row(c).Padding(S05, S4, S05, S4+36+S3).Gap(S1).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, IconPhone).Size(12, 12).TextColor(p.TextMuted)
+		ui.Text(c, text).FontSize(SizeSmall).TextColor(p.TextMuted)
+		if at != "" {
+			ui.Text(c, "· "+at).FontSize(SizeSmall).TextColor(p.TextFaint)
+		}
+	})
+}
+
 // BrokenEvent is the tile of a message that could not be shown: a quiet line
 // and, where the source can show it, a View source for the bug report. It
 // reports a press on that.

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -85,6 +86,30 @@ func (CallBridge) Post(ctx context.Context, msg string) []string {
 // app runs.
 func BindCalls() { mygo.Bind(&CallBridge{}) }
 
+// callsNote says, in the words used in Settings and in the question before the
+// first call, what loading the call page from Element means.
+const callsNote = "Calls run in Element Call, whose page loads from call.element.io: a server run by Element, not by your homeserver. " +
+	"That server learns your IP address when the page loads. While you are in a call the page sees your user and device ID, the room, " +
+	"who is in the call and a short-lived sign-in token for the call service; your messages and your account stay in this app. " +
+	"The call's audio and video go to your own homeserver's call service. Nothing is loaded until you press Call."
+
+// askCallsConsent asks, once, before the page is loaded from Element's server;
+// a yes starts the call, and is kept (Settings → Calls takes it back).
+func (a *App) askCallsConsent(r model.Room) {
+	win := a.win
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: win, Title: "Calls load a page from Element",
+			Message: callsNote, Buttons: []string{"Continue", "Not now"}, DefaultButton: 1, CancelButton: 1})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		win.Update(func() {
+			a.prefs.callsAccepted = true
+			a.joinCall(r)
+		})
+	}()
+}
+
 // startCall begins the room's call: it asks the server what it offers, then
 // opens Element Call. A source that cannot run calls (the mock) shows the
 // scaffold as before.
@@ -92,6 +117,10 @@ func (a *App) startCall(r model.Room) bool {
 	hoster, ok := a.src.(model.CallHoster)
 	if !ok {
 		return false
+	}
+	if a.win != nil && !a.prefs.callsAccepted { // the real app: ask before loading the page from Element
+		a.askCallsConsent(r)
+		return true
 	}
 	sess := &callSession{room: r.ID, status: "Checking what your server offers…"}
 	a.callSess, a.inCall, a.call = sess, r.ID, kit.NewCall()
@@ -180,7 +209,15 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 		}
 		_ = callToWidget.EmitPage(wv.Page(), string(host.Deliver(toDevice, json.RawMessage(raw))))
 	})
-	wv.Page().LoadHTML(callHostPage(callWidgetURL(id, r.ID, widgetID, a.callIntent(r))), callHostURL)
+	// Joining at once (no lobby): the microphone and camera the user starts calls
+	// with are set the moment the page says it joined.
+	if !a.prefs.callLobby {
+		mic, cam := !a.prefs.callMicOff, a.prefs.callCamOn
+		host.OnJoin = func() {
+			_ = callToWidget.EmitPage(wv.Page(), string(host.SetMute(&mic, &cam)))
+		}
+	}
+	wv.Page().LoadHTML(callHostPage(callWidgetURL(id, r.ID, widgetID, a.callIntent(r), !a.prefs.callLobby)), callHostURL)
 	a.win.Invalidate()
 }
 
@@ -194,7 +231,7 @@ func (a *App) callIntent(r model.Room) string {
 
 // callWidgetURL is Element Call's page for a room, as the widget it runs as:
 // embedded, no lobby, no header, confined to the room.
-func callWidgetURL(id model.CallIdentity, room, widgetID, intent string) string {
+func callWidgetURL(id model.CallIdentity, room, widgetID, intent string, skipLobby bool) string {
 	q := url.Values{}
 	q.Set("embed", "true")
 	q.Set("widgetId", widgetID)
@@ -205,7 +242,7 @@ func callWidgetURL(id model.CallIdentity, room, widgetID, intent string) string 
 	q.Set("baseUrl", id.BaseURL)
 	q.Set("lang", "en")
 	q.Set("intent", intent)
-	q.Set("skipLobby", "true")
+	q.Set("skipLobby", strconv.FormatBool(skipLobby))
 	q.Set("header", "none")
 	q.Set("confineToRoom", "true")
 	q.Set("appPrompt", "false")
@@ -266,6 +303,32 @@ func (a *App) realCallArea(c *ui.Context, s *callSession, fixed float32) {
 					a.endCall(s)
 				}
 			})
+		}
+	})
+}
+
+// callReturnBar is the slim line shown in any other room while a call goes on:
+// the call carries on in its page (kept, though not shown), and this is the way
+// back to it, or out.
+func (a *App) callReturnBar(c *ui.Context, shown model.Room) {
+	s := a.callSess
+	if s == nil || a.inCall == "" || a.inCall == shown.ID || s.wv == nil {
+		return
+	}
+	p := kit.Of(c)
+	name := "a call"
+	if r, ok := a.roomByID(a.inCall); ok {
+		name = r.Name
+	}
+	ui.Row(c.Key("callreturn")).Shrink(0).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).
+		Background(p.AccentSubtle).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).Children(func() {
+		ui.Box(c).Size(8, 8).Radius(kit.RadiusFull).Background(p.Success)
+		ui.Text(c, "In a call · "+name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).Grow(1).SingleLine()
+		if kit.Button(c, kit.Secondary, "Return", kit.IconPhone).Clicked() {
+			a.open(a.inCall)
+		}
+		if kit.Button(c, kit.Ghost, "Leave", nil).Clicked() {
+			a.leaveCall(s)
 		}
 	})
 }

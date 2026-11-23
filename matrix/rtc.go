@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -511,15 +512,34 @@ func (s *Source) noteCallMember(evt *event.Event) {
 	raw := strings.TrimSpace(string(evt.Content.VeryRaw))
 	in := raw != "" && raw != "{}"
 	room, key, who := evt.RoomID.String(), evt.Type.Type+"|"+*evt.StateKey, evt.Sender.String()
+	fromTimeline := evt.Mautrix.EventSource&event.SourceTimeline != 0
+	ts := eventTime(evt)
 	s.post(func() {
 		r := s.roomOf(room)
+		wasIn := len(r.callMembers) > 0
 		if in {
 			if r.callMembers == nil {
 				r.callMembers = map[string]string{}
 			}
 			r.callMembers[key] = who
+			if !wasIn && r.callStart.IsZero() {
+				r.callStart = ts // the first one in: the call begins
+			}
 		} else {
 			delete(r.callMembers, key)
+		}
+		// The last person left a call that was going: say so, once, in the chat,
+		// with how long it lasted.
+		if wasIn && len(r.callMembers) == 0 {
+			var length time.Duration
+			if !r.callStart.IsZero() && ts.After(r.callStart) {
+				length = ts.Sub(r.callStart)
+			}
+			r.callStart = time.Time{}
+			if fromTimeline {
+				r.appendEvent(model.Event{ID: "call-ended:" + room + ":" + strconv.FormatInt(ts.UnixMilli(), 10), Room: room, Sender: who,
+					Time: ts, Kind: model.EventSystem, Body: "The call ended", Call: &model.CallLine{Ended: true, Duration: length}}, "", false)
+			}
 		}
 	})
 }
@@ -546,17 +566,24 @@ func (s *Source) RefreshCall(room string) {
 			return
 		}
 		found := map[string]string{}
+		var began time.Time // the earliest of them: when the call going now began
 		for _, typ := range callMemberTypes {
 			for key, evt := range state[event.Type{Type: typ, Class: event.StateEventType}] {
 				if evt == nil || len(evt.Content.VeryRaw) == 0 || strings.TrimSpace(string(evt.Content.VeryRaw)) == "{}" {
 					continue
 				}
 				found[typ+"|"+key] = evt.Sender.String()
+				if t := eventTime(evt); began.IsZero() || t.Before(began) {
+					began = t
+				}
 			}
 		}
 		s.post(func() {
 			if r, ok := s.rooms[room]; ok {
 				r.callMembers = found
+				if len(found) > 0 && r.callStart.IsZero() {
+					r.callStart = began
+				}
 				s.changed()
 			}
 		})

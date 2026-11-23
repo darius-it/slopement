@@ -16,7 +16,6 @@ func TestUnbuiltSettingsSaySoon(t *testing.T) {
 		{"Security", "Export room keys"},
 		{"Advanced", "Export logs"},
 		{"Advanced", "Reset local cache"},
-		{"Calls", "Camera off when joining"},
 	} {
 		a.view, a.settings, a.toast = viewSettings, tc.page, ""
 		settle(tt)

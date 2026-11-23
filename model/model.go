@@ -123,6 +123,12 @@ const (
 	EventUndecryptable // "unable to decrypt"
 )
 
+// CallLine marks a system line as a call's start or end.
+type CallLine struct {
+	Ended    bool
+	Duration time.Duration // of an ended call; 0 when unknown
+}
+
 // Event is a timeline event.
 type Event struct {
 	ID     string
@@ -136,6 +142,9 @@ type Event struct {
 	// Membership, on a system line about someone's membership, is what
 	// happened: "join", "leave", "ban", "invite" or "knock".
 	Membership string
+	// Call, on a system line about a call, says which: it began, or it ended
+	// (and how long it lasted, when that is known).
+	Call *CallLine
 	// Formatted is the message's HTML body as the sender wrote it
 	// (org.matrix.custom.html), shown in place of Body; Plain says there is
 	// none and Body is plain text, shown as typed. With neither, Body is

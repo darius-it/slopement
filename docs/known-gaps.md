@@ -4,8 +4,12 @@ slopement is a **super early alpha**. This is what is missing or unproven, as
 of 2026-11-22. It is not a promise of when anything lands.
 
 ## Not built yet
-- **Calls** (voice, video, screen share): the buttons are there and do nothing
-  useful; call settings are marked "Soon". Planned: Jitsi and MatrixRTC.
+- **Calls** are an early prototype: MatrixRTC through Element Call, whose page
+  loads from call.element.io (Element's server) — the app asks before the first
+  call, and Settings → Calls takes that back. It needs a LiveKit call service on
+  your homeserver. Tried between two people on macOS only; group calls, screen
+  sharing, Linux, Windows and phones are untested. Jitsi is not supported.
+  Element Call is AGPL-3.0, so it is not bundled with the app.
 - **Moderation:** no kick, ban, report or bulk delete from the app.
 - **Private names for rooms** (nicknames and notes for people work: open
   someone's profile card; they are stored in your account, which your

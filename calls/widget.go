@@ -114,6 +114,9 @@ type Host struct {
 	WidgetID string
 	// OnHangup is called when the widget says the user left the call.
 	OnHangup func()
+	// OnJoin is called when the widget says it joined the call: the moment to
+	// set the microphone and camera the user wants to start with (SetMute).
+	OnJoin func()
 	// OnMute is told when the page's microphone or camera is turned on or off
 	// (nil: not reported), by the user in the page or in answer to SetMute.
 	OnMute func(audio, video *bool)
@@ -276,8 +279,13 @@ func (h *Host) request(ctx context.Context, m Message) [][]byte {
 	case "io.element.device_mute": // the page tells whether its microphone and camera are on
 		resp = map[string]any{}
 		h.muteChanged(m.Data)
+	case "io.element.join": // the page has joined the call (past its lobby, or none)
+		resp = map[string]any{}
+		if h.OnJoin != nil {
+			h.OnJoin()
+		}
 	case "set_always_on_screen", "org.matrix.msc2931.navigate", "close_modal", "set_button_enabled",
-		"io.element.join", "io.element.tile_layout":
+		"io.element.tile_layout":
 		resp = map[string]any{}
 	default:
 		err = errString("unsupported action " + m.Action)

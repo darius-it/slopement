@@ -48,6 +48,12 @@ type settingsPrefs struct {
 	// jumpLast: switching to Chats or a community reopens the chat last open
 	// there (scope.go); off, the pane says "Select a chat".
 	jumpLast bool
+	// What a call starts with (callsession.go): the microphone off, the camera
+	// on, and the page's own lobby (to choose them there) instead of joining at once.
+	callMicOff, callCamOn, callLobby bool
+	// callsAccepted: the user agreed to the call page loading from Element's
+	// server (asked once, before the first call; Settings → Calls takes it back).
+	callsAccepted bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -290,13 +296,18 @@ func (a *App) settingsPage(c *ui.Context) {
 		}
 		a.sessions(c)
 	case "Calls":
-		group(c, "Call system", "Calls are coming: MatrixRTC (Element Call) where your homeserver has it, and Jitsi where it doesn't.", func() {
-			if kit.ChoiceRowSoon(c, kit.IconPhone, "MatrixRTC, with Jitsi as the fallback", "How calls are made").Clicked() {
-				a.toast = soonMsg
+		group(c, "Call system", callsNote, func() {
+			if _, ok := a.src.(model.CallHoster); ok {
+				ui.Text(c, "Your account can make calls where the server offers them.").FontSize(kit.SizeSmall).TextColor(kit.Of(c).TextMuted).Padding(kit.S2)
+			} else {
+				ui.Text(c, "This account cannot make calls.").FontSize(kit.SizeSmall).TextColor(kit.Of(c).TextMuted).Padding(kit.S2)
 			}
+			switchRow(c, "Load the call page from call.element.io", "Off: the next call asks first", &a.prefs.callsAccepted)
 		})
-		group(c, "Starting calls", "", func() {
-			a.soonSwitch(c, "Camera off when joining", "Turn it on in the call")
+		group(c, "Starting calls", "Applied when you join. The call page's own buttons change them as you go.", func() {
+			switchRow(c, "Microphone off when joining", "Others do not hear you until you turn it on", &a.prefs.callMicOff)
+			switchRow(c, "Camera on when joining", "Off: you join with the camera off and turn it on in the call", &a.prefs.callCamOn)
+			switchRow(c, "Ask before joining", "Show the call page's lobby, to choose a microphone and camera first. It replaces the two above.", &a.prefs.callLobby)
 		})
 	case "Advanced":
 		a.updatesAdvancedGroup(c)

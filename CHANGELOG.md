@@ -15,7 +15,20 @@ would notice; when you tag a release, rename that heading to the tag
   call for everyone else. Needs a server with MatrixRTC (LiveKit) set up. Very
   rough: audio, video and screen sharing have only been tried between two
   people.
-- A "started a call" line in the chat when a call begins.
+- A "started a call" line in the chat when a call begins, "The call ended"
+  when the last person leaves, and a desktop notification when somebody calls
+  you.
+- Call lines in the chat show the time, and "The call ended" says how long the
+  call lasted.
+- Before your first call the app says that the call page loads from Element's
+  server (call.element.io) and what it learns; Settings → Calls takes your
+  agreement back.
+- **Settings → Calls:** start with the microphone off, the camera on, or ask
+  first (the call page's lobby).
+- "Call in progress · N in call" with a Join button while a call is going in a
+  room.
+- The call page resizes: drag the thin grip under it. While you are in a call
+  and look at another chat, a bar at the top brings you back to it, or leaves.
 - **Room → ⋯ → "Clear my call from this room"** removes a call you left badly,
   for when it still shows as going on.
 - **Settings → GIFs → Favorite GIFs:** import from Discord, remove the

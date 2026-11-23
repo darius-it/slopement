@@ -2,6 +2,8 @@ package matrix
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"maunium.net/go/mautrix/event"
 
@@ -29,6 +31,7 @@ func (s *Source) onCallNotification(_ context.Context, evt *event.Event) {
 		Sender: sender,
 		Time:   eventTime(evt),
 		Kind:   model.EventSystem,
+		Call:   &model.CallLine{},
 	}
 	s.post(func() {
 		name := s.nameOf(sender)
@@ -46,5 +49,37 @@ func (s *Source) onCallNotification(_ context.Context, evt *event.Event) {
 			delete(r.raw, e.ID)
 			s.encrypted--
 		}
+		// Somebody calling: a notification, once, while it is fresh. A ring
+		// always tells; a plain notification (a call started in a room) only
+		// where messages would.
+		if you || evt.Mautrix.EventSource&sourceHistory != 0 || s.notify == nil || r.muted || s.ignored[sender] ||
+			time.Since(e.Time) > notifyWindow || s.notified[e.ID] {
+			return
+		}
+		if kind := notificationType(evt); kind != "ring" && !r.dm && r.notify != model.NotifyAll {
+			return
+		}
+		if s.notified == nil {
+			s.notified = map[string]bool{}
+		}
+		s.notified[e.ID] = true
+		title, body := r.name, name+" is calling"
+		if r.dm {
+			title, body = name, "Incoming call"
+		}
+		s.notify(model.Notice{Room: r.id, Event: e.ID, Title: title, Body: body, Sender: sender, DM: r.dm})
 	})
+}
+
+// notificationType is what a call notification says it is: "ring" (somebody is
+// being called) or "notification" (a call started in a room).
+func notificationType(evt *event.Event) string {
+	if t, ok := evt.Content.Raw["notification_type"].(string); ok {
+		return t
+	}
+	var c struct {
+		T string `json:"notification_type"`
+	}
+	_ = json.Unmarshal(evt.Content.VeryRaw, &c)
+	return c.T
 }

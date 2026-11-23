@@ -2,6 +2,8 @@ package app
 
 import (
 	"slices"
+	"strconv"
+	"time"
 
 	"slopement/kit"
 	"slopement/model"
@@ -27,6 +29,29 @@ func (a *App) quickReactions() []string {
 		}
 	}
 	return out
+}
+
+// callLineText is the words of a call's line: what happened, and for an ended
+// call how long it lasted ("The call ended · 12 min").
+func callLineText(ev model.Event) string {
+	if ev.Call == nil || !ev.Call.Ended || ev.Call.Duration <= 0 {
+		return ev.Body
+	}
+	return ev.Body + " · " + callLength(ev.Call.Duration)
+}
+
+// callLength is a call's length in words: under a minute, "7 min", "1 h 5 min".
+func callLength(d time.Duration) string {
+	mins := int(d.Round(time.Minute) / time.Minute)
+	switch {
+	case d < time.Minute:
+		return "under a minute"
+	case mins < 60:
+		return strconv.Itoa(mins) + " min"
+	case mins%60 == 0:
+		return strconv.Itoa(mins/60) + " h"
+	}
+	return strconv.Itoa(mins/60) + " h " + strconv.Itoa(mins%60) + " min"
 }
 
 // noteReaction remembers an emoji the user reacted with, for the toolbar. A

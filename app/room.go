@@ -118,6 +118,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 	col.Children(func() {
 		a.roomHeader(c, r, back)
 		a.findBar(c) // ⌘F, under the header
+		a.callReturnBar(c, r)
 		if r.Call {
 			if kit.CallBanner(c, r.CallCount, a.inCall == r.ID) {
 				a.joinCall(r)
@@ -331,6 +332,10 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	}
 	ev := *tr.ev
 	if ev.Kind == model.EventSystem {
+		if ev.Call != nil { // a call began or ended: with the time, and how long it lasted
+			kit.CallEvent(c, callLineText(ev), ev.Time.Format("15:04"))
+			return
+		}
 		kit.SystemEvent(c, ev.Body)
 		return
 	}
@@ -653,6 +658,10 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 	}
 	ev := *tr.ev
 	if ev.Kind == model.EventSystem {
+		if ev.Call != nil { // a call began or ended: with the time, and how long it lasted
+			kit.CallEvent(c, callLineText(ev), ev.Time.Format("15:04"))
+			return
+		}
 		kit.SystemEvent(c, ev.Body)
 		return
 	}

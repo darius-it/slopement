@@ -98,7 +98,7 @@ func TestCallNeedsAWindow(t *testing.T) {
 // The page's address carries what Element Call needs as a widget, and the
 // host page forwards only the call origin's messages.
 func TestCallWidgetURL(t *testing.T) {
-	u := callWidgetURL(model.CallIdentity{UserID: "@me:x", DeviceID: "D", BaseURL: "https://x"}, "!r:x", "w1", "start_call")
+	u := callWidgetURL(model.CallIdentity{UserID: "@me:x", DeviceID: "D", BaseURL: "https://x"}, "!r:x", "w1", "start_call", true)
 	if !strings.HasPrefix(u, callOrigin+"/room#?") {
 		t.Fatalf("url %s", u)
 	}
@@ -111,6 +111,9 @@ func TestCallWidgetURL(t *testing.T) {
 		if q.Get(k) != want {
 			t.Errorf("%s = %q, want %q", k, q.Get(k), want)
 		}
+	}
+	if lobby := callWidgetURL(model.CallIdentity{}, "!r", "w", "start_call", false); !strings.Contains(lobby, "skipLobby=false") {
+		t.Fatalf("with the lobby on the page is not told to skip it: %s", lobby)
 	}
 	page := callHostPage(u)
 	if !strings.Contains(page, "e.origin !== ORIGIN") || !strings.Contains(page, "e.source !== f.contentWindow") {

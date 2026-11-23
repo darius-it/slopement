@@ -62,6 +62,17 @@ func TestDeviceMuteBothWays(t *testing.T) {
 	}
 }
 
+// The widget saying it joined is the moment to set what the user starts with.
+func TestJoinReachesOnJoin(t *testing.T) {
+	h := NewHost("w", &fakeBackend{})
+	joined := 0
+	h.OnJoin = func() { joined++ }
+	out := h.Handle(context.Background(), from("io.element.join", "j", `{"audioInput":null,"videoInput":null}`))
+	if joined != 1 || len(out) != 1 || containsError(msg(t, out[0]).Response) {
+		t.Fatalf("joined %d, replies %s", joined, out)
+	}
+}
+
 // To-device messages reach the widget only for the types it was granted.
 func TestToDeviceReceiveFollowsTheGrant(t *testing.T) {
 	h := NewHost("w", &fakeBackend{})
