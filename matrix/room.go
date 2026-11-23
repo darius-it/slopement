@@ -90,6 +90,9 @@ type room struct {
 
 	// callMembers are the call memberships of the room (state key → who), kept
 	// from its call member events; callAsked says this run has read them (rtc.go).
+	// retries: how to send each failed message again, by its local ID (retry.go).
+	retries map[string]func()
+
 	callMembers map[string]string
 	callAsked   bool
 	callStart   time.Time // when the call going now began (the first person in), for its length

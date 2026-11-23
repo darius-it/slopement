@@ -62,7 +62,9 @@ func (s *Source) SendSticker(room string, st model.Sticker, replyTo string) {
 		if url == "" {
 			resp, err := s.cli.UploadBytes(ctx, st.Data, mimeType)
 			if err != nil {
-				fail("Not sent: " + plain(err))
+				s.post(func() { s.noteConnection(err) })
+				fail(notSent(err))
+				s.post(func() { s.rememberRetry(room, local, func() { s.SendSticker(room, st, replyTo) }) })
 				return
 			}
 			url = id.ContentURIString(resp.ContentURI.String())
@@ -77,6 +79,7 @@ func (s *Source) SendSticker(room string, st model.Sticker, replyTo string) {
 			s.noteConnection(err)
 			if err != nil {
 				s.roomOf(room).failLocal(local, notSent(err))
+				s.rememberRetry(room, local, func() { s.SendSticker(room, st, replyTo) })
 			} else {
 				s.roomOf(room).settleLocal(local, sent.EventID.String())
 			}

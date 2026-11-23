@@ -7,6 +7,12 @@ import (
 	"slopement/model"
 )
 
+// canRetry says a failed message can be sent again (the source kept how).
+func (a *App) canRetry(room, id string) bool {
+	rt, ok := a.src.(model.Retrier)
+	return ok && rt.CanRetry(room, id)
+}
+
 // offlineBar is the error across the top while the connection to the server is
 // down: what is happening, and what it means for what the user sends. It goes
 // when the sync gets an answer again.

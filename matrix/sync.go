@@ -892,6 +892,7 @@ func (s *Source) sendMessage(room, markdown, replyTo, threadRoot string) {
 			s.noteConnection(err) // a send that never reached the server says we are offline
 			if err != nil {
 				r.failLocal(local, notSent(err))
+				s.rememberRetry(room, local, func() { s.sendMessage(room, markdown, replyTo, threadRoot) })
 			} else {
 				r.settleLocal(local, resp.EventID.String())
 			}

@@ -2,6 +2,7 @@ package kit
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -51,8 +52,10 @@ type BubbleData struct {
 	// Pending shows as any sent message does; only a failure is marked.
 	Pending bool
 	Failed  bool
-	Error   string
-	Edited  bool
+	// CanRetry says a failed message can be sent again ("Try again" shows).
+	CanRetry bool
+	Error    string
+	Edited   bool
 	// Live is set on messages that arrive while the room is open: they
 	// pop in. History never animates.
 	Live bool
@@ -141,8 +144,8 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 				}
 			})
 		}
-		if b.Out {
-			bubbleMeta(c, b)
+		if b.Out && bubbleMeta(c, b) {
+			a.Retry = true
 		}
 		ui.Column(c).Gap(S1).MinWidth(0).Shrink(1).AlignItems(alignFor(b.Out)).Children(func() {
 			if b.First && !b.Out {
@@ -175,8 +178,8 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 				})
 			}
 		})
-		if !b.Out {
-			bubbleMeta(c, b)
+		if !b.Out && bubbleMeta(c, b) {
+			a.Retry = true
 		}
 	})
 	return a
@@ -272,16 +275,22 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 
 // bubbleMeta is the time beside a bubble, with "Read" over it on the
 // user's own messages, at the bubble's foot.
-func bubbleMeta(c *ui.Context, b BubbleData) {
+func bubbleMeta(c *ui.Context, b BubbleData) (retry bool) {
 	p := Of(c)
 	ui.Column(c).Gap(0).AlignItems(alignFor(!b.Out)).Shrink(0).Padding(0, 0, 2, 0).Children(func() {
 		switch {
 		case b.Failed:
 			why := "Not sent"
 			if b.Error != "" {
-				why += ": " + b.Error
+				why = b.Error // "Not sent: …" already, as the source words it
+				if !strings.HasPrefix(why, "Not sent") {
+					why = "Not sent: " + why
+				}
 			}
 			ui.Text(c, why).FontSize(SizeCaption - 1).TextColor(p.Danger).MaxWidth(160)
+			if b.CanRetry && Button(c.Key("retry:"+b.ID), Ghost, "Try again", IconRetry).Clicked() {
+				retry = true
+			}
 			return
 		case b.Out && b.Read:
 			ui.Text(c, "Read").FontSize(SizeCaption - 1).FontWeight(WeightMedium).TextColor(p.AccentStrong)
@@ -297,6 +306,7 @@ func bubbleMeta(c *ui.Context, b BubbleData) {
 			ui.Text(c, t).FontSize(SizeCaption - 1).FontFeatures("tnum").TextColor(p.TextMuted).SingleLine()
 		}
 	})
+	return retry
 }
 
 func bubbleReaction(c *ui.Context, r Reaction) ui.Element {

@@ -414,6 +414,14 @@ type CallHoster interface {
 	WatchCall(room string, fn func(toDevice bool, raw json.RawMessage)) (stop func())
 }
 
+// Retrier is what a Source may offer to send a message that failed again:
+// CanRetry says it can be (a failed message is kept with how it was sent), and
+// Retry does it, as a new message at the end of the room.
+type Retrier interface {
+	CanRetry(room, id string) bool
+	Retry(room, id string)
+}
+
 // Connectivity is what a Source may offer to say the connection to the server
 // is down (the last sync or send failed in the network): the app shows an error
 // bar until it is back.

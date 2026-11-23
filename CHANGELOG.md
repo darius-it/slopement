@@ -54,7 +54,8 @@ would notice; when you tag a release, rename that heading to the tag
   is down, and goes when it is back.
 - A message that does not send says "Not sent" and why, in words: no internet
   connection, the server took too long, you cannot post there, you are sending
-  too fast, you were signed out, and so on.
+  too fast, you were signed out, and so on. A "Try again" button sends a
+  message that failed (text, files, stickers) once more.
 
 ### Fixed
 - The "sent" check mark showed on a message that had not been delivered; it

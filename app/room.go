@@ -342,7 +342,7 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	sender, _ := a.person(ev.Sender)
 	me := ev.Sender == a.src.Me().ID
 	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), TimeFull: fullTime(ev.Time, a.now), First: tr.first,
-		Highlight: ev.Mentions, Flash: ev.ID == a.flash, FlashOut: ev.ID == a.flashOut, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
+		Highlight: ev.Mentions, Flash: ev.ID == a.flash, FlashOut: ev.ID == a.flashOut, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, CanRetry: ev.Failed && a.canRetry(r.ID, ev.ID), Undecryptable: ev.Kind == model.EventUndecryptable,
 		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals, Quick: a.quickReactions(),
 		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),
 		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
@@ -377,6 +377,10 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 // messageAct applies what a message asked for.
 func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act kit.MessageAction) {
 	switch {
+	case act.Retry: // "Try again" on a message that was not sent
+		if rt, ok := a.src.(model.Retrier); ok {
+			rt.Retry(room, ev.ID)
+		}
 	case act.React != "":
 		a.src.React(room, ev.ID, act.React)
 		a.noteReaction(ev, act.React)
@@ -669,7 +673,8 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 	last := i == len(rows)-1 || rows[i+1].ev == nil || rows[i+1].first
 	b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
 		Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
-		First: tr.first, Last: last, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300}
+		First: tr.first, Last: last, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300,
+		CanRetry: ev.Failed && a.canRetry(r.ID, ev.ID)}
 	if a.prefs.receipts {
 		b.Read = b.Out && ev.ID == a.rs.readID // your last message that was read
 		b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID

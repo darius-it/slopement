@@ -97,6 +97,7 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 		if err != nil {
 			s.post(func() { s.noteConnection(err) })
 			fail(notSent(err))
+			s.post(func() { s.rememberRetry(room, local, func() { s.SendFile(room, f, replyTo) }) })
 			return
 		}
 		if enc != nil {
@@ -112,6 +113,7 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 			s.noteConnection(err)
 			if err != nil {
 				s.roomOf(room).failLocal(local, notSent(err))
+				s.rememberRetry(room, local, func() { s.SendFile(room, f, replyTo) })
 			} else {
 				s.roomOf(room).settleLocal(local, sent.EventID.String())
 			}

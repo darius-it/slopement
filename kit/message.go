@@ -55,7 +55,9 @@ type MessageData struct {
 	// does — only a failure (Failed, with its Error) is marked.
 	Pending bool
 	Failed  bool
-	Error   string
+	// CanRetry says a failed message can be sent again ("Try again" shows).
+	CanRetry bool
+	Error    string
 	// Undecryptable shows the "unable to decrypt" state.
 	Undecryptable bool
 	// ReadBy are the people who have read up to this message, shown small
@@ -102,6 +104,8 @@ type YouTubeSpec struct {
 
 // MessageAction is what the user did to a message.
 type MessageAction struct {
+	// Retry: "Try again" on a message that was not sent was pressed.
+	Retry     bool
 	React     string // a reaction key toggled
 	OpenEmoji bool   // the reaction picker asked for
 	Reply     bool
@@ -362,7 +366,12 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 							why = "Not sent: " + why
 						}
 					}
-					ui.Text(c, why).FontSize(SizeCaption).TextColor(p.Danger)
+					ui.Row(c.Key("notsent:" + m.ID)).Gap(S2).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, why).FontSize(SizeCaption).TextColor(p.Danger)
+						if m.CanRetry && Button(c.Key("retry:"+m.ID), Ghost, "Try again", IconRetry).Clicked() {
+							a.Retry = true
+						}
+					})
 				}
 				if m.Image != nil {
 					w, h := fitBox(m.ImageW, m.ImageH, 360, 280)
