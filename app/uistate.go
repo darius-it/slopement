@@ -53,6 +53,7 @@ type prefsState struct {
 	CallMicOff, CallCamOn, CallLobby                           bool
 	CallsAccepted                                              bool
 	StatusBubble                                               bool
+	MinimizeToTray                                             bool
 }
 
 func (p settingsPrefs) state() prefsState {
@@ -60,7 +61,7 @@ func (p settingsPrefs) state() prefsState {
 		p.receipts, p.typing, p.previewsE2EE, p.previewsDirect,
 		p.gifAutoplay, p.animatedAvatars, p.hideJoins,
 		p.linkPreviews, p.videoPreviews, p.gifPreviews, p.myColor, p.peopleSub, p.glass, p.gifFiles,
-		p.accent, p.uiSize, p.dense, p.usernames, p.jumpLast, p.callMicOff, p.callCamOn, p.callLobby, p.callsAccepted, p.statusBubble}
+		p.accent, p.uiSize, p.dense, p.usernames, p.jumpLast, p.callMicOff, p.callCamOn, p.callLobby, p.callsAccepted, p.statusBubble, p.minimizeToTray}
 }
 
 func (p prefsState) prefs() settingsPrefs {
@@ -68,7 +69,7 @@ func (p prefsState) prefs() settingsPrefs {
 		p.Receipts, p.Typing, p.PreviewsE2EE, p.PreviewsDirect,
 		p.GifAutoplay, p.AnimatedAvatars, p.HideJoins,
 		p.LinkPreviews, p.VideoPreviews, p.GifPreviews, p.MyColor, p.PeopleSub, p.Glass, p.GifFiles,
-		p.Accent, p.UISize, p.Dense, p.Usernames, p.JumpLast, p.CallMicOff, p.CallCamOn, p.CallLobby, p.CallsAccepted, p.StatusBubble}
+		p.Accent, p.UISize, p.Dense, p.Usernames, p.JumpLast, p.CallMicOff, p.CallCamOn, p.CallLobby, p.CallsAccepted, p.StatusBubble, p.MinimizeToTray}
 }
 
 // stateWriter writes the file one write at a time, newest wins.

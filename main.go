@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"log"
 	"os"
@@ -28,6 +29,11 @@ import (
 	"slopement/picker"
 	"slopement/platform"
 )
+
+// trayIcon is the app's icon, for the tray ("Minimize to tray").
+//
+//go:embed resources/icon.png
+var trayIcon []byte
 
 // live is the account on screen: its source (the sync), its stores, and the
 // cancel that ends the sync.
@@ -68,6 +74,7 @@ func main() {
 		lg = login.New()
 	}
 
+	app.TrayIcon = trayIcon
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(platform.Window(mygo.WindowOptions{
 			Title:     "slopement",
@@ -90,6 +97,8 @@ func main() {
 				if a != nil && (lg == nil || signed) {
 					a.OpenFromNotification(id)
 				}
+				win.Show() // out of the tray, if "Minimize to tray" hid it
+				win.Restore()
 				win.Focus()
 			})
 		})

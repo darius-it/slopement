@@ -58,6 +58,9 @@ type settingsPrefs struct {
 	// statusBubble: in the Rail layout the user's status shows beside their
 	// picture as a bubble with its words, always, and a press edits it.
 	statusBubble bool
+	// minimizeToTray: minimizing hides the window in the system tray (off by
+	// default; tray.go).
+	minimizeToTray bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -314,6 +317,9 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Ask before joining", "Show the call page's lobby, to choose a microphone and camera first. It replaces the two above.", &a.prefs.callLobby)
 		})
 	case "Advanced":
+		group(c, "Window", "", func() {
+			switchRow(c, "Minimize to tray", "Hide the window in the system tray when you minimize it", &a.prefs.minimizeToTray)
+		})
 		group(c, "Troubleshooting", "Resetting the cache never touches your encryption keys.", func() {
 			if _, ok := a.src.(model.LogExporter); ok {
 				if kit.ChoiceRow(c, kit.IconDownload, "Export logs", "A zip for bug reports, without message contents, names or tokens").Clicked() {

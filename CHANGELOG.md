@@ -45,6 +45,12 @@ would notice; when you tag a release, rename that heading to the tag
   each with its full license. Releases carry the same list as
   THIRD_PARTY_NOTICES.md.
 
+- **Settings → Advanced → Window → Minimize to tray** (off by default): minimizing
+  hides the window in a tray icon (menu bar on macOS, notification area on
+  Windows and Linux); click the icon, or a notification, to bring it back. The
+  icon's menu has Open and Quit. On Linux it needs libayatana-appindicator3; the
+  setting turns itself off, with a note, where the tray cannot be made.
+
 ### Changed
 - Favorite GIFs imported from Discord are copied to your device while their
   links still work (Discord's links expire after a day). Importing again no

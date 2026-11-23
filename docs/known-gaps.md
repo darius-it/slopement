@@ -23,6 +23,13 @@ of 2026-11-22. It is not a promise of when anything lands.
   decoders are young pure-Go libraries, so report a voice message that sounds
   wrong or won't play.
 
+## Tray
+"Minimize to tray" (Settings → Advanced, off by default) has only been built
+from the documentation, never tried on a real desktop. On Linux it needs
+`libayatana-appindicator3` (and a panel that shows tray icons: GNOME needs its
+AppIndicator extension); without it the setting turns itself off. Closing the
+window still quits the app.
+
 ## Phones
 The phone layout exists and renders, but the app has **never been run on an
 iPhone, iPad or Android device**. Treat it as untested. Share extensions and

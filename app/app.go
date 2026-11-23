@@ -203,6 +203,7 @@ type App struct {
 	people        kit.PeopleState
 	call          kit.CallState
 	inCall        string          // the room whose call the user is in
+	tray          *mygo.Tray      // the tray icon, while "Minimize to tray" is on (tray.go)
 	noticeOpen    map[string]bool // Settings → About: which licenses are open (about.go)
 	callHeight    float32         // the call page's height on desktop: dragged by its divider (room.go)
 	callSess      *callSession    // the real call, when the source can run one (callsession.go)
@@ -296,6 +297,7 @@ func (a *App) Attach(w *mygo.Window) {
 	a.focused = true // opened in front
 	w.OnFocus(func() { w.Update(func() { a.focused = true }) })
 	w.OnBlur(func() { w.Update(func() { a.focused = false }) })
+	w.OnMinimize(func() { w.Update(a.minimizedToTray) }) // "Minimize to tray", when it is on
 	a.listenForNotices()
 	// Files dropped where no element takes them (over the composer's field,
 	// the side panel, a gap) still go to the open room's composer: the
@@ -357,6 +359,7 @@ func (a *App) View(c *ui.Context) {
 	}
 	a.narrow = kit.Compact(c)
 	a.receiptsSync()
+	a.traySync()
 	a.syncColors()
 	a.pendingStep()
 	if a.openURL != "" { // a page to show in the browser, asked for off the view
