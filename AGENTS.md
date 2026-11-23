@@ -268,6 +268,17 @@ lists what is missing; keep it current. The app starts on the sign-in; the mock
 account is `SLOPEMENT_MOCK=1` only. `identifier` in `mygo.config.ts` is the
 keychain service: do not change it after a release.
 
+### Licenses
+Settings → About lists the open source software in the build with its license
+text (`internal/licenses`, embedded `notices.json`), and `THIRD_PARTY_NOTICES.md`
+goes with each release. Both are made from go.mod: **after adding or updating a
+dependency, run `go run ./internal/licenses/gen` and commit the result** (the
+release workflow fails on a stale list). The command prints any license it does
+not recognise and any copyleft one; read those before shipping. Something the
+app uses that is not a Go module (an icon set, a service) goes in
+`licenses.Credits`. Do not add a dependency with a license stronger than MPL-2.0
+without asking: `TestOnlyKnownCopyleftIsInTheBuild` says which are known.
+
 ### Changelog
 `CHANGELOG.md` is the release notes' first section: the workflow takes the
 section named after the tag (`## v0.1.0-alpha.6`), or else `## Unreleased`, and

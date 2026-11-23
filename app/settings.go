@@ -22,6 +22,7 @@ var settingsPages = []struct {
 	{"Security", kit.IconShield},
 	{"Calls", kit.IconPhone},
 	{"Advanced", kit.IconSettings},
+	{"About", kit.IconHelp},
 }
 
 // settingsPrefs are the scaffold's settings (persisted to account data by
@@ -338,7 +339,8 @@ func (a *App) settingsPage(c *ui.Context) {
 				}
 			})
 		}
-		ui.Text(c, "slopement 0.1 · mock data").FontSize(kit.SizeSmall).TextColor(p.TextFaint).PaddingStart(kit.S1)
+	case "About":
+		a.aboutPage(c)
 	}
 }
 

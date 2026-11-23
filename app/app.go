@@ -202,9 +202,10 @@ type App struct {
 	viewerAt      int
 	people        kit.PeopleState
 	call          kit.CallState
-	inCall        string // the room whose call the user is in
-	callHeight    float32      // the call page's height on desktop: dragged by its divider (room.go)
-	callSess      *callSession// the real call, when the source can run one (callsession.go)
+	inCall        string          // the room whose call the user is in
+	noticeOpen    map[string]bool // Settings → About: which licenses are open (about.go)
+	callHeight    float32         // the call page's height on desktop: dragged by its divider (room.go)
+	callSess      *callSession    // the real call, when the source can run one (callsession.go)
 	verify        kit.SheetState
 	verifyStep    int    // 0 the flow; 1 the Security Key entry
 	verifyKey     string // the key being typed

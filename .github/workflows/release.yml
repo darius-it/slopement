@@ -70,6 +70,8 @@ jobs:
               --draft --prerelease --verify-tag --title "slopement $TAG (super early alpha)" \
               --notes-file release-notes.md
           fi
+          # The licenses of everything the app is built from, shipped with it.
+          gh release upload "$TAG" THIRD_PARTY_NOTICES.md --repo "$GITHUB_REPOSITORY" --clobber
 
   build:
     needs: draft-release
@@ -93,6 +95,14 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       # The CLI (mygo-cli) comes from package.json.
       - run: bun install
+      # The license list in the app (Settings → About) and THIRD_PARTY_NOTICES.md
+      # are made from go.mod: a release with a stale one does not go out.
+      - name: Check the license list is current
+        if: matrix.name == 'Linux'
+        run: |
+          go run ./internal/licenses/gen
+          git diff --exit-code -- internal/licenses/notices.json THIRD_PARTY_NOTICES.md ||
+            { echo "Run: go run ./internal/licenses/gen, and commit the result."; exit 1; }
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
