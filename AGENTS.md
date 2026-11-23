@@ -302,5 +302,12 @@ When tagging, rename Unreleased to the tag and start a new Unreleased above it.
   diagnostics).
 - Delete `kit/zz_gomoji_probe_test.go` (an emptied one-off probe).
 - Delete `app/zz_dbg_updates_test.go` (an emptied one-off diagnostic).
+- Remove the 40 MB compiled binary `slopement` at the repository root from git
+  (`git rm --cached slopement`, then the file): it was committed by accident in
+  "Prepare for alpha release and builds" (4b04d9f) and is in the history; `.gitignore`
+  now keeps a new one out, but it stays tracked until removed. A history rewrite
+  would shrink the repository (the .git is ~31 MB); that is the owner's call.
+- Delete `slopement.exe` at the repository root (a Windows build made to check
+  the code compiles; it is ignored, not tracked).
 - Delete `matrix/sync_test.go.bak` (a stray backup from a shell `sed -i`; the
   edit itself is already in `matrix/sync_test.go`).

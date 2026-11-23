@@ -115,9 +115,19 @@ func TestCallWidgetURL(t *testing.T) {
 	if lobby := callWidgetURL(model.CallIdentity{}, "!r", "w", "start_call", false); !strings.Contains(lobby, "skipLobby=false") {
 		t.Fatalf("with the lobby on the page is not told to skip it: %s", lobby)
 	}
-	page := callHostPage(u)
+	page := callHostPage(u, false)
 	if !strings.Contains(page, "e.origin !== ORIGIN") || !strings.Contains(page, "e.source !== f.contentWindow") {
 		t.Fatal("the host page does not check where messages come from")
+	}
+	if strings.Contains(page, "CallBridge.Log") {
+		t.Fatal("the click trace is in a page made without debug")
+	}
+	// With debug the page traces where clicks go.
+	traced := callHostPage(u, true)
+	for _, want := range []string{"CallBridge.Log", `addEventListener("blur"`, "pointerdown", "the call page loaded"} {
+		if !strings.Contains(traced, want) {
+			t.Errorf("the debug page has no %q", want)
+		}
 	}
 }
 

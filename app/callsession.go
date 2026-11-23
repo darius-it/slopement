@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,6 +47,17 @@ type callSession struct {
 	stop    func() // ends the room watch
 }
 
+// callTrace: the call's handshake and clicks are written to the app's log (the
+// one Settings → Advanced → Export logs collects), as action and event names
+// only — what the page asked, what it was told, where clicks went — never what
+// anyone said. A call that does not behave is then a log to send, not a guess.
+var callTrace = true
+
+// callAreaZIndex orders the call area above its siblings in the room (the
+// timeline and the composer), so that none of their boxes counts as covering
+// the web view in it.
+const callAreaZIndex = 1
+
 // activeCall is the session CallBridge talks for: one call at a time.
 var activeCall atomic.Pointer[callSession]
 
@@ -67,7 +79,7 @@ func (CallBridge) Post(ctx context.Context, msg string) []string {
 	for _, m := range s.host.Handle(ctx, []byte(msg)) {
 		out = append(out, string(m))
 	}
-	if os.Getenv("SLOPEMENT_DEBUG") != "" { // what the call page asked, and whether we answered with an error
+	if callTrace { // what the call page asked, and whether we answered with an error
 		var m struct {
 			Action string
 			Data   struct{ Type string }
@@ -80,6 +92,13 @@ func (CallBridge) Post(ctx context.Context, msg string) []string {
 		log.Printf("call: widget → %s (%d replies%s)", what, len(out), errNote(out))
 	}
 	return out
+}
+
+// Log is a line from the host page's click trace.
+func (CallBridge) Log(msg string) {
+	if callTrace {
+		log.Printf("call page: %s", msg)
+	}
 }
 
 // BindCalls makes the bridge callable by the host page; call it before the
@@ -156,7 +175,7 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 	widgetID := "slopement-" + randomHex(6)
 	id := hoster.CallIdentity()
 	host := calls.NewHost(widgetID, hoster.CallBackend(r.ID))
-	if os.Getenv("SLOPEMENT_DEBUG") != "" {
+	if callTrace {
 		host.Logf = func(f string, args ...any) { log.Printf("call: "+f, args...) }
 	}
 	host.OnHangup = func() { a.runUI(func() { a.endCall(sess) }) } // the page has left: close it
@@ -183,7 +202,7 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 				ok = false
 			}
 		}
-		if os.Getenv("SLOPEMENT_DEBUG") != "" {
+		if callTrace {
 			log.Printf("call: permission %v asked by %s → %v", req.Permissions, req.Origin, ok)
 		}
 		return ok
@@ -199,7 +218,7 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 		if toDevice {
 			heard, kind = host.ReceivesToDevice(raw), "to-device"
 		}
-		if os.Getenv("SLOPEMENT_DEBUG") != "" { // what arrived, and whether the page was told
+		if callTrace { // what arrived, and whether the page was told
 			var e struct{ Type string }
 			_ = json.Unmarshal(raw, &e)
 			log.Printf("call: %s %s → page: ready %v, allowed %v", kind, e.Type, ready, heard)
@@ -211,13 +230,44 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 	})
 	// Joining at once (no lobby): the microphone and camera the user starts calls
 	// with are set the moment the page says it joined.
+	// Only what differs from how the page itself started is asked of it: with
+	// the page already as wanted, it is not touched (its own buttons keep the
+	// say), and a request that changes nothing is not sent at all.
 	if !a.prefs.callLobby {
-		mic, cam := !a.prefs.callMicOff, a.prefs.callCamOn
+		wantMic, wantCam := !a.prefs.callMicOff, a.prefs.callCamOn
+		var mu sync.Mutex
+		var micNow, camNow *bool // how the page says its devices are
+		host.OnMute = func(audio, video *bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			if audio != nil {
+				micNow = audio
+			}
+			if video != nil {
+				camNow = video
+			}
+		}
 		host.OnJoin = func() {
-			_ = callToWidget.EmitPage(wv.Page(), string(host.SetMute(&mic, &cam)))
+			mu.Lock()
+			var audio, video *bool
+			if micNow == nil || *micNow != wantMic {
+				audio = &wantMic
+			}
+			if camNow == nil || *camNow != wantCam {
+				video = &wantCam
+			}
+			mu.Unlock()
+			if audio == nil && video == nil {
+				return
+			}
+			_ = callToWidget.EmitPage(wv.Page(), string(host.SetMute(audio, video)))
 		}
 	}
-	wv.Page().LoadHTML(callHostPage(callWidgetURL(id, r.ID, widgetID, a.callIntent(r), !a.prefs.callLobby)), callHostURL)
+	debug := callTrace
+	if os.Getenv("SLOPEMENT_CALL_DEVTOOLS") != "" {
+		wv.Page().OpenDevTools() // the web inspector on the call page: its console and what is under a click
+	}
+	wv.Page().LoadHTML(callHostPage(callWidgetURL(id, r.ID, widgetID, a.callIntent(r), !a.prefs.callLobby), debug), callHostURL)
 	a.win.Invalidate()
 }
 
@@ -252,9 +302,23 @@ func callWidgetURL(id model.CallIdentity, room, widgetID, intent string, skipLob
 
 // callHostPage is the page the web view shows: the call in an iframe, and the
 // bridge between the iframe's messages and Go.
-func callHostPage(src string) string {
+func callHostPage(src string, debug bool) string {
 	srcJSON, _ := json.Marshal(src)
 	originJSON, _ := json.Marshal(callOrigin)
+	trace := ""
+	if debug {
+		// Where clicks go, for a call whose buttons do not answer: the window
+		// loses focus to the call page when a click lands in it, and a click on
+		// this page itself (not the call) is seen here.
+		trace = `
+const dbg = (m) => window.mygo.call("CallBridge.Log", m).catch(() => {});
+window.addEventListener("blur", () => dbg("the host page lost focus: a click or focus went into the call page"));
+window.addEventListener("focus", () => dbg("the host page has focus again"));
+document.addEventListener("pointerdown", (e) => dbg("a press on the host page itself, not the call, at " + e.clientX + "," + e.clientY), true);
+window.addEventListener("error", (e) => dbg("host page error: " + e.message));
+f.addEventListener("load", () => dbg("the call page loaded"));
+`
+	}
 	return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>html,body{margin:0;height:100%;background:#121116}iframe{border:0;width:100%;height:100%;display:block}</style>
 <iframe id="f" title="` + html.EscapeString("Call") + `" allow="camera; microphone; display-capture; autoplay; clipboard-write; fullscreen"></iframe>
@@ -267,7 +331,7 @@ window.addEventListener("message", async (e) => {
     const replies = await window.mygo.call("CallBridge.Post", msg);
     for (const r of replies || []) f.contentWindow.postMessage(JSON.parse(r), ORIGIN);
   } catch (err) { console.error("call bridge", err); }
-});
+});` + trace + `
 window.mygo.on("call-to-widget", (m) => f.contentWindow && f.contentWindow.postMessage(JSON.parse(m), ORIGIN));
 f.src = ` + string(srcJSON) + `;
 </script>`
@@ -279,7 +343,14 @@ f.src = ` + string(srcJSON) + `;
 // the user drags).
 func (a *App) realCallArea(c *ui.Context, s *callSession, fixed float32) {
 	p := kit.Of(c)
-	col := ui.Column(c.Key("call")).Background(p.BgInset).Padding(kit.S2).Gap(kit.S2)
+	// Above the timeline (callAreaZIndex): a web view takes the pointer except
+	// where an element built after it overlaps it, by that element's whole box,
+	// clipped away or not — and the timeline is built after, with rows (those a list
+	// builds just past its edge) whose boxes reach up over the lower part of the
+	// page. Those spots stopped taking the page's clicks: an invisible strip across
+	// its bottom, where its buttons are. Ordered above, the timeline is no longer
+	// "after" the page.
+	col := ui.Column(c.Key("call")).Background(p.BgInset).Padding(kit.S2).Gap(kit.S2).ZIndex(callAreaZIndex)
 	if fixed > 0 {
 		col.Height(fixed).Shrink(0).BorderWidth(0, 0, 1, 0).BorderColor(p.Border)
 	} else {

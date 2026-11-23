@@ -1,4 +1,8 @@
 node_modules/
+# A binary built with a bare `go build` lands here (it is committed once already:
+# see AGENTS.md → Pending manual cleanup).
+/slopement
+/slopement.exe
 /dist/
 /build/
 /.mygo/

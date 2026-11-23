@@ -9,6 +9,8 @@ import { bind, event } from "mygo-runtime";
  * through Post, and the replies go back to it.
  */
 export const CallBridge = {
+  /** Log is a line from the host page's click trace. */
+  log: bind<[string], void>("CallBridge.Log", (msg: string) => [msg]),
   /** Post takes one message from the widget and returns what to post back. */
   post: bind<[string], string[]>("CallBridge.Post", (msg: string) => [msg]),
 } as const;

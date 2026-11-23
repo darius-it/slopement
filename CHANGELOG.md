@@ -4,77 +4,66 @@ What is new in each release, in plain words. The release workflow puts the
 section named after the tag (or, failing that, "Unreleased") at the top of the
 GitHub release notes. Add a line under **Unreleased** for every change a user
 would notice; when you tag a release, rename that heading to the tag
-(`## v0.1.0-alpha.6`) and start a fresh **Unreleased** above it.
+(`## v0.2.0-alpha.1`) and start a fresh **Unreleased** above it.
 
 ## Unreleased
+
+## v0.2.0-alpha.1
+
+The big one is calls, as an early prototype.
 
 ### Added
 - **Calls (early prototype).** The call button starts an Element Call
   (MatrixRTC) call in the room, using the call service your homeserver
-  advertises. Mic and camera can be toggled from the bar, and Leave ends your
-  call for everyone else. Needs a server with MatrixRTC (LiveKit) set up. Very
-  rough: audio, video and screen sharing have only been tried between two
-  people.
-- A "started a call" line in the chat when a call begins, "The call ended"
-  when the last person leaves, and a desktop notification when somebody calls
-  you.
-- Call lines in the chat show the time, and "The call ended" says how long the
-  call lasted.
-- Before your first call the app says that the call page loads from Element's
-  server (call.element.io) and what it learns; Settings → Calls takes your
-  agreement back.
-- **Settings → Calls:** start with the microphone off, the camera on, or ask
-  first (the call page's lobby).
-- "Call in progress · N in call" with a Join button while a call is going in a
-  room.
-- The call page resizes: drag the thin grip under it. While you are in a call
-  and look at another chat, a bar at the top brings you back to it, or leaves.
-- **Room → ⋯ → "Clear my call from this room"** removes a call you left badly,
-  for when it still shows as going on.
-- **Settings → GIFs → Favorite GIFs:** import from Discord, remove the
-  unavailable ones, and reset all favorites to start over.
-- **Notes to self:** a chat with yourself now has a name, and works.
-
-- **Settings → Appearance → Your status:** in the Rail layout, show your status
-  as a small thought cloud on your picture's corner (like the chat list's mini
-  pictures) with its emoji and words, always; a click on it edits the status.
-
-- **Settings → About:** the version, updates (the startup check switch and
-  "Check for updates now", moved here from Privacy and Advanced), what else the
-  app uses (icons, services), and the open source software it is built from,
-  each with its full license. Releases carry the same list as
-  THIRD_PARTY_NOTICES.md.
-
-- **Settings → Advanced → Window → Minimize to tray** (off by default): minimizing
-  hides the window in a tray icon (menu bar on macOS, notification area on
-  Windows and Linux); click the icon, or a notification, to bring it back. The
-  icon's menu has Open and Quit. On Linux it needs libayatana-appindicator3; the
+  advertises; it needs a server with MatrixRTC (LiveKit) set up. The call is
+  Element Call's own page: its buttons mute, turn the camera on, share the
+  screen and hang up. Drag the thin grip under the page to make it bigger or
+  smaller. In another chat, a bar at the top brings you back to the call, or
+  leaves it. Very rough: only tried between two people on a Mac.
+- Before your first call the app says the call page loads from Element's server
+  (call.element.io) and what it learns; Settings → Calls takes your agreement
+  back, and sets whether you join with the microphone off, the camera on, or ask
+  first.
+- In the chat: "started a call" and "The call ended", with the time and how long
+  the call lasted. A desktop notification when somebody calls you. A room shows
+  "Call in progress · N in call" with Join while a call goes on, and
+  Room → ⋯ → "Clear my call from this room" removes a call you left badly.
+- **Settings → About:** the version, updates (the startup check and "Check for
+  updates now", moved here from Privacy and Advanced), what else the app uses,
+  and the open source software it is built from, each with its full license.
+  Releases carry the same list as THIRD_PARTY_NOTICES.md.
+- **Settings → Advanced → Window → Minimize to tray** (off by default).
+  Minimizing hides the window in a tray icon; a click on the icon, or on a
+  notification, brings it back. On Linux it needs libayatana-appindicator3; the
   setting turns itself off, with a note, where the tray cannot be made.
-
-### Changed
-- Favorite GIFs imported from Discord are copied to your device while their
-  links still work (Discord's links expire after a day). Importing again no
-  longer makes duplicates.
-
-- A red bar across the top says "No internet connection" while the connection
-  is down, and goes when it is back.
-- A message that does not send says "Not sent" and why, in words: no internet
-  connection, the server took too long, you cannot post there, you are sending
-  too fast, you were signed out, and so on. A "Try again" button sends a
-  message that failed (text, files, stickers) once more.
+- **Settings → Appearance → Status on my picture:** in the Rail layout, your
+  status as a small cloud on your picture, with its emoji and words, always; a
+  click edits it.
+- **Settings → GIFs → Favorite GIFs:** import from Discord, remove the
+  unavailable ones, reset all favorites. Favorites from Discord are copied to
+  your device while their links still work (they expire after a day), and
+  importing again no longer makes duplicates.
+- A red bar across the top says "No internet connection" while the connection is
+  down. A message that does not send says "Not sent" and why, in words, with a
+  "Try again" button for text, files and stickers.
+- A chat with yourself, "Notes to self", has a name and works.
 
 ### Fixed
+- The "sent" check mark showed on a message that had not been delivered; it
+  now only goes on one the server has.
 - Linux: when no keychain (Secret Service) is running, signing in now starts one
   instead of failing: D-Bus is asked to launch it, then KDE Wallet (ksecretd,
-  kwalletd6 or kwalletd5) or GNOME Keyring is started, whichever the desktop
-  uses. If it still cannot, the error says what to turn on (on KDE, KWallet's
-  Secret Service interface).
-- The "sent" check mark showed on a message that had not been delivered; it
-  now only goes on a message the server has.
+  kwalletd6 or kwalletd5) or GNOME Keyring. If it still cannot, the error says
+  what to turn on. Not tried on a real desktop yet.
 - Discord GIF favorites showing "unavailable" the day after importing them.
+- Older messages would not load in a chat that had call lines at its top.
 - A call that stayed in the chat as "waiting for this message".
-- Older messages would not load in a chat that had "The call ended" lines at its
-  top.
+- Calls: the buttons at the bottom of the call page could be dead (a part of the
+  chat list was laid over them). A fix is in; it needs confirming on a real call.
+
+### Known rough edges
+- Group calls, screen sharing, Linux, Windows and phones are untested for calls.
+- Calls need your homeserver's call service; without one the call area says why.
 
 ## v0.1.0-alpha.5
 
