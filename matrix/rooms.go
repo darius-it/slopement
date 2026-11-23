@@ -386,7 +386,7 @@ func (s *Source) CreateRoom(spec model.RoomSpec, done func(room, err string)) {
 		room := resp.RoomID.String()
 		s.post(func() {
 			r := s.roomOf(room)
-			r.name, r.space, r.encrypted = name, spec.Space, !spec.Public && !spec.Space
+			r.name, r.nameSet, r.space, r.encrypted = name, true, spec.Space, !spec.Public && !spec.Space
 			r.topic = spec.Topic
 			s.markDirty(room)
 			done(room, "")

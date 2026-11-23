@@ -136,7 +136,7 @@ func (a *App) mentionSuggestions(room, query string) []kit.SuggestItem {
 	}
 	var found []scored
 	for _, id := range ids {
-		p, _ := a.src.Person(id)
+		p, _ := a.person(id)
 		name, local := strings.ToLower(p.Name), strings.ToLower(strings.TrimPrefix(id, "@"))
 		switch {
 		case query == "":

@@ -58,7 +58,7 @@ func (a *App) threadEvents(room, root string) []model.Event {
 func (a *App) threadChipOf(t *model.Thread) *kit.ThreadChip {
 	chip := &kit.ThreadChip{Replies: t.Replies, Last: timeLabel(t.Last, a.now)}
 	for _, who := range t.Participants {
-		pe, _ := a.src.Person(who)
+		pe, _ := a.person(who)
 		chip.Avatars = append(chip.Avatars, a.avatar(pe, 18))
 	}
 	return chip

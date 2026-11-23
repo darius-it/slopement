@@ -102,7 +102,7 @@ func (a *App) draft(room string) *kit.ComposerState {
 // roomView is the open room on desktops: header, call banner, timeline,
 // who is typing, and the composer.
 func (a *App) roomView(c *ui.Context, back bool) {
-	r, _ := a.src.Room(a.room)
+	r, _ := a.roomByID(a.room)
 	// What is pinned here, as the server has it (asked once per room a run).
 	if pins, ok := a.src.(model.Pins); ok {
 		pins.RefreshPins(r.ID)
@@ -212,7 +212,7 @@ func (a *App) roomHeader(c *ui.Context, r model.Room, back bool) {
 			a.sidebar = true
 		}
 		dm := r.Kind == model.KindDM
-		partner, _ := a.src.Person(r.Partner)
+		partner, _ := a.person(r.Partner)
 		who := ui.ButtonBase(c.Key("who")).Gap(kit.S2).AlignItems(ui.Center).Justify(ui.Start).Grow(1).MinWidth(0).
 			Radius(kit.RadiusSm).Label(r.Name)
 		who.Children(func() {
@@ -315,7 +315,7 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 		kit.SystemEvent(c, ev.Body)
 		return
 	}
-	sender, _ := a.src.Person(ev.Sender)
+	sender, _ := a.person(ev.Sender)
 	me := ev.Sender == a.src.Me().ID
 	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), TimeFull: fullTime(ev.Time, a.now), First: tr.first,
 		Highlight: ev.Mentions, Flash: ev.ID == a.flash, FlashOut: ev.ID == a.flashOut, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
@@ -544,12 +544,12 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 // phoneRoom is a chat on a phone: bubbles on the wallpaper.
 func (a *App) phoneRoom(c *ui.Context) {
 	p := kit.Of(c)
-	r, _ := a.src.Room(a.room)
+	r, _ := a.roomByID(a.room)
 	ui.Column(c).Grow(1).MinHeight(0).Background(p.Wallpaper).Children(func() {
 		sub := ""
 		av := kit.AvatarSpec{Name: r.Name, ID: r.ID, Colors: &a.colors, Square: r.Kind != model.KindDM}
 		if r.Kind == model.KindDM {
-			pp, _ := a.src.Person(r.Partner)
+			pp, _ := a.person(r.Partner)
 			av = a.avatar(pp, 0)
 			switch {
 			case pp.Status.Set(a.now):
@@ -601,7 +601,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.bubbleRow(c, r, rows, i) }) }).
 				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
 			if len(r.Typing) > 0 && r.Kind == model.KindDM {
-				pp, _ := a.src.Person(r.Partner)
+				pp, _ := a.person(r.Partner)
 				ui.Column(c.Key("ptyping")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(kit.S3).Top(-kit.S1).PassThrough().
 					Children(func() { kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors) })
 			}
@@ -625,7 +625,7 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 		kit.SystemEvent(c, ev.Body)
 		return
 	}
-	sender, _ := a.src.Person(ev.Sender)
+	sender, _ := a.person(ev.Sender)
 	last := i == len(rows)-1 || rows[i+1].ev == nil || rows[i+1].first
 	b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
 		Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),

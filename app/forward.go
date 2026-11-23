@@ -34,7 +34,7 @@ func (a *App) openForward(room, id string) {
 func (a *App) forwardTargets(query string) []model.Room {
 	q := strings.ToLower(strings.TrimSpace(query))
 	var out []model.Room
-	for _, r := range a.src.Rooms() {
+	for _, r := range a.roomList() {
 		if r.ReadOnly {
 			continue
 		}

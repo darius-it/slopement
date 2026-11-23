@@ -99,7 +99,7 @@ func (a *App) switcherOverlay(c *ui.Context) {
 		return 100
 	}
 	var items []kit.SwitcherItem
-	for _, r := range a.src.Rooms() {
+	for _, r := range a.roomList() {
 		it := kit.SwitcherItem{ID: r.ID, Name: r.Name, Unread: r.Unread, Mention: r.Mentions, Recent: rank(r.ID),
 			Avatar: kit.AvatarSpec{Name: r.Name, ID: r.ID, Colors: &a.colors}}
 		switch r.Kind {

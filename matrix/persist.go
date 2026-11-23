@@ -41,6 +41,7 @@ type roomRecord struct {
 	BackDone  bool
 	Pinned    []string
 
+	NameSet      bool // the name was given to the room, not taken from a DM's partner
 	MutedUntil   time.Time
 	Notify       model.NotifyLevel
 	MarkedUnread bool
@@ -63,6 +64,7 @@ func (r *room) record() roomRecord {
 		Last: r.last, Preview: r.preview, Parent: r.parent,
 		Reactions: r.reactions, Reads: r.reads, Edits: r.edits, Pinned: r.pinned,
 		MutedUntil: r.mutedUntil, Notify: r.notify, MarkedUnread: r.markedUnread, Polls: r.polls,
+		NameSet: r.nameSet,
 	}
 	events := r.events
 	if len(events) > timelineCap {
@@ -105,6 +107,7 @@ func (rec roomRecord) room() *room {
 		// history is all held asks once more a run and learns it again.
 		events: rec.Events, reactions: rec.Reactions, reads: rec.Reads, edits: rec.Edits, back: rec.Back, pinned: rec.Pinned,
 		mutedUntil: rec.MutedUntil, notify: rec.Notify, markedUnread: rec.MarkedUnread, polls: rec.Polls,
+		nameSet: rec.NameSet,
 	}
 	for _, byID := range r.reactions {
 		for _, rr := range byID {

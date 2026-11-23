@@ -68,11 +68,11 @@ func (s *Source) SetRoomName(room, name string, done func(string)) {
 		done("A name can't be empty.")
 		return
 	}
-	prev := r.name
-	r.name = name
+	prev, prevSet := r.name, r.nameSet
+	r.name, r.nameSet = name, true
 	s.markDirty(room)
 	s.sendRoomState(room, event.StateRoomName, &event.RoomNameEventContent{Name: name}, "the name",
-		func() { r.name = prev; s.markDirty(room) }, done)
+		func() { r.name, r.nameSet = prev, prevSet; s.markDirty(room) }, done)
 }
 
 // SetRoomTopic changes a room's topic (an empty one clears it).

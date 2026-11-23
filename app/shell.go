@@ -147,7 +147,7 @@ func (a *App) placeName() string {
 	case viewSettings:
 		return "Settings"
 	}
-	if r, ok := a.src.Room(a.room); ok {
+	if r, ok := a.roomByID(a.room); ok {
 		if cm, ok := a.communityOf(r.Community); ok {
 			return cm.Name + " · #" + r.Name
 		}

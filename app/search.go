@@ -283,7 +283,7 @@ func (a *App) searchResults(c *ui.Context, q model.SearchQuery) {
 // highlighted. A press opens the room at it.
 func (a *App) hitRow(c *ui.Context, h model.SearchHit, words []string) {
 	p := kit.Of(c)
-	sender, _ := a.src.Person(h.Sender)
+	sender, _ := a.person(h.Sender)
 	b := ui.ButtonBase(c.Key("hit:" + h.Event)).Gap(kit.S3).Padding(kit.S2, kit.S3).Radius(kit.RadiusSm).
 		AlignItems(ui.Start).Justify(ui.Start).Label("Go to the message from " + sender.Name)
 	if b.Hovered() {

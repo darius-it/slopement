@@ -485,7 +485,10 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 // onRoomName, onTopic, onAlias and onEncryption carry the room's shape.
 func (s *Source) onRoomName(ctx context.Context, evt *event.Event) {
 	name := evt.Content.AsRoomName().Name
-	s.post(func() { s.roomOf(evt.RoomID.String()).name = name })
+	s.post(func() {
+		r := s.roomOf(evt.RoomID.String())
+		r.name, r.nameSet = name, name != ""
+	})
 }
 
 // onRoomAvatar is the room's (or space's) picture, an mxc:// URL.

@@ -246,7 +246,7 @@ func (a *App) pinsPanel(c *ui.Context, r model.Room) {
 // is on the card.
 func (a *App) pinCard(c *ui.Context, r model.Room, ev model.Event, acts model.Actions) {
 	p := kit.Of(c)
-	sender, _ := a.src.Person(ev.Sender)
+	sender, _ := a.person(ev.Sender)
 	card := ui.Column(c.Key("pin:" + ev.ID)).Padding(kit.S3).Gap(kit.S2).Radius(kit.RadiusMd).
 		Border(1, p.Border).Label("Pinned message from " + sender.Name)
 	hov := card.Hovered()

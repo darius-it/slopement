@@ -87,6 +87,11 @@ type room struct {
 	backDone bool
 	backBusy bool
 	keep     int
+
+	// nameSet: name is one somebody gave the room (an m.room.name, or the
+	// user's rename). A DM without one is called by its partner's display
+	// name as it is now (Source.dmName), not as it was when the chat was first seen.
+	nameSet bool
 }
 
 // readMark is one person's place in a room.

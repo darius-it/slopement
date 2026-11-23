@@ -26,6 +26,7 @@ type srcCache struct {
 	comms    []model.Community
 	commsOK  bool
 	inbox    *inboxData
+	names    bool   // the lists were made with usernames shown (names.go)
 	online   [2]int // by "all"
 	onlineOK [2]bool
 }
@@ -44,19 +45,21 @@ func (a *App) cacheBucket() int64 { return a.now.Unix() / 30 }
 // if the source has not changed since.
 func (a *App) frameStart() {
 	a.fc = frameCache{on: true}
-	if b := a.cacheBucket(); !a.sc.set || a.sc.gen != a.srcGen || a.sc.bucket != b {
-		a.sc = srcCache{set: true, gen: a.srcGen, bucket: b}
+	if b := a.cacheBucket(); !a.scValid() || a.sc.bucket != b {
+		a.sc = srcCache{set: true, gen: a.srcGen, bucket: b, names: a.prefs.usernames}
 	}
 }
 
 func (a *App) frameEnd() { a.fc = frameCache{} }
 
 // scValid says the source's cache is for the source as it is now.
-func (a *App) scValid() bool { return a.sc.set && a.sc.gen == a.srcGen }
+func (a *App) scValid() bool {
+	return a.sc.set && a.sc.gen == a.srcGen && a.sc.names == a.prefs.usernames
+}
 
 func (a *App) scEnsure() {
 	if !a.scValid() {
-		a.sc = srcCache{set: true, gen: a.srcGen, bucket: a.cacheBucket()}
+		a.sc = srcCache{set: true, gen: a.srcGen, bucket: a.cacheBucket(), names: a.prefs.usernames}
 	}
 }
 
@@ -65,7 +68,15 @@ func (a *App) scEnsure() {
 func (a *App) roomList() []model.Room {
 	a.scEnsure()
 	if !a.sc.roomsOK {
-		a.sc.rooms, a.sc.roomsOK = a.src.Rooms(), true
+		rooms := a.src.Rooms()
+		if a.prefs.usernames { // chats with a person are named after them, by username
+			named := make([]model.Room, len(rooms))
+			for i, r := range rooms {
+				named[i] = a.namedRoom(r)
+			}
+			rooms = named
+		}
+		a.sc.rooms, a.sc.roomsOK = rooms, true
 	}
 	return a.sc.rooms
 }

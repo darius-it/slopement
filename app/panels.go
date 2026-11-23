@@ -14,7 +14,7 @@ import (
 // switching rooms, showing the new room's.
 func (a *App) sidePanel(c *ui.Context) {
 	p := kit.Of(c)
-	r, _ := a.src.Room(a.room)
+	r, _ := a.roomByID(a.room)
 	width := float32(300)
 	if a.panel == panelThread {
 		width = 380 // a thread holds whole messages: room for their text
@@ -195,7 +195,7 @@ func (a *App) members(c *ui.Context, r model.Room) {
 	p := kit.Of(c)
 	list := []model.Person{a.src.Me()}
 	if r.Kind == model.KindDM {
-		pp, _ := a.src.Person(r.Partner)
+		pp, _ := a.person(r.Partner)
 		list = append(list, pp)
 	} else {
 		list = append(list, a.src.People()...)
@@ -245,7 +245,7 @@ func (a *App) callArea(c *ui.Context, r model.Room) {
 		ui.Row(c).Grow(1).Gap(kit.S3).Justify(ui.Center).Children(func() {
 			who := []model.Person{a.src.Me()}
 			if r.Kind == model.KindDM {
-				pp, _ := a.src.Person(r.Partner)
+				pp, _ := a.person(r.Partner)
 				who = append(who, pp)
 			}
 			for _, ps := range who {

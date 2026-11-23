@@ -66,7 +66,7 @@ func (a *App) readers(ev model.Event) []kit.AvatarSpec {
 	}
 	out := make([]kit.AvatarSpec, 0, len(ev.ReadBy))
 	for _, id := range ev.ReadBy {
-		p, _ := a.src.Person(id)
+		p, _ := a.person(id)
 		out = append(out, a.avatar(p, 16))
 	}
 	return out

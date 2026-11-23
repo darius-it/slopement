@@ -259,6 +259,7 @@ func (s *Source) Rooms() []model.Room {
 			continue // a space is a community on the rail, never a chat
 		}
 		m := r.modelRoom()
+		s.dmName(r, &m)
 		m.Community = spaceOf[r.id]
 		out = append(out, m)
 	}
@@ -273,8 +274,19 @@ func (s *Source) Room(id string) (model.Room, bool) {
 	}
 	s.askPower(id) // whether the user may write here, once
 	m := r.modelRoom()
+	s.dmName(r, &m)
 	m.Community = s.spaceOf()[id]
 	return m, true
+}
+
+// dmName names a chat with one person, which nobody named, after that
+// person's display name as it is now. (The name it was first stored with was
+// the one known when the chat was first seen: the username, when the member's
+// profile had not arrived yet — and it stayed.)
+func (s *Source) dmName(r *room, m *model.Room) {
+	if m.Kind == model.KindDM && !r.nameSet && m.Partner != "" {
+		m.Name = s.nameOf(m.Partner)
+	}
 }
 
 // Communities lists the spaces (the joined rooms of type m.space) by

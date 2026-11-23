@@ -42,6 +42,9 @@ type settingsPrefs struct {
 	// the interface (an index of uiSizes), dense the closer timeline.
 	accent, uiSize int
 	dense          bool
+	// usernames: people are shown by username ("ada"), not display name
+	// (names.go); the default, display names, is what other clients show.
+	usernames bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -229,6 +232,9 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 		group(c, "Layout", "How Chats and Communities are laid out. At phone widths the rail shows as tabs.", func() {
 			ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
+		})
+		group(c, "Names", "People are shown by their display name, as in other Matrix clients. Turn this on to show usernames instead (\"ada\" for @ada:example.org) in the chat list, chats, replies and People.", func() {
+			switchRow(c, "Show usernames instead of display names", "", &a.prefs.usernames)
 		})
 		group(c, "People", "What shows under each name in People: their status (or how they are, when they have none), or when you last chatted.", func() {
 			ui.Column(c).Padding(kit.S2).Children(func() {

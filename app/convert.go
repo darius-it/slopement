@@ -57,7 +57,7 @@ func (a *App) avatar(p model.Person, size float32) kit.AvatarSpec {
 }
 
 func (a *App) kitPerson(p model.Person) kit.Person {
-	return kit.Person{ID: p.ID, Name: p.Name, Avatar: a.avatar(p, 0), Presence: presence(p.Presence),
+	return kit.Person{ID: p.ID, Name: a.shownName(p), Avatar: a.avatar(p, 0), Presence: presence(p.Presence),
 		Status: status(p.Status), LastSeen: p.LastSeen}
 }
 
@@ -209,7 +209,7 @@ func (a *App) row(r model.Room) kit.RoomRowData {
 		Avatar: kit.AvatarSpec{Name: r.Name, ID: r.ID, Colors: &a.colors}}
 	switch r.Kind {
 	case model.KindDM:
-		if p, ok := a.src.Person(r.Partner); ok {
+		if p, ok := a.person(r.Partner); ok {
 			d.Avatar.ID, d.Avatar.Presence = p.ID, presence(p.Presence)
 			d.Avatar.Image = a.avatarPic(p.Avatar)
 			if p.Status.Set(a.now) {
@@ -245,7 +245,7 @@ func (a *App) pollData(id string, p model.Poll, mine bool) *kit.PollData {
 				ka.Mine = true
 				continue
 			}
-			p, _ := a.src.Person(v)
+			p, _ := a.person(v)
 			ka.Voters = append(ka.Voters, kit.PollVoter{ID: v, Name: p.Name})
 		}
 		pd.Answers = append(pd.Answers, ka)
@@ -269,7 +269,7 @@ func (a *App) doc(ev model.Event) *format.Node {
 	// An emote ("/me waves") reads as "* Mira waves": the sender's name leads.
 	actor := ""
 	if ev.Kind == model.EventEmote {
-		p, _ := a.src.Person(ev.Sender)
+		p, _ := a.person(ev.Sender)
 		if actor = p.Name; actor == "" {
 			actor = ev.Sender
 		}
@@ -435,7 +435,7 @@ func (a *App) quote(room, id string) *kit.Quote {
 	}
 	for _, ev := range a.src.Timeline(room) {
 		if ev.ID == id {
-			p, _ := a.src.Person(ev.Sender)
+			p, _ := a.person(ev.Sender)
 			return &kit.Quote{Sender: p.Name, SenderID: p.ID, Body: format.Plain(a.doc(ev)), ID: id, Avatar: a.avatar(p, 16)}
 		}
 	}
