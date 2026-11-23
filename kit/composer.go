@@ -20,6 +20,8 @@ type ComposerState struct {
 	wantAttach, wantPoll bool
 	// wantPaste: the paste shortcut was pressed in the field.
 	wantPaste bool
+	// wantEditLast: ↑ was pressed with nothing written (see fieldKey).
+	wantEditLast bool
 
 	// Suggest are what the word being typed could become (a person to
 	// mention, an emoji): set by the app before each build, shown above the
@@ -74,6 +76,9 @@ func (st *ComposerState) takePlus(r *ComposerResult) {
 	if st.wantPaste {
 		r.Paste, st.wantPaste = true, false
 	}
+	if st.wantEditLast {
+		r.EditLast, st.wantEditLast = true, false
+	}
 	if st.wantPick {
 		st.wantPick = false
 		if len(st.Suggest) > 0 {
@@ -90,6 +95,8 @@ type ComposerResult struct {
 	Poll        bool // the + menu's Create poll
 	// Paste: the paste shortcut was pressed (look for a picture or files).
 	Paste bool
+	// EditLast: ↑ was pressed in an empty field: edit the user's last message.
+	EditLast bool
 	// RemovedFile is the waiting file whose ✕ was pressed, -1 for none.
 	RemovedFile int
 	// Pick is the suggestion taken (clicked, or Enter or Tab on the

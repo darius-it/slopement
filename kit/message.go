@@ -54,7 +54,10 @@ type MessageData struct {
 	// Pending is set while it is being sent: it shows as any sent message
 	// does — only a failure (Failed, with its Error) is marked.
 	Pending bool
-	Failed  bool
+	// Unsent: still sending while there is no connection. Its words are red, as
+	// a failed message's, until it is delivered (then it is drawn as any other).
+	Unsent bool
+	Failed bool
 	// CanRetry says a failed message can be sent again ("Try again" shows).
 	CanRetry bool
 	Error    string
@@ -324,7 +327,7 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 			default:
 				fg := p.Text
-				if m.Failed {
+				if m.Failed || m.Unsent {
 					fg = p.Danger
 				}
 				// A right click on the words: the message's menu, with Copy and

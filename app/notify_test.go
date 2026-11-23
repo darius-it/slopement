@@ -6,6 +6,9 @@ import (
 	"slopement/model"
 )
 
+// chimes counts the sounds a test would have heard.
+var chimes int
+
 // What gets shown: not with notifications off, not for the room that is on
 // screen in a window in front, not for a mention when mentions are off —
 // and a chat message, or a mention, otherwise, quietly if sound is off.
@@ -14,7 +17,9 @@ func TestWhichNoticesShow(t *testing.T) {
 	var silent []bool
 	old := showNotification
 	showNotification = func(n model.Notice, s bool) { shown, silent = append(shown, n), append(silent, s) }
-	defer func() { showNotification = old }()
+	oldChime := playChime
+	playChime = func() { chimes++ }
+	defer func() { showNotification, playChime = old, oldChime }()
 
 	a := testApp()
 	a.open("!crit")
@@ -47,18 +52,45 @@ func TestWhichNoticesShow(t *testing.T) {
 		t.Fatal("a chat message did not notify with mentions off")
 	}
 
-	a.prefs.notifySound = false
+	// The sound is the app's own chime; the banner itself is always silent.
 	a.focused = false
+	chimes = 0
+	a.prefs.notifySound = true
 	a.notice(dm)
-	if !silent[len(silent)-1] {
-		t.Fatal("sound off, but the notification was loud")
+	if chimes != 1 || !silent[len(silent)-1] {
+		t.Fatalf("sound on: %d chimes, banner silent=%v", chimes, silent[len(silent)-1])
+	}
+	a.prefs.notifySound = false
+	a.notice(dm)
+	if chimes != 1 {
+		t.Fatal("chimed with sound off")
 	}
 
+	// Banners off, sound on: the chime without a banner.
 	a.prefs.notifyDesktop = false
+	a.prefs.notifySound = true
 	before := len(shown)
 	a.notice(dm)
 	if len(shown) != before {
 		t.Fatal("notified with desktop notifications off")
+	}
+	if chimes != 2 {
+		t.Fatal("no chime with banners off and sound on")
+	}
+	// Nothing at all for the room in front.
+	a.focused = true
+	a.open("!crit")
+	a.notice(dm)
+	if chimes != 2 {
+		t.Fatal("chimed for the room on screen")
+	}
+}
+
+// The chime is a real, short WAV that the audio package decodes.
+func TestChimeIsAWAV(t *testing.T) {
+	w := chimeWAV()
+	if string(w[:4]) != "RIFF" || string(w[8:12]) != "WAVE" || len(w) < 8000 || len(w) > 100000 {
+		t.Fatalf("not a short WAV: %d bytes", len(w))
 	}
 }
 

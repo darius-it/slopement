@@ -216,6 +216,13 @@ func fieldKey(st *ComposerState, k ui.Key, mods ui.Modifiers, touch bool) bool {
 		st.send = true
 		return true
 	}
+	// ↑ with nothing written (and nothing waiting to be sent) edits the last
+	// message of yours, as in Element and Discord.
+	if k == ui.KeyUp && mods == 0 && !touch && st.Editing == "" && len(st.Files) == 0 && st.Reply == nil &&
+		strings.TrimSpace(st.Draft()) == "" {
+		st.wantEditLast = true
+		return true
+	}
 	if k == ui.KeyEscape && st.Editing != "" {
 		st.Editing, st.Text = "", "" // changed your mind: the old message stays as it was
 		return true

@@ -5,6 +5,7 @@
 package app
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -204,6 +205,10 @@ type App struct {
 	call          kit.CallState
 	inCall        string          // the room whose call the user is in
 	tray          *mygo.Tray      // the tray icon, while "Minimize to tray" is on (tray.go)
+	badge         int             // the unread count shown on the icons (traybadge.go)
+	badgeTray     *mygo.Tray      // the tray that count was put on
+	quitting      atomic.Bool     // the app is quitting: closing the window then really closes it (tray.go)
+	holdOnClose   atomic.Bool     // closing the window hides it in the tray instead
 	noticeOpen    map[string]bool // Settings → About: which licenses are open (about.go)
 	callHeight    float32         // the call page's height on desktop: dragged by its divider (room.go)
 	callSess      *callSession    // the real call, when the source can run one (callsession.go)
@@ -298,6 +303,8 @@ func (a *App) Attach(w *mygo.Window) {
 	w.OnFocus(func() { w.Update(func() { a.focused = true }) })
 	w.OnBlur(func() { w.Update(func() { a.focused = false }) })
 	w.OnMinimize(func() { w.Update(a.minimizedToTray) }) // "Minimize to tray", when it is on
+	w.OnClose(a.windowClosing)                           // "When the window is closed" (tray.go)
+	watchQuit(a)
 	a.listenForNotices()
 	// Files dropped where no element takes them (over the composer's field,
 	// the side panel, a gap) still go to the open room's composer: the
@@ -360,6 +367,7 @@ func (a *App) View(c *ui.Context) {
 	a.narrow = kit.Compact(c)
 	a.receiptsSync()
 	a.traySync()
+	a.badgeSync()
 	a.syncColors()
 	a.pendingStep()
 	if a.openURL != "" { // a page to show in the browser, asked for off the view

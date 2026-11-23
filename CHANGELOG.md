@@ -8,6 +8,22 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+### Added
+- **Notification sound** on every desktop: a soft two-note chime of the app's own
+  (Settings → Notifications → Sound), at most once every 1.5 seconds, and it
+  plays even when the banners are off. The system's own sound is no longer used.
+- **Unread count on the icons:** a red dot with the number on the tray icon, and
+  the count on the Dock or launcher icon. Muted rooms are not counted.
+- **Settings → Advanced → Window → When the window is closed:** Quit (as
+  before) or Keep in tray, which hides the window and keeps slopement running so
+  messages and notifications still arrive. Quit from the tray menu or ⌘Q still
+  ends it.
+- **↑ in an empty message box edits your last message** (on a computer).
+
+### Changed
+- A message that is still sending while there is no connection is drawn in red,
+  like one that failed, and turns normal once it is delivered.
+
 ### Fixed
 - The red "No internet connection" bar now shows within seconds of the network
   being switched off, and goes within seconds of it coming back. It waits for

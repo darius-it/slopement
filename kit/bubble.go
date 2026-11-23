@@ -51,7 +51,10 @@ type BubbleData struct {
 	Menu MessageMenuState
 	// Pending shows as any sent message does; only a failure is marked.
 	Pending bool
-	Failed  bool
+	// Unsent: still sending while there is no connection; marked as a failure is
+	// until it is delivered.
+	Unsent bool
+	Failed bool
 	// CanRetry says a failed message can be sent again ("Try again" shows).
 	CanRetry bool
 	Error    string
@@ -207,7 +210,7 @@ func bubbleBox(c *ui.Context, b BubbleData, maxW float32, colors *UserColors, rv
 		// A whisper of an edge, so white reads on the light wallpaper.
 		box.Shadow(0, 1, 1, 0, ui.RGBA(40, 20, 90, 0.06))
 	}
-	if b.Failed {
+	if b.Failed || b.Unsent {
 		box.Background(p.Danger) // the one state that is marked
 	}
 	box.Children(func() {

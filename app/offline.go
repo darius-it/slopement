@@ -13,6 +13,12 @@ func (a *App) canRetry(room, id string) bool {
 	return ok && rt.CanRetry(room, id)
 }
 
+// offline says there is no connection to the server (the bar says so too).
+func (a *App) offline() bool {
+	conn, ok := a.src.(model.Connectivity)
+	return ok && conn.Offline()
+}
+
 // offlineBar is the error across the top while the connection to the server is
 // down: what is happening, and what it means for what the user sends. It goes
 // when the sync gets an answer again.

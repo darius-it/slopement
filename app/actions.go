@@ -108,6 +108,24 @@ func (a *App) confirmDelete(room, id string) {
 	}()
 }
 
+// editLast starts editing the user's last message in the room that can be
+// edited (↑ in an empty composer). A message still sending, one that failed, a
+// picture and a system line are passed over.
+func (a *App) editLast(room string) {
+	me := a.src.Me().ID
+	tl := a.src.Timeline(room)
+	for i := len(tl) - 1; i >= 0; i-- {
+		ev := tl[i]
+		if ev.Sender != me || ev.Pending || ev.Failed {
+			continue
+		}
+		if st := a.msgMenu(ev); st.Mine && st.HasText && !st.Off {
+			a.messageChoice(room, ev, kit.MsgEdit)
+			return
+		}
+	}
+}
+
 // editStep sends an edit when the composer was editing a message: the
 // words replace the message's; empty words stop the edit. It reports
 // whether this send was an edit.

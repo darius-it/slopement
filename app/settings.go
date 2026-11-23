@@ -61,6 +61,9 @@ type settingsPrefs struct {
 	// minimizeToTray: minimizing hides the window in the system tray (off by
 	// default; tray.go).
 	minimizeToTray bool
+	// closeMode: what closing the window does: closeQuit (the default) or
+	// closeToTray, which keeps the app running in the tray (tray.go).
+	closeMode int
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -317,8 +320,12 @@ func (a *App) settingsPage(c *ui.Context) {
 			switchRow(c, "Ask before joining", "Show the call page's lobby, to choose a microphone and camera first. It replaces the two above.", &a.prefs.callLobby)
 		})
 	case "Advanced":
-		group(c, "Window", "", func() {
+		group(c, "Window", "Closing to the tray keeps slopement running, so messages still arrive and notify; Quit in the tray icon's menu (or ⌘Q) ends it.", func() {
 			switchRow(c, "Minimize to tray", "Hide the window in the system tray when you minimize it", &a.prefs.minimizeToTray)
+			ui.Column(c).Padding(kit.S3, kit.S3, kit.S2, kit.S3).Gap(kit.S2).Children(func() {
+				ui.Text(c, "When the window is closed").FontSize(kit.SizeBody)
+				kit.Tabs(c.Key("closemode"), &a.prefs.closeMode, "Quit", "Keep in tray")
+			})
 		})
 		group(c, "Troubleshooting", "Resetting the cache never touches your encryption keys.", func() {
 			if _, ok := a.src.(model.LogExporter); ok {

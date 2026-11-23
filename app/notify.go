@@ -36,14 +36,19 @@ func (a *App) listenForNotices() {
 // notice decides on one message that may notify. UI thread.
 func (a *App) notice(n model.Notice) {
 	switch {
-	case a.detached || !a.prefs.notifyDesktop:
+	case a.detached:
 		return
 	case n.Mention && !n.DM && !a.prefs.notifyMentions:
 		return
 	case a.focused && a.view == viewRoom && a.room == n.Room:
 		return // it is on screen in front of them
 	}
-	showNotification(n, !a.prefs.notifySound)
+	if a.prefs.notifyDesktop {
+		showNotification(n, true) // silent: the sound is the app's own, below
+	}
+	if a.prefs.notifySound {
+		playChime() // with or without the banner: "Sound" is its own switch
+	}
 }
 
 // OpenFromNotification opens the room a notification was about (its ID):

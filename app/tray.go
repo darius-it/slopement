@@ -6,6 +6,8 @@ import (
 	"image/png"
 	"log"
 	"runtime"
+	"sync"
+	"sync/atomic"
 
 	"github.com/egoist/mygo"
 	"golang.org/x/image/draw"
@@ -78,13 +80,14 @@ func (a *App) traySync() {
 	if (a.win == nil && !trayWithoutWindow) || len(TrayIcon) == 0 {
 		return
 	}
-	want := a.prefs.minimizeToTray
+	want := a.prefs.minimizeToTray || a.prefs.closeMode == closeToTray
 	switch {
 	case want && a.tray == nil:
 		t, err := trayMaker(a)
 		if err != nil {
 			log.Printf("tray: %v", err)
 			a.prefs.minimizeToTray = false
+			a.prefs.closeMode = closeQuit
 			a.toast = "Could not put slopement in the tray: " + trayWhy(err)
 			return
 		}
@@ -93,6 +96,51 @@ func (a *App) traySync() {
 		a.tray.Destroy()
 		a.tray = nil
 	}
+	// What the close handler reads (it runs off the frame): the window is kept
+	// only while there is an icon to get it back from.
+	a.holdOnClose.Store(a.prefs.closeMode == closeToTray && a.tray != nil)
+}
+
+// What closing the window does (Settings → Advanced → Window). The values are
+// the positions of the two choices.
+const (
+	closeQuit   = 0 // the app quits
+	closeToTray = 1 // the app keeps running in the tray
+)
+
+// windowClosing is the window's close button (or ⌘W, Alt+F4): with "Keep running
+// in the tray" the window is hidden instead of closed, and the sync and the
+// notifications go on. A quit (⌘Q, the tray's Quit, the system's) is not stopped.
+// It runs on the window's own thread.
+func (a *App) windowClosing(e *mygo.CloseEvent) {
+	if !a.holdOnClose.Load() || a.quitting.Load() {
+		return
+	}
+	e.PreventDefault()
+	if a.win != nil {
+		a.win.Hide()
+	}
+}
+
+// quitWatch is the app that hears of a quit (one listener for the process, as
+// accounts come and go: it points at the app on screen).
+var quitWatch struct {
+	once sync.Once
+	app  atomic.Pointer[App]
+}
+
+// watchQuit has a quit mark the app as quitting, so closing its window is then
+// allowed. A quit that something else cancels leaves the mark; the next close
+// then closes the window, which is as safe as the default.
+func watchQuit(a *App) {
+	quitWatch.app.Store(a)
+	quitWatch.once.Do(func() {
+		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+			if cur := quitWatch.app.Load(); cur != nil {
+				cur.quitting.Store(true)
+			}
+		})
+	})
 }
 
 // trayWhy is a tray's failure in words.
