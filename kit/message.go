@@ -357,7 +357,10 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				if m.Failed {
 					why := "Not sent"
 					if m.Error != "" {
-						why += ": " + m.Error
+						why = m.Error // "Not sent: …" already, as the source words it
+						if !strings.HasPrefix(why, "Not sent") {
+							why = "Not sent: " + why
+						}
 					}
 					ui.Text(c, why).FontSize(SizeCaption).TextColor(p.Danger)
 				}

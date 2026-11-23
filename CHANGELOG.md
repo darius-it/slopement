@@ -50,7 +50,15 @@ would notice; when you tag a release, rename that heading to the tag
   links still work (Discord's links expire after a day). Importing again no
   longer makes duplicates.
 
+- A red bar across the top says "No internet connection" while the connection
+  is down, and goes when it is back.
+- A message that does not send says "Not sent" and why, in words: no internet
+  connection, the server took too long, you cannot post there, you are sending
+  too fast, you were signed out, and so on.
+
 ### Fixed
+- The "sent" check mark showed on a message that had not been delivered; it
+  now only goes on a message the server has.
 - Discord GIF favorites showing "unavailable" the day after importing them.
 - A call that stayed in the chat as "waiting for this message".
 - Older messages would not load in a chat that had "The call ended" lines at its

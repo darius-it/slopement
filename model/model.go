@@ -414,6 +414,13 @@ type CallHoster interface {
 	WatchCall(room string, fn func(toDevice bool, raw json.RawMessage)) (stop func())
 }
 
+// Connectivity is what a Source may offer to say the connection to the server
+// is down (the last sync or send failed in the network): the app shows an error
+// bar until it is back.
+type Connectivity interface {
+	Offline() bool
+}
+
 // CallStates is what a Source may offer to show a call going on in a room: it
 // reads who is in it once a run, and Room.Call / Room.CallCount say so.
 type CallStates interface {

@@ -74,8 +74,9 @@ func (s *Source) SendSticker(room string, st model.Sticker, replyTo string) {
 		}
 		sent, err := s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventSticker, content, mautrix.ReqSendEvent{TransactionID: txn})
 		s.post(func() {
+			s.noteConnection(err)
 			if err != nil {
-				s.roomOf(room).failLocal(local, "Not sent: "+plain(err))
+				s.roomOf(room).failLocal(local, notSent(err))
 			} else {
 				s.roomOf(room).settleLocal(local, sent.EventID.String())
 			}

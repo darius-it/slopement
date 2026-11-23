@@ -59,6 +59,9 @@ type Source struct {
 	callWatch  map[string]func(toDevice bool, raw json.RawMessage)
 	callDelays map[string]int64 // a call membership's delayed event → its length in ms
 
+	// offline: the connection to the server is down (failure.go); the app says so.
+	offline bool
+
 	// keyKick wakes the key watcher when a message arrives locked.
 	keyKick chan struct{}
 

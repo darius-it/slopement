@@ -354,8 +354,9 @@ func (s *Source) CreatePoll(room string, p model.Poll) {
 			mautrix.ReqSendEvent{TransactionID: txn})
 		s.post(func() {
 			rr := s.roomOf(room)
+			s.noteConnection(err)
 			if err != nil {
-				rr.failLocal(id0, "Not sent: "+plain(err))
+				rr.failLocal(id0, notSent(err))
 				return
 			}
 			rr.settleLocal(id0, resp.EventID.String())

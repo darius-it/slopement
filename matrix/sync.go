@@ -146,6 +146,7 @@ type batchSyncer struct {
 
 func (b *batchSyncer) ProcessResponse(ctx context.Context, resp *mautrix.RespSync, since string) error {
 	if b.src != nil {
+		b.src.post(func() { b.src.setOffline(false) }) // a sync answered: the connection is back
 		b.src.beginBatch()
 		b.src.takeInvites(resp) // invitations are not rooms: kept apart, out of the handlers' way
 		var left []string
@@ -163,6 +164,9 @@ func (b *batchSyncer) ProcessResponse(ctx context.Context, resp *mautrix.RespSyn
 func (b *batchSyncer) OnFailedSync(res *mautrix.RespSync, err error) (time.Duration, error) {
 	if b.src != nil && b.src.resumed && badSyncToken(err) {
 		return 0, err
+	}
+	if b.src != nil && isNetworkError(err) { // the connection is down: the app says so until a sync answers
+		b.src.post(func() { b.src.setOffline(true) })
 	}
 	return b.DefaultSyncer.OnFailedSync(res, err)
 }
@@ -879,12 +883,15 @@ func (s *Source) sendMessage(room, markdown, replyTo, threadRoot string) {
 		ReplyTo: replyTo, ThreadRoot: threadRoot, Pending: true}
 	s.post(func() { s.roomOf(room).appendEvent(pending, "You", true) })
 	go func() {
-		resp, err := s.cli.SendMessageEvent(context.Background(), id.RoomID(room), event.EventMessage, content,
+		ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+		defer cancel()
+		resp, err := s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventMessage, content,
 			mautrix.ReqSendEvent{TransactionID: txn})
 		s.post(func() {
 			r := s.roomOf(room)
+			s.noteConnection(err) // a send that never reached the server says we are offline
 			if err != nil {
-				r.failLocal(local, "Not sent: "+plain(err))
+				r.failLocal(local, notSent(err))
 			} else {
 				r.settleLocal(local, resp.EventID.String())
 			}

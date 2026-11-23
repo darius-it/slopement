@@ -95,7 +95,8 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 		}
 		resp, err := s.cli.UploadBytes(ctx, upload, uploadType)
 		if err != nil {
-			fail("Not sent: " + plain(err))
+			s.post(func() { s.noteConnection(err) })
+			fail(notSent(err))
 			return
 		}
 		if enc != nil {
@@ -108,8 +109,9 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 		}
 		sent, err := s.cli.SendMessageEvent(ctx, id.RoomID(room), event.EventMessage, content, mautrix.ReqSendEvent{TransactionID: txn})
 		s.post(func() {
+			s.noteConnection(err)
 			if err != nil {
-				s.roomOf(room).failLocal(local, "Not sent: "+plain(err))
+				s.roomOf(room).failLocal(local, notSent(err))
 			} else {
 				s.roomOf(room).settleLocal(local, sent.EventID.String())
 			}

@@ -389,6 +389,7 @@ func (a *App) View(c *ui.Context) {
 		if bar := c.TitleBar(); bar.Height > 0 || bar.Bottom > 0 {
 			a.topBar(c)
 		}
+		a.offlineBar(c) // no connection: said at the top, until it is back
 		if kit.Compact(c) {
 			a.phone(c)
 		} else {

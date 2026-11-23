@@ -67,6 +67,22 @@ func TestReceiptState(t *testing.T) {
 	if got = state(false, ev("1", me)); got != (receiptState{}) {
 		t.Fatalf("off: %+v", got)
 	}
+	// The check is for a message the server has: not one still being sent, and
+	// not one that failed — the last delivered one carries it.
+	pending, failed := ev("3", me), ev("4", me)
+	pending.Pending = true
+	failed.Failed, failed.Error = true, "Not sent: No internet connection."
+	got = state(true, ev("1", me), ev("2", "@kai"), pending)
+	if got.sentID != "1" {
+		t.Fatalf("a message still being sent took the check: %q", got.sentID)
+	}
+	got = state(true, ev("1", me), failed)
+	if got.sentID != "1" {
+		t.Fatalf("a message that failed took the check: %q", got.sentID)
+	}
+	if got = state(true, failed); got.sentID != "" || got.readID != "" {
+		t.Fatalf("a message that failed was marked: %+v", got)
+	}
 }
 
 // The hollow check on the user's unread last message, on desktop and phone

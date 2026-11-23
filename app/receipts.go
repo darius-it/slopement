@@ -30,6 +30,10 @@ type receiptState struct {
 	readID string // the user's last message that someone has read up to
 }
 
+// delivered says the server has the message: it is not still being sent, and
+// it did not fail. Only a delivered message gets the "sent" check.
+func delivered(ev model.Event) bool { return !ev.Pending && !ev.Failed }
+
 // receiptStateOf reads it off a room's timeline (one pass, once a frame).
 func (a *App) receiptStateOf(room string) (st receiptState) {
 	if !a.prefs.receipts {
@@ -42,12 +46,12 @@ func (a *App) receiptStateOf(room string) (st receiptState) {
 		if len(ev.ReadBy) > 0 {
 			furthest = i // the furthest anyone has read
 		}
-		if ev.Sender == me && ev.Kind != model.EventSystem && !ev.Pending {
+		if ev.Sender == me && ev.Kind != model.EventSystem && delivered(ev) {
 			lastOwn = i
 		}
 	}
 	for i := min(lastOwn, furthest); i >= 0; i-- {
-		if evs[i].Sender == me && evs[i].Kind != model.EventSystem && !evs[i].Pending {
+		if evs[i].Sender == me && evs[i].Kind != model.EventSystem && delivered(evs[i]) {
 			st.readID = evs[i].ID
 			break
 		}
