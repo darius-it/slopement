@@ -62,6 +62,19 @@ func TestDeviceMuteBothWays(t *testing.T) {
 	}
 }
 
+// To-device messages reach the widget only for the types it was granted.
+func TestToDeviceReceiveFollowsTheGrant(t *testing.T) {
+	h := NewHost("w", &fakeBackend{})
+	h.granted = Grant([]string{"org.matrix.msc3819.receive.to_device:io.element.call.encryption_keys",
+		"org.matrix.msc3819.receive.to_device:m.call.invite"})
+	if !h.ReceivesToDevice([]byte(`{"type":"io.element.call.encryption_keys","content":{}}`)) {
+		t.Fatal("the media keys were not let through")
+	}
+	if h.ReceivesToDevice([]byte(`{"type":"m.call.invite"}`)) || h.ReceivesToDevice([]byte(`{"type":"m.room_key"}`)) || h.ReceivesToDevice([]byte(`nope`)) {
+		t.Fatal("something not granted was let through")
+	}
+}
+
 // Hanging up asks the widget to leave (so it removes the user's membership),
 // and the widget saying it has left reaches OnHangup.
 func TestHangupAsksTheWidgetToLeave(t *testing.T) {

@@ -137,8 +137,8 @@ func (b *rtcBackend) ReadEvents(ctx context.Context, data json.RawMessage) (any,
 		return nil, err
 	}
 	events := []json.RawMessage{}
-	if d.StateKey == nil { // timeline events: the call page reads none of them
-		return map[string]any{"events": events}, nil
+	if d.StateKey == nil { // the room's recent events of a type: the call's encryption keys sent before the page joined
+		return map[string]any{"events": b.recentEvents(ctx, d.Type, d.Limit)}, nil
 	}
 	state, err := b.s.cli.State(ctx, b.room)
 	if err != nil {
@@ -155,6 +155,45 @@ func (b *rtcBackend) ReadEvents(ctx context.Context, data json.RawMessage) (any,
 		}
 	}
 	return map[string]any{"events": events}, nil
+}
+
+// recentEvents are the room's latest events of a type, newest first, read from
+// the server and decrypted when they were encrypted (the call's encryption keys
+// are sent to the room, so the page joining later reads them here).
+func (b *rtcBackend) recentEvents(ctx context.Context, typ string, limit int) []json.RawMessage {
+	out := []json.RawMessage{}
+	if limit <= 0 || limit > 50 {
+		limit = 10
+	}
+	cli := b.s.cli
+	resp, err := cli.Messages(ctx, b.room, "", "", mautrix.DirectionBackward, nil, 100)
+	if err != nil {
+		debugf("rtc: reading the timeline: %v", err)
+		return out
+	}
+	for _, evt := range resp.Chunk {
+		if evt.Type == event.EventEncrypted && b.s.helper != nil {
+			if err := evt.Content.ParseRaw(evt.Type); err != nil && !errors.Is(err, event.ErrContentAlreadyParsed) {
+				continue
+			}
+			dec, err := b.s.helper.Decrypt(ctx, evt)
+			if err != nil {
+				continue // locked: the page will not see it either
+			}
+			evt = dec
+		}
+		if evt.Type.Type != typ {
+			continue
+		}
+		if raw, err := json.Marshal(evt); err == nil {
+			out = append(out, raw)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	debugf("rtc: timeline read of %s: %d events", typ, len(out))
+	return out
 }
 
 func (b *rtcBackend) SendToDevice(ctx context.Context, data json.RawMessage) (any, error) {
@@ -433,10 +472,10 @@ var callTypes = map[string]bool{
 // WatchCall tells fn of the call-related events of a room as they arrive (one
 // watch per room; a new one replaces the old), until stop is called. fn runs
 // on the sync goroutine and must not block.
-func (s *Source) WatchCall(room string, fn func(raw json.RawMessage)) (stop func()) {
+func (s *Source) WatchCall(room string, fn func(toDevice bool, raw json.RawMessage)) (stop func()) {
 	s.callMu.Lock()
 	if s.callWatch == nil {
-		s.callWatch = map[string]func(json.RawMessage){}
+		s.callWatch = map[string]func(bool, json.RawMessage){}
 	}
 	s.callWatch[room] = fn
 	s.callMu.Unlock()
@@ -447,7 +486,85 @@ func (s *Source) WatchCall(room string, fn func(raw json.RawMessage)) (stop func
 	}
 }
 
+// callPeople is how many different people are in the room's call.
+func (r *room) callPeople() int {
+	seen := map[string]bool{}
+	for _, who := range r.callMembers {
+		seen[who] = true
+	}
+	return len(seen)
+}
+
+// noteCallMember keeps the room's call memberships: one with content is
+// someone in the call, an emptied one (what leaving does) is not.
+func (s *Source) noteCallMember(evt *event.Event) {
+	if evt.StateKey == nil {
+		return
+	}
+	known := false
+	for _, t := range callMemberTypes {
+		known = known || t == evt.Type.Type
+	}
+	if !known {
+		return
+	}
+	raw := strings.TrimSpace(string(evt.Content.VeryRaw))
+	in := raw != "" && raw != "{}"
+	room, key, who := evt.RoomID.String(), evt.Type.Type+"|"+*evt.StateKey, evt.Sender.String()
+	s.post(func() {
+		r := s.roomOf(room)
+		if in {
+			if r.callMembers == nil {
+				r.callMembers = map[string]string{}
+			}
+			r.callMembers[key] = who
+		} else {
+			delete(r.callMembers, key)
+		}
+	})
+}
+
+// RefreshCall reads who is in a room's call once a run (the sync does not
+// resend state it has already given, so a call begun before the app started
+// would otherwise go unseen). UI thread; the answer arrives through the update.
+func (s *Source) RefreshCall(room string) {
+	r, ok := s.rooms[room]
+	if !ok || r.callAsked || s.cli == nil {
+		return
+	}
+	r.callAsked = true
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		state, err := s.cli.State(ctx, id.RoomID(room))
+		if err != nil {
+			s.post(func() {
+				if r, ok := s.rooms[room]; ok {
+					r.callAsked = false
+				}
+			})
+			return
+		}
+		found := map[string]string{}
+		for _, typ := range callMemberTypes {
+			for key, evt := range state[event.Type{Type: typ, Class: event.StateEventType}] {
+				if evt == nil || len(evt.Content.VeryRaw) == 0 || strings.TrimSpace(string(evt.Content.VeryRaw)) == "{}" {
+					continue
+				}
+				found[typ+"|"+key] = evt.Sender.String()
+			}
+		}
+		s.post(func() {
+			if r, ok := s.rooms[room]; ok {
+				r.callMembers = found
+				s.changed()
+			}
+		})
+	}()
+}
+
 func (s *Source) onCallEvent(_ context.Context, evt *event.Event) {
+	s.noteCallMember(evt)
 	if !callTypes[evt.Type.Type] || evt.RoomID == "" {
 		return
 	}
@@ -458,6 +575,6 @@ func (s *Source) onCallEvent(_ context.Context, evt *event.Event) {
 		return
 	}
 	if raw, err := json.Marshal(evt); err == nil {
-		fn(raw)
+		fn(false, raw)
 	}
 }

@@ -88,6 +88,11 @@ type room struct {
 	backBusy bool
 	keep     int
 
+	// callMembers are the call memberships of the room (state key → who), kept
+	// from its call member events; callAsked says this run has read them (rtc.go).
+	callMembers map[string]string
+	callAsked   bool
+
 	// memberList is who is joined, by name, once fetched (members.go);
 	// membersAsked says this run has asked (a join or a leave resets it).
 	memberList   []model.Person

@@ -93,6 +93,7 @@ type Room struct {
 	Preview      string   // the last message, "Mira: hi"
 	Typing       []string // the names of who is typing
 	Call         bool     // a call is going on
+	CallCount    int      // how many people are in it
 	// ReadOnly: the room's power levels do not let the user write in it (an
 	// announcements room): the app shows a bar in place of the composer.
 	ReadOnly bool
@@ -399,7 +400,15 @@ type CallHoster interface {
 	CallSupport(ctx context.Context) (CallSupport, error)
 	CallBackend(room string) calls.Backend
 	CallIdentity() CallIdentity
-	WatchCall(room string, fn func(raw json.RawMessage)) (stop func())
+	// WatchCall tells fn of a room's call events and of the to-device messages
+	// meant for its call (the call's media keys), until stop is called.
+	WatchCall(room string, fn func(toDevice bool, raw json.RawMessage)) (stop func())
+}
+
+// CallStates is what a Source may offer to show a call going on in a room: it
+// reads who is in it once a run, and Room.Call / Room.CallCount say so.
+type CallStates interface {
+	RefreshCall(room string)
 }
 
 // CallCleaner is what a Source may offer to end a call that was left badly:

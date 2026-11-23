@@ -58,7 +58,7 @@ func (s *Source) seed(now time.Time) {
 	comm := func(c model.Community, rs []cr) {
 		for _, r := range rs {
 			room(model.Room{ID: r.id, Kind: model.KindRoom, Name: r.name, Topic: r.topic, Community: c.ID, Members: r.members,
-				Encrypted: r.members < 200, Unread: r.unread, Mentions: r.mentions, LastActivity: min(r.ago), Preview: r.preview, Call: r.call})
+				Encrypted: r.members < 200, Unread: r.unread, Mentions: r.mentions, LastActivity: min(r.ago), Preview: r.preview, Call: r.call, CallCount: map[bool]int{true: 3}[r.call]})
 			c.Rooms = append(c.Rooms, r.id)
 		}
 		s.comms = append(s.comms, c)

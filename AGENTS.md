@@ -268,6 +268,13 @@ lists what is missing; keep it current. The app starts on the sign-in; the mock
 account is `SLOPEMENT_MOCK=1` only. `identifier` in `mygo.config.ts` is the
 keychain service: do not change it after a release.
 
+### Changelog
+`CHANGELOG.md` is the release notes' first section: the workflow takes the
+section named after the tag (`## v0.1.0-alpha.6`), or else `## Unreleased`, and
+puts it above the standing warning. **When you add or change something a user
+would notice, add a line under Unreleased** (plain words: what it does, not how).
+When tagging, rename Unreleased to the tag and start a new Unreleased above it.
+
 ## Secrets
 - `KLIPY_API_KEY` lives in `.env` (gitignored). Never commit keys or print them.
   Releases carry no key: users add their own in Settings → GIFs

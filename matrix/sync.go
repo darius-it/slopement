@@ -64,6 +64,9 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	// decrypt — then the member state store it reads, then us. The
 	// client's Crypto hook makes sending encrypt automatically, and the
 	// verification helper requires it.
+	// Before the machine's own listener (Init registers it): a call's media
+	// keys come as encrypted to-device events the machine would drop (todevice.go).
+	syncer.OnSync(s.interceptToDevice(helper))
 	if err := helper.Init(ctx); err != nil {
 		return nil, err
 	}

@@ -67,9 +67,16 @@ func (CallBridge) Post(ctx context.Context, msg string) []string {
 		out = append(out, string(m))
 	}
 	if os.Getenv("SLOPEMENT_DEBUG") != "" { // what the call page asked, and whether we answered with an error
-		var m struct{ Action string }
+		var m struct {
+			Action string
+			Data   struct{ Type string }
+		}
 		_ = json.Unmarshal([]byte(msg), &m)
-		log.Printf("call: widget → %s (%d replies%s)", m.Action, len(out), errNote(out))
+		what := m.Action
+		if m.Data.Type != "" {
+			what += " " + m.Data.Type // which event it sends or reads
+		}
+		log.Printf("call: widget → %s (%d replies%s)", what, len(out), errNote(out))
 	}
 	return out
 }
@@ -88,7 +95,6 @@ func (a *App) startCall(r model.Room) bool {
 	}
 	sess := &callSession{room: r.ID, status: "Checking what your server offers…"}
 	a.callSess, a.inCall, a.call = sess, r.ID, kit.NewCall()
-	a.call.NoShare = true // the page's own screen sharing is the one that works
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -125,7 +131,6 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 		host.Logf = func(f string, args ...any) { log.Printf("call: "+f, args...) }
 	}
 	host.OnHangup = func() { a.runUI(func() { a.endCall(sess) }) } // the page has left: close it
-	host.OnMute = func(audio, video *bool) { a.runUI(func() { a.callMuteSeen(sess, audio, video) }) }
 	sess.host = host
 	activeCall.Store(sess)
 
@@ -158,11 +163,22 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 	sess.status = "Joining…"
 
 	// What the room's call events say reaches the widget, as far as it may hear.
-	sess.stop = hoster.WatchCall(r.ID, func(raw json.RawMessage) {
-		if !host.Ready() || !host.Receives(raw) {
+	sess.stop = hoster.WatchCall(r.ID, func(toDevice bool, raw json.RawMessage) {
+		ready := host.Ready()
+		heard := host.Receives(raw)
+		kind := "room event"
+		if toDevice {
+			heard, kind = host.ReceivesToDevice(raw), "to-device"
+		}
+		if os.Getenv("SLOPEMENT_DEBUG") != "" { // what arrived, and whether the page was told
+			var e struct{ Type string }
+			_ = json.Unmarshal(raw, &e)
+			log.Printf("call: %s %s → page: ready %v, allowed %v", kind, e.Type, ready, heard)
+		}
+		if !ready || !heard {
 			return
 		}
-		_ = callToWidget.EmitPage(wv.Page(), string(host.Deliver(false, json.RawMessage(raw))))
+		_ = callToWidget.EmitPage(wv.Page(), string(host.Deliver(toDevice, json.RawMessage(raw))))
 	})
 	wv.Page().LoadHTML(callHostPage(callWidgetURL(id, r.ID, widgetID, a.callIntent(r))), callHostURL)
 	a.win.Invalidate()
@@ -220,33 +236,66 @@ f.src = ` + string(srcJSON) + `;
 </script>`
 }
 
-// realCallArea is the call over the timeline: the page, and our bar under it
-// (or what is going on, or why it could not start).
-func (a *App) realCallArea(c *ui.Context, s *callSession) {
+// realCallArea is the call over the timeline: the call page, all of it (its
+// own buttons mute, share and hang up), or what is going on, or why it could
+// not start. fixed is its height (0: the room the split around it gives, which
+// the user drags).
+func (a *App) realCallArea(c *ui.Context, s *callSession, fixed float32) {
 	p := kit.Of(c)
-	ui.Column(c.Key("call")).Height(440).Shrink(0).Background(p.BgInset).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).
-		Padding(kit.S2).Gap(kit.S2).Children(func() {
+	col := ui.Column(c.Key("call")).Background(p.BgInset).Padding(kit.S2).Gap(kit.S2)
+	if fixed > 0 {
+		col.Height(fixed).Shrink(0).BorderWidth(0, 0, 1, 0).BorderColor(p.Border)
+	} else {
+		col.Fill()
+	}
+	col.Children(func() {
 		switch {
 		case s.err != "":
 			ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(kit.S2).Children(func() {
 				ui.Text(c, s.err).FontSize(kit.SizeSmall).TextColor(p.TextMuted).TextAlign(ui.Center)
+				if kit.Button(c, kit.Secondary, "Close", nil).Clicked() { // no page to end it from
+					a.endCall(s)
+				}
 			})
 		case s.wv != nil:
 			ui.WebView(c.Key("callpage"), s.wv).Grow(1).Radius(kit.RadiusLg)
 		default:
-			ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(kit.S2).Children(func() {
 				ui.Text(c, s.status).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
+				if kit.Button(c, kit.Ghost, "Cancel", nil).Clicked() {
+					a.endCall(s)
+				}
 			})
 		}
-		ui.Row(c).Justify(ui.Center).Children(func() {
-			before := a.call
-			act := kit.CallBar(c, &a.call)
-			a.callMedia(before)
-			if act.Leave {
-				a.leaveCall(s)
-			}
-		})
 	})
+}
+
+// callGrip is the thin bar under the call page: dragged up or down it makes the
+// page smaller or bigger (a double click puts it back). It is a sibling of the
+// page, not a wrapper, so the page is laid out and hit as a plain box.
+func (a *App) callGrip(c *ui.Context) {
+	p := kit.Of(c)
+	_, h := c.Size()
+	maxH := h - 260 // the header and a few messages stay
+	if maxH < 160 {
+		maxH = 160
+	}
+	grip := ui.ButtonBase(c.Key("callgrip")).Height(10).Shrink(0).AlignItems(ui.Center).Justify(ui.Center).
+		Cursor(ui.CursorResizeNS).Label("Resize the call")
+	if _, dy, ok := grip.Dragged(); ok {
+		a.callHeight = min(max(a.callHeight+dy, 120), maxH)
+	}
+	if grip.DoubleClicked() {
+		a.callHeight = min(440, maxH)
+	}
+	grip.Children(func() {
+		col := p.Border
+		if grip.Hovered() || grip.Pressed() {
+			col = p.TextFaint
+		}
+		ui.Box(c).Size(40, 3).Radius(kit.RadiusFull).Background(col)
+	})
+	a.callHeight = min(max(a.callHeight, 120), maxH) // a smaller window takes it down too
 }
 
 // leaveGrace is how long the page gets to leave the call by itself before it
@@ -299,42 +348,6 @@ func (a *App) endCall(sess *callSession) {
 		}
 	}
 	a.callSess, a.inCall = nil, ""
-}
-
-// callMedia applies the call bar's microphone and camera to the page: by the
-// widget API's device-mute request, which the page honours as if its own
-// buttons were pressed (muting the web view's capture from outside leaves the
-// page believing it is still on).
-func (a *App) callMedia(before kit.CallState) {
-	s := a.callSess
-	if s == nil || s.wv == nil || s.host == nil || !s.host.Ready() {
-		return
-	}
-	var audio, video *bool
-	if before.Mic != a.call.Mic {
-		audio = &a.call.Mic
-	}
-	if before.Camera != a.call.Camera {
-		video = &a.call.Camera
-	}
-	if audio == nil && video == nil {
-		return
-	}
-	_ = callToWidget.EmitPage(s.wv.Page(), string(s.host.SetMute(audio, video)))
-}
-
-// callMuteSeen takes what the page says about its microphone and camera (its
-// own buttons, or its answer to ours) into the bar, so the bar shows the truth.
-func (a *App) callMuteSeen(sess *callSession, audio, video *bool) {
-	if a.callSess != sess {
-		return
-	}
-	if audio != nil {
-		a.call.Mic = *audio
-	}
-	if video != nil {
-		a.call.Camera = *video
-	}
 }
 
 // errNote says, for the debug log, that a reply carried an error.

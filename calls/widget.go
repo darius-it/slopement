@@ -66,6 +66,7 @@ var allowedKinds = map[string]bool{
 	"org.matrix.msc4157.update_delayed_event": true,
 	"town.robin.msc3846.turn_servers":         true,
 	"m.always_on_screen":                      true,
+	"org.matrix.msc2762.timeline":             true, // reads the room's recent events (the call's encryption keys)
 	"org.matrix.msc4407.send.sticky_event":    true, // a call's membership may be a sticky event
 	"org.matrix.msc4407.receive.sticky_event": true,
 	capRTCTransports:                          true,
@@ -177,6 +178,26 @@ func (h *Host) Hangup() []byte { return h.ask("im.vector.hangup", map[string]any
 // source offers it only those.
 func (h *Host) Receives(event []byte) bool {
 	return h.allows(event, "receive")
+}
+
+// ReceivesToDevice says the widget was granted hearing of this to-device
+// message ({"type": …, …}).
+func (h *Host) ReceivesToDevice(msg []byte) bool {
+	var d struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(msg, &d) != nil {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, cap := range h.granted {
+		kind, arg, _ := strings.Cut(cap, ":")
+		if kind == "org.matrix.msc3819.receive.to_device" && arg == d.Type {
+			return true
+		}
+	}
+	return false
 }
 
 // Ready says the widget's content has loaded.

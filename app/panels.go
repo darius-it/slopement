@@ -315,11 +315,13 @@ func (a *App) joinCall(r model.Room) {
 	a.toast = "Calls are coming soon (this is how they will look)"
 }
 
-// callArea is the call over the timeline: tiles and the control bar.
-func (a *App) callArea(c *ui.Context, r model.Room) {
+// callArea is the call over the timeline: the call page, or (a source that
+// cannot run calls) the scaffold's tiles and control bar. fixed is a height
+// for the page (0: the room a split gives it).
+func (a *App) callArea(c *ui.Context, r model.Room, fixed float32) {
 	p := kit.Of(c)
 	if s := a.callSess; s != nil && s.room == r.ID {
-		a.realCallArea(c, s)
+		a.realCallArea(c, s, fixed)
 		return
 	}
 	ui.Column(c.Key("call")).Height(260).Shrink(0).Background(p.BgInset).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).

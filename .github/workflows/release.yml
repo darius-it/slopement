@@ -22,6 +22,19 @@ jobs:
   draft-release:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      # CHANGELOG.md's section for this tag ("## v0.1.0-alpha.6"), or else its
+      # "## Unreleased", leads the release notes.
+      - name: Take this release's changelog
+        shell: bash
+        run: |
+          section() { awk -v h="## $1" '$0==h{p=1;next} /^## /{p=0} p' CHANGELOG.md 2>/dev/null; }
+          body="$(section "$TAG")"
+          [ -n "$(echo "$body" | tr -d '[:space:]')" ] || body="$(section "Unreleased")"
+          [ -n "$(echo "$body" | tr -d '[:space:]')" ] || body="No changelog entry for this version."
+          printf '## What is new\n\n%s\n' "$body" > changelog-notes.md
       - name: Create the draft pre-release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,10 +60,15 @@ jobs:
             - **Arch Linux:** `curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag || github.ref_name }}/PKGBUILD && makepkg -si`
               (`PKGBUILD-aarch64` for ARM: `makepkg -si -p PKGBUILD-aarch64`).
         run: |
-          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          # The changelog, then the standing warning and install notes.
+          { cat changelog-notes.md; printf '\n---\n\n%s\n' "$NOTES"; } > release-notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # A re-run: the notes are this workflow's, so they follow the changelog.
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
               --draft --prerelease --verify-tag --title "slopement $TAG (super early alpha)" \
-              --notes "$NOTES"
+              --notes-file release-notes.md
           fi
 
   build:

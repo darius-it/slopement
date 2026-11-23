@@ -29,7 +29,7 @@ func (h *hoster) CallBackend(string) calls.Backend                       { retur
 func (h *hoster) CallIdentity() model.CallIdentity {
 	return model.CallIdentity{UserID: "@me:x", DeviceID: "D", BaseURL: "https://x"}
 }
-func (h *hoster) WatchCall(string, func(json.RawMessage)) func() { return func() {} }
+func (h *hoster) WatchCall(string, func(bool, json.RawMessage)) func() { return func() {} }
 
 func callApp(t *testing.T, h *hoster) (*App, *ui.Tester) {
 	t.Helper()

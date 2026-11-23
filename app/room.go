@@ -111,59 +111,74 @@ func (a *App) roomView(c *ui.Context, back bool) {
 	if pins, ok := a.src.(model.Pins); ok {
 		pins.RefreshPins(r.ID)
 	}
+	if cs, ok := a.src.(model.CallStates); ok {
+		cs.RefreshCall(r.ID) // who is in the room's call
+	}
 	col := ui.Column(c.Key("room:" + r.ID)).Grow(1).MinWidth(0)
 	col.Children(func() {
 		a.roomHeader(c, r, back)
 		a.findBar(c) // ⌘F, under the header
 		if r.Call {
-			if kit.CallBanner(c, 3, a.inCall == r.ID) {
+			if kit.CallBanner(c, r.CallCount, a.inCall == r.ID) {
 				a.joinCall(r)
 			}
 		}
-		if a.inCall == r.ID {
-			a.callArea(c, r)
-		}
-		rows := a.rows(r.ID)
-		a.rs = a.receiptStateOf(r.ID)
-		ls := a.listState(r.ID)
-		ls.Key = func(i int) any { return rows[i].key }
-		a.jumpStep(r.ID, rows, ls)
-		a.readStep(r, rows, ls)
-		a.pageStep(r.ID, ls)
-		// The timeline with what floats over it: who is typing and Jump to
-		// latest sit on its bottom edge, in the 24 left under the last
-		// message, and take no room — a line that came and went would move
-		// every message.
-		ui.Column(c.Key("tlarea:"+r.ID)).Grow(1).Children(func() {
-			// 24 under the last message before the composer, as Meetup's and
-			// Fresha's web chats leave (Mobbin); it scrolls with the messages.
-			ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.timelineRow(c, r, rows[i]) }) }).
-				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).
-				Selectable(). // one selection over the messages built: a drag crosses them
-				Children(func() {
-				if len(rows) == 0 {
-					emptyNote(c, "No messages yet. Say hi!")
+		// The room below the header: the timeline and the composer. In a call
+		// the call page sits above it, and a divider between them drags the
+		// page bigger or smaller.
+		body := func() {
+			rows := a.rows(r.ID)
+			a.rs = a.receiptStateOf(r.ID)
+			ls := a.listState(r.ID)
+			ls.Key = func(i int) any { return rows[i].key }
+			a.jumpStep(r.ID, rows, ls)
+			a.readStep(r, rows, ls)
+			a.pageStep(r.ID, ls)
+			// The timeline with what floats over it: who is typing and Jump to
+			// latest sit on its bottom edge, in the 24 left under the last
+			// message, and take no room — a line that came and went would move
+			// every message.
+			ui.Column(c.Key("tlarea:" + r.ID)).Grow(1).Children(func() {
+				// 24 under the last message before the composer, as Meetup's and
+				// Fresha's web chats leave (Mobbin); it scrolls with the messages.
+				ui.List(c.Key("tl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.timelineRow(c, r, rows[i]) }) }).
+					Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S6, 0).TrackScroll(a.scrollState(r.ID)).
+					Selectable(). // one selection over the messages built: a drag crosses them
+					Children(func() {
+						if len(rows) == 0 {
+							emptyNote(c, "No messages yet. Say hi!")
+						}
+					})
+				if !ls.AtEnd() && len(rows) > 0 && !(a.jumpLooking && a.jumpRoom == r.ID) { // the seeking pill takes its place
+					ui.Row(c.Key("jump")).Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-kit.S1).Children(func() {
+						if kit.Button(c, kit.Secondary, "Jump to latest", kit.IconArrowDown).Clicked() {
+							// The list knows where its end is, rows it has not
+							// measured yet included: aiming the scroll at a far
+							// offset instead overshoots and then snaps back.
+							ls.ScrollToEnd()
+						}
+					})
 				}
+				if len(r.Typing) > 0 {
+					kit.TypingOverlay(c, strings.Join(r.Typing, ", ")+" is typing…")
+				}
+				a.seekPill(c, r.ID)
 			})
-			if !ls.AtEnd() && len(rows) > 0 && !(a.jumpLooking && a.jumpRoom == r.ID) { // the seeking pill takes its place
-				ui.Row(c.Key("jump")).Attach(ui.AnchorBottom, ui.AnchorBottom).Top(-kit.S1).Children(func() {
-					if kit.Button(c, kit.Secondary, "Jump to latest", kit.IconArrowDown).Clicked() {
-						// The list knows where its end is, rows it has not
-						// measured yet included: aiming the scroll at a far
-						// offset instead overshoots and then snaps back.
-						ls.ScrollToEnd()
-					}
-				})
+			if a.encryptedWaiting(rows) {
+				a.verifyBanner(c)
 			}
-			if len(r.Typing) > 0 {
-				kit.TypingOverlay(c, strings.Join(r.Typing, ", ")+" is typing…")
-			}
-			a.seekPill(c, r.ID)
-		})
-		if a.encryptedWaiting(rows) {
-			a.verifyBanner(c)
+			a.composer(c, r)
 		}
-		a.composer(c, r)
+		if a.inCall == r.ID {
+			// The page in a box of its own height, as it was when clicks reached
+			// it, and a thin grip under it that moves the height.
+			if a.callHeight <= 0 {
+				a.callHeight = 440
+			}
+			a.callArea(c, r, a.callHeight)
+			a.callGrip(c)
+		}
+		body()
 	})
 	// Files dropped anywhere on the room wait in its composer.
 	if files := col.DroppedFiles(); len(files) > 0 {
@@ -601,7 +616,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 			a.findBar(c) // the same bar as wide windows, under the header
 		}
 		if a.inCall == r.ID {
-			a.callArea(c, r)
+			a.callArea(c, r, 320)
 		}
 		rows := a.rows(r.ID)
 		a.rs = a.receiptStateOf(r.ID)
@@ -613,7 +628,7 @@ func (a *App) phoneRoom(c *ui.Context) {
 		// The messages with the typing bubble floating on their bottom
 		// edge: it takes no room, so nothing above it moves when it comes
 		// and goes.
-		ui.Column(c.Key("ptlarea:"+r.ID)).Grow(1).Children(func() {
+		ui.Column(c.Key("ptlarea:" + r.ID)).Grow(1).Children(func() {
 			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.bubbleRow(c, r, rows, i) }) }).
 				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
 			if len(r.Typing) > 0 && r.Kind == model.KindDM {

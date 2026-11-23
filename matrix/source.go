@@ -56,7 +56,7 @@ type Source struct {
 
 	// callWatch are the call pages listening for a room's events (rtc.go).
 	callMu     sync.Mutex
-	callWatch  map[string]func(json.RawMessage)
+	callWatch  map[string]func(toDevice bool, raw json.RawMessage)
 	callDelays map[string]int64 // a call membership's delayed event → its length in ms
 
 	// keyKick wakes the key watcher when a message arrives locked.
@@ -244,6 +244,9 @@ func (r *room) modelRoom() model.Room {
 		Preview:      r.preview,
 		Typing:       r.typing,
 		ReadOnly:     r.cannotPost,
+	}
+	if n := r.callPeople(); n > 0 {
+		m.Call, m.CallCount = true, n
 	}
 	if r.markedUnread && m.Unread == 0 {
 		m.Unread = 1 // unread by the user's own mark: shown until it is opened
