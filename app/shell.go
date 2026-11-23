@@ -233,14 +233,15 @@ func (a *App) railItems(c *ui.Context, p *kit.Palette) {
 					a.view = viewSettings
 				}
 			}
-			a.meButton(c, 32)
+			a.meButton(c, 32, true)
 		})
 	})
 }
 
-// meButton is the user's avatar: it sets their status; their status emoji
-// sits on its corner.
-func (a *App) meButton(c *ui.Context, size float32) {
+// meButton is the user's avatar: it opens the account menu. With emoji, their
+// status emoji sits on its corner (the Rail's: the other layouts say the status
+// in words beside it, see meNameAndStatus).
+func (a *App) meButton(c *ui.Context, size float32, emoji bool) {
 	me := a.src.Me()
 	tip := me.Name
 	if me.Status.Set(a.now) {
@@ -254,7 +255,7 @@ func (a *App) meButton(c *ui.Context, size float32) {
 		kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
 		b.Children(func() {
 			kit.Avatar(c, a.avatar(me, size))
-			if me.Status.Set(a.now) {
+			if emoji && me.Status.Set(a.now) {
 				ui.Box(c).Attach(ui.AnchorTopRight, ui.AnchorCenter).Top(4).Left(-4).PassThrough().Children(func() {
 					ui.Text(c, me.Status.Emoji).FontSize(12)
 				})
@@ -329,12 +330,38 @@ func (a *App) tabsColumn(c *ui.Context) {
 			ui.Scroll(c.Key("tab" + strconv.Itoa(a.tab))).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.communitiesTab(c) })
 		}
 		ui.Row(c).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Children(func() {
-			a.meButton(c, 28)
-			ui.Text(c, a.src.Me().Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).Grow(1).SingleLine()
+			a.meButton(c, 28, false)
+			a.meNameAndStatus(c)
 			if kit.IconButton(c, kit.Ghost, kit.IconSettings, "Settings").Clicked() {
 				a.view = viewSettings
 			}
 		})
+	})
+}
+
+// meNameAndStatus is the user's name with their status under it, at the foot
+// of the Tabs and One inbox lists. One click on the status edits it (and with
+// none set, "Set a status" asks for one).
+func (a *App) meNameAndStatus(c *ui.Context) {
+	p := kit.Of(c)
+	me := a.src.Me()
+	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+		ui.Text(c, me.Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).SingleLine()
+		b := ui.ButtonBase(c.Key("my-status")).AlignSelf(ui.Start).MaxWidthPercent(100).MarginStart(-kit.S1).PaddingX(kit.S1).
+			Radius(kit.RadiusSm).Justify(ui.Start).AlignItems(ui.Center).Label("Edit your status")
+		if b.Hovered() {
+			b.Background(p.Hover)
+		}
+		b.Children(func() {
+			if me.Status.Set(a.now) {
+				kit.StatusLine(c, status(me.Status), a.now, false)
+			} else {
+				ui.Text(c, "Set a status").FontSize(kit.SizeSmall).TextColor(p.TextFaint).SingleLine()
+			}
+		})
+		if b.Clicked() {
+			a.statusDraft.Edit(status(me.Status))
+		}
 	})
 }
 
@@ -368,8 +395,8 @@ func (a *App) inboxColumn(c *ui.Context, width float32) {
 		a.inboxList(c)
 		if width > 0 {
 			ui.Row(c).Padding(kit.S2, kit.S3).Gap(kit.S2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Children(func() {
-				a.meButton(c, 28)
-				ui.Text(c, a.src.Me().Name).FontSize(kit.SizeSmall).FontWeight(kit.WeightMedium).Grow(1).SingleLine()
+				a.meButton(c, 28, false)
+				a.meNameAndStatus(c)
 				if kit.IconButton(c, kit.Ghost, kit.IconUsers, "People").Clicked() {
 					a.view = viewPeople
 				}
