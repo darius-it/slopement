@@ -779,9 +779,40 @@ func (s *Source) applyDecrypted(snap *rawSnapshot, evtID string, decrypted *even
 	// dispatches one it decrypts on arrival: whatever it turns out to be —
 	// a message, an edit of one, a reaction — is handled as that, and not
 	// shown as a message of its own.
+	//
+	// An event that came back from the cache has no class (it is not in its JSON),
+	// and the handlers are found by type and class: it is a message's, as every
+	// encrypted event of a timeline is, or no handler would ever hear of it.
+	if decrypted.Type.Class == event.UnknownEventType {
+		decrypted.Type.Class = event.MessageEventType
+	}
 	if d, ok := s.cli.Syncer.(mautrix.DispatchableSyncer); ok {
 		d.Dispatch(context.Background(), decrypted)
 	}
+	// What decrypted and that nothing handles (the call's own signalling —
+	// reactions, notifications of another shape — which Element hides too) is
+	// read and not shown: its "waiting for this message" tile goes. It stayed for
+	// good before, and was decrypted again on every pass.
+	room := snap.id
+	s.post(func() { s.dropReadable(room, evtID) })
+}
+
+// dropReadable removes the waiting tile, and the held copy, of an event that has
+// decrypted and that no handler turned into something to show. UI thread.
+func (s *Source) dropReadable(room, id string) {
+	r, ok := s.rooms[room]
+	if !ok {
+		return
+	}
+	if _, held := r.raw[id]; !held {
+		return // a handler took it: its own line replaced the tile
+	}
+	if i := r.indexOf(id); i >= 0 && r.events[i].Kind == model.EventUndecryptable {
+		r.removeAt(i)
+	}
+	delete(r.raw, id)
+	s.encrypted--
+	s.markDirty(room)
 }
 
 // rawSnapshot is one room's still-encrypted events with the names the

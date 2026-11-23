@@ -10,6 +10,10 @@ would notice; when you tag a release, rename that heading to the tag
 
 ### Fixed
 - The release notes in the update dialog now scroll.
+- "Waiting for this message. It will appear when the keys arrive." tiles that
+  were really a call's own signalling (call reactions, ring notices) no longer
+  show up in the chat, and the call's "started a call" line is no longer
+  missed when it was read from the saved cache.
 
 ## v0.2.0-alpha.1
 
