@@ -113,6 +113,9 @@ type Host struct {
 	WidgetID string
 	// OnHangup is called when the widget says the user left the call.
 	OnHangup func()
+	// OnMute is told when the page's microphone or camera is turned on or off
+	// (nil: not reported), by the user in the page or in answer to SetMute.
+	OnMute func(audio, video *bool)
 	// Logf, when set, is told of what was refused (a debug aid).
 	Logf func(format string, args ...any)
 	be   Backend
@@ -134,6 +137,35 @@ func (h *Host) Granted() []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return append([]string(nil), h.granted...)
+}
+
+// SetMute asks the widget to turn its microphone and/or camera on or off (nil:
+// leave as it is). Post the result to it. The widget answers with how things
+// are, which reaches OnMute.
+func (h *Host) SetMute(audio, video *bool) []byte {
+	data := map[string]any{}
+	if audio != nil {
+		data["audio_enabled"] = *audio
+	}
+	if video != nil {
+		data["video_enabled"] = *video
+	}
+	return h.ask("io.element.device_mute", data)
+}
+
+// muteChanged reports the page's microphone and camera state ({audio_enabled,
+// video_enabled}; a missing one is unchanged).
+func (h *Host) muteChanged(data json.RawMessage) {
+	if h.OnMute == nil {
+		return
+	}
+	var d struct {
+		Audio *bool `json:"audio_enabled"`
+		Video *bool `json:"video_enabled"`
+	}
+	if json.Unmarshal(data, &d) == nil && (d.Audio != nil || d.Video != nil) {
+		h.OnMute(d.Audio, d.Video)
+	}
 }
 
 // Hangup is the message that asks the widget to leave the call: it removes the
@@ -220,8 +252,11 @@ func (h *Host) request(ctx context.Context, m Message) [][]byte {
 		if h.OnHangup != nil {
 			h.OnHangup()
 		}
+	case "io.element.device_mute": // the page tells whether its microphone and camera are on
+		resp = map[string]any{}
+		h.muteChanged(m.Data)
 	case "set_always_on_screen", "org.matrix.msc2931.navigate", "close_modal", "set_button_enabled",
-		"io.element.device_mute", "io.element.join", "io.element.tile_layout":
+		"io.element.join", "io.element.tile_layout":
 		resp = map[string]any{}
 	default:
 		err = errString("unsupported action " + m.Action)
@@ -278,6 +313,10 @@ func (h *Host) answered(m Message) [][]byte {
 	action, ok := h.pending[m.RequestID]
 	delete(h.pending, m.RequestID)
 	h.mu.Unlock()
+	if ok && action == "io.element.device_mute" { // our request's answer: how things are now
+		h.muteChanged(m.Response)
+		return nil
+	}
 	if !ok || action != "capabilities" {
 		return nil
 	}

@@ -88,6 +88,7 @@ func (a *App) startCall(r model.Room) bool {
 	}
 	sess := &callSession{room: r.ID, status: "Checking what your server offers…"}
 	a.callSess, a.inCall, a.call = sess, r.ID, kit.NewCall()
+	a.call.NoShare = true // the page's own screen sharing is the one that works
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -124,6 +125,7 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 		host.Logf = func(f string, args ...any) { log.Printf("call: "+f, args...) }
 	}
 	host.OnHangup = func() { a.runUI(func() { a.endCall(sess) }) } // the page has left: close it
+	host.OnMute = func(audio, video *bool) { a.runUI(func() { a.callMuteSeen(sess, audio, video) }) }
 	sess.host = host
 	activeCall.Store(sess)
 
@@ -138,15 +140,19 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 	// The call page may use the camera, the microphone and the screen; nothing
 	// else (no location, no notifications).
 	wv.Page().SetPermissionHandler(func(req mygo.PermissionRequest) bool {
-		if req.Origin != callOrigin {
-			return false
-		}
+		// The call page (the iframe) asks, and so may our host page around it
+		// when the system re-asks for what the frame holds (a microphone turned
+		// back on): both are ours to answer.
+		ok := req.Origin == callOrigin || req.Origin == callHostOrigin
 		for _, p := range req.Permissions {
 			if p == mygo.PermissionGeolocation || p == mygo.PermissionNotifications {
-				return false
+				ok = false
 			}
 		}
-		return true
+		if os.Getenv("SLOPEMENT_DEBUG") != "" {
+			log.Printf("call: permission %v asked by %s → %v", req.Permissions, req.Origin, ok)
+		}
+		return ok
 	})
 	sess.wv = wv
 	sess.status = "Joining…"
@@ -295,24 +301,39 @@ func (a *App) endCall(sess *callSession) {
 	a.callSess, a.inCall = nil, ""
 }
 
-// callMedia applies the call bar's microphone and camera to the page.
+// callMedia applies the call bar's microphone and camera to the page: by the
+// widget API's device-mute request, which the page honours as if its own
+// buttons were pressed (muting the web view's capture from outside leaves the
+// page believing it is still on).
 func (a *App) callMedia(before kit.CallState) {
 	s := a.callSess
-	if s == nil || s.wv == nil {
+	if s == nil || s.wv == nil || s.host == nil || !s.host.Ready() {
 		return
 	}
-	set := func(k mygo.CaptureKind, on bool) {
-		st := mygo.CaptureMuted
-		if on {
-			st = mygo.CaptureActive
-		}
-		s.wv.Page().SetCaptureState(k, st)
-	}
+	var audio, video *bool
 	if before.Mic != a.call.Mic {
-		set(mygo.CaptureMicrophone, a.call.Mic)
+		audio = &a.call.Mic
 	}
 	if before.Camera != a.call.Camera {
-		set(mygo.CaptureCamera, a.call.Camera)
+		video = &a.call.Camera
+	}
+	if audio == nil && video == nil {
+		return
+	}
+	_ = callToWidget.EmitPage(s.wv.Page(), string(s.host.SetMute(audio, video)))
+}
+
+// callMuteSeen takes what the page says about its microphone and camera (its
+// own buttons, or its answer to ours) into the bar, so the bar shows the truth.
+func (a *App) callMuteSeen(sess *callSession, audio, video *bool) {
+	if a.callSess != sess {
+		return
+	}
+	if audio != nil {
+		a.call.Mic = *audio
+	}
+	if video != nil {
+		a.call.Camera = *video
 	}
 }
 

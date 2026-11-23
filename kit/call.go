@@ -6,6 +6,9 @@ import "github.com/egoist/mygo/ui"
 // and the microphone on: one kind of call, the camera a toggle.
 type CallState struct {
 	Mic, Camera, Screen bool
+	// NoShare hides the bar's screen sharing: the call page has its own, which
+	// a host cannot press for it.
+	NoShare bool
 }
 
 // NewCall returns the state a call starts in.
@@ -36,7 +39,7 @@ func CallBar(c *ui.Context, st *CallState) (a CallAction) {
 		if RoundButton(c, cam, camLabel, st.Camera, false).Clicked() {
 			st.Camera = !st.Camera
 		}
-		if !Touch(c) {
+		if !Touch(c) && !st.NoShare {
 			lbl := "Share screen"
 			if st.Screen {
 				lbl = "Stop sharing"

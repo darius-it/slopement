@@ -37,6 +37,31 @@ func (f *fakeBackend) LiveKitDelayedLeave(context.Context, json.RawMessage) (any
 	return map[string]any{}, nil
 }
 
+// The bar's microphone and camera go to the page as device-mute requests (only
+// what changed), and what the page says — pressed in the page, or in answer —
+// reaches OnMute.
+func TestDeviceMuteBothWays(t *testing.T) {
+	h := NewHost("w", &fakeBackend{})
+	off := false
+	m := msg(t, h.SetMute(&off, nil))
+	if m.Action != "io.element.device_mute" || string(m.Data) != `{"audio_enabled":false}` {
+		t.Fatalf("request %+v %s", m, m.Data)
+	}
+	var gotA, gotV *bool
+	h.OnMute = func(a, v *bool) { gotA, gotV = a, v }
+	// The page's own button.
+	h.Handle(context.Background(), from("io.element.device_mute", "5", `{"audio_enabled":true,"video_enabled":false}`))
+	if gotA == nil || !*gotA || gotV == nil || *gotV {
+		t.Fatalf("from the page: %v %v", gotA, gotV)
+	}
+	// The answer to our request.
+	gotA, gotV = nil, nil
+	h.Handle(context.Background(), []byte(`{"api":"toWidget","requestId":"`+m.RequestID+`","action":"io.element.device_mute","widgetId":"w","response":{"audio_enabled":false,"video_enabled":true}}`))
+	if gotA == nil || *gotA || gotV == nil || !*gotV {
+		t.Fatalf("answer: %v %v", gotA, gotV)
+	}
+}
+
 // Hanging up asks the widget to leave (so it removes the user's membership),
 // and the widget saying it has left reaches OnHangup.
 func TestHangupAsksTheWidgetToLeave(t *testing.T) {
