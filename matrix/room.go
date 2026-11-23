@@ -88,6 +88,11 @@ type room struct {
 	backBusy bool
 	keep     int
 
+	// memberList is who is joined, by name, once fetched (members.go);
+	// membersAsked says this run has asked (a join or a leave resets it).
+	memberList   []model.Person
+	membersAsked bool
+
 	// nameSet: name is one somebody gave the room (an m.room.name, or the
 	// user's rename). A DM without one is called by its partner's display
 	// name as it is now (Source.dmName), not as it was when the chat was first seen.

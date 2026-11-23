@@ -41,10 +41,12 @@ func (a *App) sidePanel(c *ui.Context) {
 			a.threadPanel(c, r)
 			return
 		}
+		if a.panel == panelMembers { // a long list: only the rows in view are built
+			a.membersPanel(c, r)
+			return
+		}
 		ui.Scroll(c.Key("panel:" + r.ID)).Grow(1).Padding(kit.S3).Gap(kit.S3).Children(func() {
 			switch a.panel {
-			case panelMembers:
-				a.members(c, r)
 			case panelPins:
 				a.pinsPanel(c, r)
 			default:
@@ -190,35 +192,76 @@ func switchRow(c *ui.Context, title, sub string, on *bool) (changed bool) {
 	return *on != was
 }
 
-// members lists who is in the room (the mock: everyone known).
-func (a *App) members(c *ui.Context, r model.Room) {
-	p := kit.Of(c)
-	list := []model.Person{a.src.Me()}
-	if r.Kind == model.KindDM {
-		pp, _ := a.person(r.Partner)
-		list = append(list, pp)
+// roomMembers are the people in a room, in an order that stays put: the
+// source's (by name; the server's own list, fetched once), else — a source
+// that cannot list them — the user and, in a chat with one person, that person.
+func (a *App) roomMembers(r model.Room) []model.Person {
+	var list []model.Person
+	if rm, ok := a.src.(model.RoomMembers); ok {
+		list = append(list, rm.RoomMembers(r.ID)...)
 	} else {
-		list = append(list, a.src.People()...)
+		list = []model.Person{a.src.Me()}
+		if r.Kind == model.KindDM {
+			pp, _ := a.src.Person(r.Partner)
+			list = append(list, pp)
+		}
 	}
-	ui.Text(c, strconv.Itoa(r.Members)+" members").FontSize(kit.SizeCaption).FontWeight(kit.WeightSemibold).TextColor(p.TextMuted)
-	for _, ps := range list {
-		b := ui.ButtonBase(c.Key("m:" + ps.ID)).Height(40).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
-			Justify(ui.Start).Label(ps.Name)
-		if b.Hovered() {
-			b.Background(p.Hover)
+	for i := range list {
+		list[i].Name = a.nameFor(list[i].ID, list[i].Name) // nickname or username, as chosen
+	}
+	return list
+}
+
+// membersPanel is the side panel's list of the room's people: a count, then
+// one row each, only those in view built.
+func (a *App) membersPanel(c *ui.Context, r model.Room) {
+	p := kit.Of(c)
+	list := a.roomMembers(r)
+	count := r.Members
+	if count == 0 || len(list) > count {
+		count = len(list)
+	}
+	if a.membersRoom != r.ID {
+		a.membersRoom, a.membersLS = r.ID, ui.ListState{} // each room starts at its top
+	}
+	ls := &a.membersLS
+	ls.Key = func(i int) any {
+		if i < len(list) {
+			return list[i].ID
 		}
-		b.Children(func() {
-			kit.Avatar(c, a.avatar(ps, 28))
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, ps.Name).FontSize(kit.SizeBody).TextColor(a.colors.Color(p, ps.ID)).SingleLine()
-				if ps.Status.Set(a.now) {
-					kit.StatusLine(c, status(ps.Status), a.now, false)
-				}
-			})
+		return i
+	}
+	ui.Text(c, strconv.Itoa(count)+" members").FontSize(kit.SizeCaption).FontWeight(kit.WeightSemibold).TextColor(p.TextMuted).
+		Padding(kit.S3, kit.S3, kit.S1, kit.S3)
+	ui.List(c.Key("members:"+r.ID), ls, len(list), func(i int) {
+		if i < len(list) {
+			a.memberRow(c, list[i])
+		}
+	}).Grow(1).PaddingX(kit.S3).Gap(1)
+	if len(list) == 0 {
+		ui.Text(c, "Loading…").FontSize(kit.SizeSmall).TextColor(p.TextMuted).Padding(kit.S3)
+	}
+}
+
+// memberRow is one person of the room: their picture, name and status.
+func (a *App) memberRow(c *ui.Context, ps model.Person) {
+	p := kit.Of(c)
+	b := ui.ButtonBase(c.Key("m:" + ps.ID)).Height(40).PaddingX(kit.S2).Gap(kit.S2).Radius(kit.RadiusSm).AlignItems(ui.Center).
+		Justify(ui.Start).Label(ps.Name)
+	if b.Hovered() {
+		b.Background(p.Hover)
+	}
+	b.Children(func() {
+		kit.Avatar(c, a.avatar(ps, 28))
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, ps.Name).FontSize(kit.SizeBody).TextColor(a.colors.Color(p, ps.ID)).SingleLine()
+			if ps.Status.Set(a.now) {
+				kit.StatusLine(c, status(ps.Status), a.now, false)
+			}
 		})
-		if b.Clicked() && ps.ID != a.src.Me().ID {
-			a.profileOpen, a.profileSheet.Open = ps.ID, true
-		}
+	})
+	if b.Clicked() && ps.ID != a.src.Me().ID {
+		a.profileOpen, a.profileSheet.Open = ps.ID, true
 	}
 }
 

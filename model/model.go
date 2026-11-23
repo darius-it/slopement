@@ -379,6 +379,13 @@ type DMCreator interface {
 	OpenDMAsync(person string, done func(room string))
 }
 
+// RoomMembers is what a Source may offer: who is joined to a room, in an order
+// that stays put (by name). It answers with what is known at once and fills in
+// as the server's list arrives (the source reports the change).
+type RoomMembers interface {
+	RoomMembers(room string) []Person
+}
+
 // CustomReactor is what a Source may offer: reacting with a custom emoji, an
 // image of the media repo (mxc://) that a pack names, with its shortcode.
 type CustomReactor interface {

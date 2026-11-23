@@ -91,7 +91,9 @@ type App struct {
 	fc               frameCache                          // what this frame built from the lists (framecache.go)
 	sc               srcCache                            // the source's lists, kept while it does not change
 	srcGen           uint64                              // counts the source's changes
-	inboxLS          ui.ListState                        // One inbox's scroll
+	membersLS        ui.ListState                        // the Members panel's scroll (panels.go)
+	membersRoom      string                              // whose it is
+	inboxLS          ui.ListState                       // One inbox's scroll
 	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
 	noteEd           noteEditor                          // a person's private nickname and note (notes.go)
 	updCheck         bool                               // the switch "Check for updates at startup"

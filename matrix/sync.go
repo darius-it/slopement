@@ -469,6 +469,7 @@ func (s *Source) onMember(ctx context.Context, evt *event.Event) {
 			s.people[who] = &model.Person{ID: who, Name: name, Avatar: string(c.AvatarURL), Contact: true}
 		}
 		r := s.roomOf(evt.RoomID.String())
+		r.membersAsked = false // the member list is fetched again when it is next shown
 		if !r.hasSummary { // with the server's count, the events only repeat it
 			switch c.Membership {
 			case event.MembershipJoin:
