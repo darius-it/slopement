@@ -53,6 +53,11 @@ func (a *App) navTrack() {
 	if n.stops[n.at] == h {
 		return
 	}
+	// A new place that shows a chat — Chats from a space, back from Settings or
+	// People, a room — puts the keyboard in that chat's composer (not on phones).
+	if h.view == viewRoom && h.room != "" {
+		a.focusRoom = h.room
+	}
 	n.stops = append(n.stops[:n.at+1], h)
 	n.at++
 	if len(n.stops) > navMax {

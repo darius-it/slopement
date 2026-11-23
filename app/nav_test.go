@@ -93,6 +93,42 @@ func TestTopBarArrows(t *testing.T) {
 	snap(t, "app-toparrows", tt)
 }
 
+// Coming back to a chat from a space (Chats on the rail), or from Settings,
+// asks for the keyboard in that chat's composer.
+func TestReturningToAChatFocusesItsComposer(t *testing.T) {
+	a, tt := navApp(t)
+	a.open("!crit")
+	settle(tt)
+	cms := a.communities()
+	if len(cms) == 0 {
+		t.Skip("needs a community")
+	}
+	a.community = cms[0].ID // into a space
+	settle(tt)
+	a.focusRoom = ""
+	a.community = "" // Chats again: the last open chat shows
+	a.navTrack()
+	if a.focusRoom != "!crit" {
+		t.Fatalf("no focus asked for the chat after leaving the space: %q", a.focusRoom)
+	}
+
+	a.view = viewSettings
+	settle(tt)
+	a.focusRoom = ""
+	a.view = viewRoom
+	a.navTrack()
+	if a.focusRoom != "!crit" {
+		t.Fatalf("no focus asked for the chat after Settings: %q", a.focusRoom)
+	}
+	// Typed now, it goes to the composer.
+	settle(tt)
+	tt.Type("hi")
+	settle(tt)
+	if got := a.draft("!crit").Text; got != "hi" {
+		t.Fatalf("the draft is %q", got)
+	}
+}
+
 // A room that is gone is passed over, and the ends of the history do nothing.
 func TestBackSkipsGoneRooms(t *testing.T) {
 	a, tt := navApp(t)
