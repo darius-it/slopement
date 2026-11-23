@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"maunium.net/go/mautrix"
@@ -47,13 +46,7 @@ func (s *Source) LoadOlderBy(room string, n int) {
 	if !ok || r.backDone || r.backBusy {
 		return
 	}
-	oldest := ""
-	for _, e := range r.events {
-		if !strings.HasPrefix(e.ID, localPrefix) {
-			oldest = e.ID
-			break
-		}
-	}
+	oldest := r.oldestServerID()
 	if oldest == "" && r.back == "" {
 		return
 	}

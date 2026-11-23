@@ -129,6 +129,54 @@ func TestCallEndedLineHasItsLength(t *testing.T) {
 	}
 }
 
+// Older history is paged from the oldest event the server gave the room, never
+// from a line the app made itself ("The call ended"): with such a line at the
+// top, paging asked the server about an event that does not exist and stalled.
+func TestHistoryPagesFromARealEventNotACallLine(t *testing.T) {
+	s, _ := testSynced()
+	r := s.roomOf("!r")
+	now := time.Now()
+	r.events = []model.Event{
+		{ID: linePrefix + "call-ended:!r:1", Room: "!r", Time: now.Add(-3 * time.Hour), Kind: model.EventSystem},
+		{ID: "$real1", Room: "!r", Time: now.Add(-2 * time.Hour)},
+		{ID: "$real2", Room: "!r", Time: now.Add(-1 * time.Hour)},
+	}
+	if got := r.oldestServerID(); got != "$real1" {
+		t.Fatalf("history would be paged from %q, want $real1", got)
+	}
+	// Only lines of the app's own: nothing to page from.
+	r.events = r.events[:1]
+	if got := r.oldestServerID(); got != "" {
+		t.Fatalf("paged from %q with only an app line held", got)
+	}
+}
+
+// The call line stays in the cache, an unsent message does not; and a line an
+// earlier build kept under its old ID becomes the app's own on load.
+func TestCallLinesAreCachedAndOldOnesFixed(t *testing.T) {
+	s, _ := testSynced()
+	r := s.roomOf("!r")
+	now := time.Now()
+	r.events = []model.Event{
+		{ID: linePrefix + "call-ended:!r:1", Room: "!r", Time: now, Kind: model.EventSystem, Body: "The call ended"},
+		{ID: localPrefix + "txn", Room: "!r", Time: now, Body: "not sent"},
+	}
+	rec := r.record()
+	if len(rec.Events) != 1 || rec.Events[0].Body != "The call ended" {
+		t.Fatalf("cached events: %+v", rec.Events)
+	}
+	rec.Events = append(rec.Events, model.Event{ID: "call-ended:!r:0", Room: "!r", Time: now.Add(-time.Hour), Kind: model.EventSystem})
+	back := rec.room()
+	for _, e := range back.events {
+		if e.ID == "call-ended:!r:0" {
+			t.Fatal("an old-style call line kept its server-looking ID")
+		}
+	}
+	if got := back.oldestServerID(); got != "" {
+		t.Fatalf("paging would start from %q", got)
+	}
+}
+
 // A call notification that waited for its key shows as "waiting for this
 // message"; when it decrypts it becomes "<who> started a call", and the lock
 // tile and its raw copy are gone.

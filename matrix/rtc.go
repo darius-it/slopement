@@ -537,7 +537,7 @@ func (s *Source) noteCallMember(evt *event.Event) {
 			}
 			r.callStart = time.Time{}
 			if fromTimeline {
-				r.appendEvent(model.Event{ID: "call-ended:" + room + ":" + strconv.FormatInt(ts.UnixMilli(), 10), Room: room, Sender: who,
+				r.appendEvent(model.Event{ID: linePrefix + "call-ended:" + room + ":" + strconv.FormatInt(ts.UnixMilli(), 10), Room: room, Sender: who,
 					Time: ts, Kind: model.EventSystem, Body: "The call ended", Call: &model.CallLine{Ended: true, Duration: length}}, "", false)
 			}
 		}

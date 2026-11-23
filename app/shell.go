@@ -64,6 +64,9 @@ func (a *App) desktop(c *ui.Context) {
 			}
 		}
 		a.main(c, false)
+		if a.nav.Resolve(false) == kit.NavRail {
+			a.statusBubble(c) // last: it floats over the lower left
+		}
 	})
 }
 
@@ -254,12 +257,15 @@ func (a *App) meButton(c *ui.Context, size float32, emoji bool) {
 	// Built in the quiet menu theme: the menu it opens highlights its rows
 	// in the hover gray, not the accent fill, which drowned the account
 	// rows' pictures and Log out buttons.
+	bubble := emoji && a.prefs.statusBubble && me.Status.Set(a.now) // the status in a bubble beside the picture
 	ui.Themed(c, kit.QuietMenuTheme(c)).Background(ui.Transparent).Shrink(0).Children(func() {
 		b := ui.ButtonBase(c.Key("me")).Radius(kit.RadiusFull).Label("Account menu")
-		kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
+		if !bubble {
+			kit.SideTooltip(c, b, tip) // the rail's bottom: beside it, to the right
+		}
 		b.Children(func() {
 			kit.Avatar(c, a.avatar(me, size))
-			if emoji && me.Status.Set(a.now) {
+			if emoji && !bubble && me.Status.Set(a.now) {
 				ui.Box(c).Attach(ui.AnchorTopRight, ui.AnchorCenter).Top(4).Left(-4).PassThrough().Children(func() {
 					ui.Text(c, me.Status.Emoji).FontSize(12)
 				})
@@ -268,6 +274,34 @@ func (a *App) meButton(c *ui.Context, size float32, emoji bool) {
 		// A press opens the account menu: status, profile, switching accounts.
 		kit.MenuButton(c, b, a.meMenu)
 	})
+}
+
+// statusBubble is the user's status as a speech bubble beside their picture, at
+// the foot of the rail: the emoji and the words, kept there, and a press edits
+// it (Settings → Appearance turns it on). It floats over the window's lower left
+// (absolute, so the narrow rail does not clip it); the caller builds it last,
+// so it sits over what is beside the rail.
+func (a *App) statusBubble(c *ui.Context) {
+	me := a.src.Me()
+	if !a.prefs.statusBubble || !me.Status.Set(a.now) {
+		return
+	}
+	p := kit.Of(c)
+	bub := ui.ButtonBase(c.Key("my-status-bubble")).Absolute().Left(kit.RailWidth-6).Bottom(kit.S3+2).
+		MaxWidth(240).Padding(kit.S1+2, kit.S2+2).Gap(kit.S1).Radius(kit.RadiusLg).AlignItems(ui.Center).
+		Background(p.Raised).Border(1, p.Border).Label("Edit your status")
+	if bub.Hovered() {
+		bub.Background(p.Hover)
+	}
+	bub.Children(func() {
+		if me.Status.Emoji != "" {
+			ui.Text(c, me.Status.Emoji).FontSize(kit.SizeBody)
+		}
+		ui.Text(c, me.Status.Text).FontSize(kit.SizeSmall).TextColor(p.Text).SingleLine().Shrink(1)
+	})
+	if bub.Clicked() {
+		a.statusDraft.Edit(status(me.Status))
+	}
 }
 
 // communityCounts sums a community's rooms.

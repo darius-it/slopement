@@ -71,7 +71,7 @@ func (r *room) record() roomRecord {
 		events = events[len(events)-timelineCap:] // the cache holds the newest; history is paged back in
 	}
 	for _, e := range events {
-		if strings.HasPrefix(e.ID, localPrefix) {
+		if strings.HasPrefix(e.ID, localPrefix) && !strings.HasPrefix(e.ID, linePrefix) {
 			continue // not sent yet: it dies with the process
 		}
 		rec.Events = append(rec.Events, e)
@@ -96,6 +96,14 @@ func (r *room) record() roomRecord {
 }
 
 func (rec roomRecord) room() *room {
+	// "The call ended" lines kept by an earlier build have an ID that looks like
+	// a server's, and history paged from it and found nothing: they are the
+	// app's own lines (linePrefix).
+	for i := range rec.Events {
+		if id := rec.Events[i].ID; strings.HasPrefix(id, "call-ended:") {
+			rec.Events[i].ID = linePrefix + id
+		}
+	}
 	r := &room{
 		id: rec.ID, name: rec.Name, topic: rec.Topic, alias: rec.Alias, avatar: rec.Avatar, partner: rec.Partner,
 		dm: rec.DM, encrypted: rec.Encrypted, space: rec.Space, members: rec.Members, hasSummary: rec.HasSummary,

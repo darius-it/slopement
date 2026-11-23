@@ -35,6 +35,10 @@ would notice; when you tag a release, rename that heading to the tag
   unavailable ones, and reset all favorites to start over.
 - **Notes to self:** a chat with yourself now has a name, and works.
 
+- **Settings → Appearance → Your status:** in the Rail layout, show your status
+  as a bubble beside your picture with its emoji and words, always; a click on
+  it edits the status.
+
 ### Changed
 - Favorite GIFs imported from Discord are copied to your device while their
   links still work (Discord's links expire after a day). Importing again no
@@ -43,6 +47,8 @@ would notice; when you tag a release, rename that heading to the tag
 ### Fixed
 - Discord GIF favorites showing "unavailable" the day after importing them.
 - A call that stayed in the chat as "waiting for this message".
+- Older messages would not load in a chat that had "The call ended" lines at its
+  top.
 
 ## v0.1.0-alpha.5
 

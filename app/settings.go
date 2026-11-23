@@ -54,6 +54,9 @@ type settingsPrefs struct {
 	// callsAccepted: the user agreed to the call page loading from Element's
 	// server (asked once, before the first call; Settings → Calls takes it back).
 	callsAccepted bool
+	// statusBubble: in the Rail layout the user's status shows beside their
+	// picture as a bubble with its words, always, and a press edits it.
+	statusBubble bool
 }
 
 // uiSizes are the interface sizes to choose from: the window's zoom.
@@ -244,6 +247,9 @@ func (a *App) settingsPage(c *ui.Context) {
 		})
 		group(c, "Names", "People are shown by their display name, as in other Matrix clients. Turn this on to show usernames instead (\"ada\" for @ada:example.org) in the chat list, chats, replies and People.", func() {
 			switchRow(c, "Show usernames instead of display names", "", &a.prefs.usernames)
+		})
+		group(c, "Your status", "In the Rail layout your status is a small emoji on your picture. Turn this on to show it as a speech bubble beside your picture with its words, always; a press on the bubble edits it. The other layouts show it under your name already.", func() {
+			switchRow(c, "Show my status as a bubble with its text", "", &a.prefs.statusBubble)
 		})
 		group(c, "Switching", "Moving between Chats and communities.", func() {
 			switchRow(c, "Jump to last chat on tab switch", "Reopen the chat you had open there, instead of an empty \"Select a chat\" pane", &a.prefs.jumpLast)

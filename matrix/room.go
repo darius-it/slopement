@@ -203,6 +203,23 @@ func (r *room) insertOlder(e model.Event) {
 // has given it one.
 const localPrefix = "~local-"
 
+// linePrefix marks a line the app makes itself ("The call ended"): not an event
+// of the server's, so it is never a place to page history from, to read up to
+// or to search — yet it is kept in the cache, unlike a message not sent yet.
+const linePrefix = localPrefix + "line-"
+
+// oldestServerID is the ID of the oldest event the server gave the room that
+// the app holds: where older history is paged from. Lines the app made itself
+// and messages not sent yet are not events the server could page from.
+func (r *room) oldestServerID() string {
+	for _, e := range r.events {
+		if !strings.HasPrefix(e.ID, localPrefix) {
+			return e.ID
+		}
+	}
+	return ""
+}
+
 // settleLocal gives a sent message the server's ID. If the sync's echo
 // got here first, the echo is the event and the local copy goes.
 func (r *room) settleLocal(local, real string) {
