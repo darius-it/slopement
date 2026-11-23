@@ -415,6 +415,9 @@ func (s *Source) onMutes(ctx context.Context, evt *event.Event) {
 
 // ---- Direct messages --------------------------------------------------
 
+// selfChatName is what a chat with oneself is called.
+const selfChatName = "Notes to self"
+
 // OpenDM returns the DM with someone, when there is one already. Without,
 // it returns "" and OpenDMAsync is the way to make one.
 func (s *Source) OpenDM(person string) string {
@@ -458,7 +461,7 @@ func (s *Source) OpenDMAsync(person string, done func(room string)) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		resp, err := s.cli.CreateRoom(ctx, &mautrix.ReqCreateRoom{
+		req := &mautrix.ReqCreateRoom{
 			Invite:   []id.UserID{id.UserID(person)},
 			IsDirect: true,
 			Preset:   "trusted_private_chat",
@@ -466,7 +469,12 @@ func (s *Source) OpenDMAsync(person string, done func(room string)) {
 				Type:    event.StateEncryption,
 				Content: event.Content{Parsed: &event.EncryptionEventContent{Algorithm: id.AlgorithmMegolmV1}},
 			}},
-		})
+		}
+		if person == s.me.ID { // a chat with oneself has nobody to invite, and a name of its own
+			req.Invite = nil
+			req.Name = selfChatName
+		}
+		resp, err := s.cli.CreateRoom(ctx, req)
 		if err != nil {
 			s.post(func() { finish("") })
 			return

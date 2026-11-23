@@ -6,6 +6,27 @@ import (
 	"slopement/model"
 )
 
+// A chat with oneself is "Notes to self", not a nameless "?"; a chat whose
+// partner has no profile yet shows their username.
+func TestSelfChatAndUnknownPartnerHaveNames(t *testing.T) {
+	s, _ := testSynced()
+	s.me.ID = "@me:example.org"
+	r := s.roomOf("!self")
+	r.dm, r.partner = true, "@me:example.org" // no name at all, as a chat made with oneself
+	if got, _ := s.Room("!self"); got.Name != selfChatName {
+		t.Fatalf("self chat is %q", got.Name)
+	}
+	u := s.roomOf("!new")
+	u.dm, u.partner = true, "@ada:example.org"
+	if got, _ := s.Room("!new"); got.Name != "ada" {
+		t.Fatalf("a partner with no profile is %q, want their username", got.Name)
+	}
+	r.name, r.nameSet = "My notes", true
+	if got, _ := s.Room("!self"); got.Name != "My notes" {
+		t.Fatalf("a chosen name was replaced: %q", got.Name)
+	}
+}
+
 // A chat with one person is called by their display name as it is now. It was
 // stored with the name known when the chat was first seen — the username, when
 // the profile had not arrived — and stayed "kf" though the person is KaiFireborn.

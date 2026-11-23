@@ -402,6 +402,12 @@ type CallHoster interface {
 	WatchCall(room string, fn func(raw json.RawMessage)) (stop func())
 }
 
+// CallCleaner is what a Source may offer to end a call that was left badly:
+// the user's call memberships in a room are removed, and how many is said.
+type CallCleaner interface {
+	ClearCallMembership(ctx context.Context, room string, thisDeviceOnly bool) (int, error)
+}
+
 // CallIdentity is who a call page runs as.
 type CallIdentity struct{ UserID, DeviceID, BaseURL string }
 

@@ -6,7 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"html"
+	"log"
 	"net/url"
+	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -33,12 +36,13 @@ const (
 
 // callSession is the call the user is in (or starting).
 type callSession struct {
-	room   string
-	status string // what is going on, while there is no page yet
-	err    string // why it could not start
-	wv     *mygo.WebView
-	host   *calls.Host
-	stop   func() // ends the room watch
+	room    string
+	status  string // what is going on, while there is no page yet
+	err     string // why it could not start
+	leaving bool   // hung up: waiting for the page to leave the call
+	wv      *mygo.WebView
+	host    *calls.Host
+	stop    func() // ends the room watch
 }
 
 // activeCall is the session CallBridge talks for: one call at a time.
@@ -61,6 +65,11 @@ func (CallBridge) Post(ctx context.Context, msg string) []string {
 	var out []string
 	for _, m := range s.host.Handle(ctx, []byte(msg)) {
 		out = append(out, string(m))
+	}
+	if os.Getenv("SLOPEMENT_DEBUG") != "" { // what the call page asked, and whether we answered with an error
+		var m struct{ Action string }
+		_ = json.Unmarshal([]byte(msg), &m)
+		log.Printf("call: widget → %s (%d replies%s)", m.Action, len(out), errNote(out))
 	}
 	return out
 }
@@ -111,7 +120,10 @@ func (a *App) launchCall(sess *callSession, hoster model.CallHoster, r model.Roo
 	widgetID := "slopement-" + randomHex(6)
 	id := hoster.CallIdentity()
 	host := calls.NewHost(widgetID, hoster.CallBackend(r.ID))
-	host.OnHangup = func() { a.runUI(func() { a.leaveCall(sess) }) }
+	if os.Getenv("SLOPEMENT_DEBUG") != "" {
+		host.Logf = func(f string, args ...any) { log.Printf("call: "+f, args...) }
+	}
+	host.OnHangup = func() { a.runUI(func() { a.endCall(sess) }) } // the page has left: close it
 	sess.host = host
 	activeCall.Store(sess)
 
@@ -231,8 +243,33 @@ func (a *App) realCallArea(c *ui.Context, s *callSession) {
 	})
 }
 
-// leaveCall ends the session: the page goes, the room watch stops.
+// leaveGrace is how long the page gets to leave the call by itself before it
+// is closed anyway.
+const leaveGrace = 4 * time.Second
+
+// leaveCall hangs up: the page is asked to leave the call (so the others see
+// the user go at once, not when a timer runs out), and closed when it says it
+// has, or after leaveGrace. Without a page it ends at once.
 func (a *App) leaveCall(sess *callSession) {
+	if sess == nil || a.callSess != sess {
+		return
+	}
+	if sess.wv == nil || sess.host == nil || !sess.host.Ready() {
+		a.endCall(sess)
+		return
+	}
+	if sess.leaving {
+		return
+	}
+	sess.leaving = true
+	sess.status = "Leaving…"
+	_ = callToWidget.EmitPage(sess.wv.Page(), string(sess.host.Hangup()))
+	run := a.runUI
+	time.AfterFunc(leaveGrace, func() { run(func() { a.endCall(sess) }) })
+}
+
+// endCall ends the session: the page goes, the room watch stops.
+func (a *App) endCall(sess *callSession) {
 	if sess == nil || a.callSess != sess {
 		return
 	}
@@ -244,6 +281,16 @@ func (a *App) leaveCall(sess *callSession) {
 	}
 	if sess.wv != nil {
 		sess.wv.Destroy()
+		// Whatever the page did or did not do on its way out, this device's
+		// membership in the call ends now: a call must not outlive its window.
+		if cc, ok := a.src.(model.CallCleaner); ok {
+			room := sess.room
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				defer cancel()
+				_, _ = cc.ClearCallMembership(ctx, room, true)
+			}()
+		}
 	}
 	a.callSess, a.inCall = nil, ""
 }
@@ -267,6 +314,16 @@ func (a *App) callMedia(before kit.CallState) {
 	if before.Camera != a.call.Camera {
 		set(mygo.CaptureCamera, a.call.Camera)
 	}
+}
+
+// errNote says, for the debug log, that a reply carried an error.
+func errNote(replies []string) string {
+	for _, r := range replies {
+		if strings.Contains(r, `"error":{"message":`) {
+			return ", ERROR: " + r
+		}
+	}
+	return ""
 }
 
 func randomHex(n int) string {

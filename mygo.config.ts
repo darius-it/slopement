@@ -57,6 +57,21 @@ export default defineConfig({
       NSCameraUsageDescription: "slopement uses the camera when you turn it on in a call.",
     },
   },
+  // iPhone: calls need these, or iOS ends the app when a call asks for them.
+  // Set `team` to your Apple developer team ID (ios: { team: "ABCDE12345", … })
+  // to build for a device or TestFlight.
+  ios: {
+    infoPlist: {
+      NSMicrophoneUsageDescription: "slopement uses the microphone in calls.",
+      NSCameraUsageDescription: "slopement uses the camera when you turn it on in a call.",
+    },
+  },
+  // Android: what calls use (INTERNET and notifications are declared anyway).
+  // Builds are signed with the debug key unless `keystore` is set: fine for
+  // sharing an .apk by hand, not for Google Play.
+  android: {
+    permissions: ["RECORD_AUDIO", "CAMERA", "MODIFY_AUDIO_SETTINGS"],
+  },
   // Phones: `mygo dev -platform ios` and `-platform android` run the app on a
   // simulator, an emulator or a device (`mygo devices` lists them, and
   // `mygo doctor` tells what is missing).

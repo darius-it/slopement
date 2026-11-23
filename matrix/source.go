@@ -55,8 +55,9 @@ type Source struct {
 	pendLeft  []string // and the rooms it left
 
 	// callWatch are the call pages listening for a room's events (rtc.go).
-	callMu    sync.Mutex
-	callWatch map[string]func(json.RawMessage)
+	callMu     sync.Mutex
+	callWatch  map[string]func(json.RawMessage)
+	callDelays map[string]int64 // a call membership's delayed event → its length in ms
 
 	// keyKick wakes the key watcher when a message arrives locked.
 	keyKick chan struct{}
@@ -292,6 +293,11 @@ func (s *Source) Room(id string) (model.Room, bool) {
 func (s *Source) dmName(r *room, m *model.Room) {
 	if m.Kind == model.KindDM && !r.nameSet && m.Partner != "" {
 		m.Name = s.nameOf(m.Partner)
+		if m.Partner == s.me.ID { // a chat with oneself: notes to self
+			m.Name = selfChatName
+		} else if m.Name == "" { // the profile has not arrived: the username, not nothing
+			m.Name = strings.TrimPrefix(strings.SplitN(m.Partner, ":", 2)[0], "@")
+		}
 	}
 }
 

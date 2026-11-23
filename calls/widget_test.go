@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -26,6 +27,67 @@ func (f *fakeBackend) OpenID(context.Context) (any, error) {
 	return map[string]any{"state": "allowed", "access_token": "t"}, nil
 }
 func (f *fakeBackend) TURNServers(context.Context) (any, error) { return map[string]any{}, nil }
+func (f *fakeBackend) RTCTransports(context.Context) (any, error) {
+	return map[string]any{"rtc_transports": []any{map[string]any{"type": "livekit"}}}, nil
+}
+func (f *fakeBackend) LiveKitToken(context.Context, json.RawMessage) (any, error) {
+	return map[string]any{"jwt": "j"}, nil
+}
+func (f *fakeBackend) LiveKitDelayedLeave(context.Context, json.RawMessage) (any, error) {
+	return map[string]any{}, nil
+}
+
+// Hanging up asks the widget to leave (so it removes the user's membership),
+// and the widget saying it has left reaches OnHangup.
+func TestHangupAsksTheWidgetToLeave(t *testing.T) {
+	h := NewHost("w", &fakeBackend{})
+	m := msg(t, h.Hangup())
+	if m.API != "toWidget" || m.Action != "im.vector.hangup" || m.WidgetID != "w" || m.RequestID == "" {
+		t.Fatalf("hangup message %+v", m)
+	}
+	var left bool
+	h.OnHangup = func() { left = true }
+	h.Handle(context.Background(), from("im.vector.hangup", "9", `{}`))
+	if !left {
+		t.Fatal("the widget's hangup did not reach the host")
+	}
+}
+
+// The MatrixRTC requests (transports, token, delayed leave) answer only once
+// the page was granted their capabilities, and the host says it speaks them.
+func TestMatrixRTCRequestsNeedTheirCapabilities(t *testing.T) {
+	h := NewHost("w", &fakeBackend{})
+	ctx := context.Background()
+	if out := h.Handle(ctx, from("supported_api_versions", "v", `{}`)); !strings.Contains(string(out[0]), "org.matrix.msc4515") ||
+		!strings.Contains(string(out[0]), "org.matrix.msc4533") {
+		t.Fatalf("the host does not advertise the RTC API versions: %s", out[0])
+	}
+	req := "org.matrix.msc4515.get_rtc_transports"
+	if got := h.Handle(ctx, from(req, "1", `{}`)); !containsError(msg(t, got[0]).Response) {
+		t.Fatal("transports answered without the capability")
+	}
+	h.granted = Grant([]string{"org.matrix.msc4515.rtc_transports", "org.matrix.msc4533.rtc_livekit_get_token",
+		"org.matrix.msc4533.rtc_livekit_delegate_delayed_leave", "org.matrix.msc4407.send.sticky_event:m.rtc.member"})
+	if len(h.granted) != 4 {
+		t.Fatalf("granted %v", h.granted)
+	}
+	for action, want := range map[string]string{req: "rtc_transports",
+		"org.matrix.msc4533.rtc_livekit_get_token":              "jwt",
+		"org.matrix.msc4533.rtc_livekit_delegate_delayed_leave": "{}"} {
+		got := h.Handle(ctx, from(action, "2", `{"url":"https://x","room_id":"!r","slot_id":"s","member_id":"m","delay_id":"d"}`))
+		if r := string(msg(t, got[0]).Response); containsError(msg(t, got[0]).Response) || !strings.Contains(r, want) {
+			t.Fatalf("%s: %s", action, r)
+		}
+	}
+	var logged []string
+	h2 := NewHost("w", &fakeBackend{})
+	h2.Logf = func(f string, a ...any) { logged = append(logged, f) }
+	h2.pending["x"] = "capabilities"
+	h2.Handle(ctx, []byte(`{"api":"toWidget","requestId":"x","action":"capabilities","widgetId":"w","response":{"capabilities":["org.matrix.msc2762.send.event:m.room.message"]}}`))
+	if len(logged) != 1 {
+		t.Fatal("a refused capability was not logged")
+	}
+}
 
 func msg(t *testing.T, b []byte) Message {
 	t.Helper()

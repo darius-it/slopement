@@ -89,6 +89,9 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 
 	syncer.OnEventType(event.EventMessage, s.onMessage)
 	syncer.OnEventType(event.EventSticker, s.onMessage)
+	for _, t := range rtcNotificationTypes {
+		syncer.OnEventType(t, s.onCallNotification) // "started a call"; also replaces a lock tile (callevent.go)
+	}
 	syncer.OnEventType(event.EventReaction, s.onReaction)
 	syncer.OnEventType(event.EventRedaction, s.onRedaction)
 	syncer.OnEventType(event.EventEncrypted, s.onEncrypted)

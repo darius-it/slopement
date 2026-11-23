@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -127,9 +128,38 @@ func (a *App) roomInfoBody(c *ui.Context, r model.Room) {
 			a.src.SetLowPriority(r.ID, low)
 		}
 	})
+	if cc, ok := a.src.(model.CallCleaner); ok && a.inCall != r.ID {
+		if kit.ChoiceRow(c, kit.IconPhone, "Clear my call from this room", "If a call you left still shows as going on").Clicked() {
+			a.clearCall(cc, r.ID)
+		}
+	}
 	if kit.Button(c, kit.Danger, "Leave", kit.IconLogOut).Clicked() {
 		a.leaving, a.leave.Open = r.ID, true
 	}
+}
+
+// clearCall removes the user's call memberships from a room (a call that
+// never ended), off the UI thread, and says what came of it.
+func (a *App) clearCall(cc model.CallCleaner, room string) {
+	run := a.runUI
+	if run == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		n, err := cc.ClearCallMembership(ctx, room, false)
+		run(func() {
+			switch {
+			case err != nil:
+				a.toast = "Could not clear the call: " + err.Error()
+			case n == 0:
+				a.toast = "You are not in a call in this room"
+			default:
+				a.toast = "Your call in this room is cleared"
+			}
+		})
+	}()
 }
 
 // actionTile is a small action button: an icon over its label, on the
@@ -274,8 +304,8 @@ func (a *App) joinCall(r model.Room) {
 	if a.inCall == r.ID {
 		return
 	}
-	if a.inCall != "" { // one call at a time: leave the other
-		a.leaveCall(a.callSess)
+	if a.inCall != "" { // one call at a time: the other ends
+		a.endCall(a.callSess)
 	}
 	if a.startCall(r) {
 		return

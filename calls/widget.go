@@ -33,12 +33,24 @@ type Backend interface {
 	UpdateDelayedEvent(ctx context.Context, data json.RawMessage) (any, error)
 	OpenID(ctx context.Context) (any, error)
 	TURNServers(ctx context.Context) (any, error)
+	// MatrixRTC (MSC4515, MSC4533): where the call's media server is, a token
+	// for it, and handing it the call's delayed leave.
+	RTCTransports(ctx context.Context) (any, error)
+	LiveKitToken(ctx context.Context, data json.RawMessage) (any, error)
+	LiveKitDelayedLeave(ctx context.Context, data json.RawMessage) (any, error)
 }
+
+// Capabilities of the MatrixRTC requests, and the actions they allow.
+const (
+	capRTCTransports = "org.matrix.msc4515.rtc_transports"
+	capLiveKitToken  = "org.matrix.msc4533.rtc_livekit_get_token"
+	capLiveKitLeave  = "org.matrix.msc4533.rtc_livekit_delegate_delayed_leave"
+)
 
 // supportedVersions are the widget API versions the host speaks.
 var supportedVersions = []string{"0.0.1", "0.0.2", "org.matrix.msc2762", "org.matrix.msc2871", "org.matrix.msc2931",
 	"org.matrix.msc2974", "org.matrix.msc2876", "org.matrix.msc3819", "town.robin.msc3846", "org.matrix.msc3869",
-	"org.matrix.msc3973", "org.matrix.msc4157"}
+	"org.matrix.msc3973", "org.matrix.msc4157", "org.matrix.msc4515", "org.matrix.msc4533"}
 
 // allowedKinds are the capabilities a call page may be granted, before the
 // colon: it sends and reads the call's state events and to-device messages,
@@ -54,6 +66,11 @@ var allowedKinds = map[string]bool{
 	"org.matrix.msc4157.update_delayed_event": true,
 	"town.robin.msc3846.turn_servers":         true,
 	"m.always_on_screen":                      true,
+	"org.matrix.msc4407.send.sticky_event":    true, // a call's membership may be a sticky event
+	"org.matrix.msc4407.receive.sticky_event": true,
+	capRTCTransports:                          true,
+	capLiveKitToken:                           true,
+	capLiveKitLeave:                           true,
 }
 
 // allowedTypes are the event types the page may send or read through those.
@@ -78,7 +95,8 @@ func Grant(requested []string) []string {
 		switch kind {
 		case "org.matrix.msc2762.send.state_event", "org.matrix.msc2762.receive.state_event",
 			"org.matrix.msc2762.send.event", "org.matrix.msc2762.receive.event",
-			"org.matrix.msc3819.send.to_device", "org.matrix.msc3819.receive.to_device":
+			"org.matrix.msc3819.send.to_device", "org.matrix.msc3819.receive.to_device",
+			"org.matrix.msc4407.send.sticky_event", "org.matrix.msc4407.receive.sticky_event":
 			// "…:<event type>", optionally with a state key after a second colon.
 			typ, _, _ := strings.Cut(arg, "#") // a state key follows a #
 			if !allowedTypes[typ] {
@@ -95,7 +113,9 @@ type Host struct {
 	WidgetID string
 	// OnHangup is called when the widget says the user left the call.
 	OnHangup func()
-	be       Backend
+	// Logf, when set, is told of what was refused (a debug aid).
+	Logf func(format string, args ...any)
+	be   Backend
 
 	mu      sync.Mutex
 	next    int
@@ -115,6 +135,11 @@ func (h *Host) Granted() []string {
 	defer h.mu.Unlock()
 	return append([]string(nil), h.granted...)
 }
+
+// Hangup is the message that asks the widget to leave the call: it removes the
+// user's membership and tears down its media, then tells the host it is done
+// (OnHangup). Post it to the widget.
+func (h *Host) Hangup() []byte { return h.ask("im.vector.hangup", map[string]any{}) }
 
 // Receives says the widget was granted hearing of this room event (JSON): the
 // source offers it only those.
@@ -162,6 +187,12 @@ func (h *Host) request(ctx context.Context, m Message) [][]byte {
 		h.ready = true
 		h.mu.Unlock()
 		after = append(after, h.ask("capabilities", map[string]any{}))
+	case "org.matrix.msc4515.get_rtc_transports":
+		resp, err = h.guarded(capRTCTransports, func() (any, error) { return h.be.RTCTransports(ctx) })
+	case "org.matrix.msc4533.rtc_livekit_get_token":
+		resp, err = h.guarded(capLiveKitToken, func() (any, error) { return h.be.LiveKitToken(ctx, m.Data) })
+	case "org.matrix.msc4533.rtc_livekit_delegate_delayed_leave":
+		resp, err = h.guarded(capLiveKitLeave, func() (any, error) { return h.be.LiveKitDelayedLeave(ctx, m.Data) })
 	case "get_openid":
 		resp, err = h.be.OpenID(ctx)
 	case "send_event":
@@ -201,6 +232,22 @@ func (h *Host) request(ctx context.Context, m Message) [][]byte {
 	return append([][]byte{h.reply(m, resp)}, after...)
 }
 
+// guarded runs fn only when the capability was granted.
+func (h *Host) guarded(capability string, fn func() (any, error)) (any, error) {
+	h.mu.Lock()
+	ok := false
+	for _, g := range h.granted {
+		if g == capability {
+			ok = true
+		}
+	}
+	h.mu.Unlock()
+	if !ok {
+		return nil, errString("not allowed")
+	}
+	return fn()
+}
+
 // allows says the request's event type is one that was granted for that
 // direction ("send" or "receive").
 func (h *Host) allows(data json.RawMessage, dir string) bool {
@@ -214,7 +261,8 @@ func (h *Host) allows(data json.RawMessage, dir string) bool {
 	defer h.mu.Unlock()
 	for _, cap := range h.granted {
 		kind, arg, _ := strings.Cut(cap, ":")
-		if kind != "org.matrix.msc2762."+dir+".state_event" && kind != "org.matrix.msc2762."+dir+".event" {
+		if kind != "org.matrix.msc2762."+dir+".state_event" && kind != "org.matrix.msc2762."+dir+".event" &&
+			kind != "org.matrix.msc4407."+dir+".sticky_event" {
 			continue
 		}
 		typ, _, _ := strings.Cut(arg, "#")
@@ -241,6 +289,17 @@ func (h *Host) answered(m Message) [][]byte {
 	h.mu.Lock()
 	h.granted = approved
 	h.mu.Unlock()
+	if h.Logf != nil { // what the page wanted that it did not get, for the debug log
+		got := map[string]bool{}
+		for _, g := range approved {
+			got[g] = true
+		}
+		for _, want := range r.Capabilities {
+			if !got[want] {
+				h.Logf("capability refused: %s", want)
+			}
+		}
+	}
 	return [][]byte{h.ask("notify_capabilities", map[string]any{"requested": r.Capabilities, "approved": approved})}
 }
 
