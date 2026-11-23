@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -146,6 +148,48 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// Long release notes scroll in the dialog: the last line is out of reach until
+// the wheel moves them, and the dialog's buttons stay in place.
+func TestUpdateNotesScroll(t *testing.T) {
+	var notes strings.Builder
+	for i := 1; i <= 60; i++ {
+		fmt.Fprintf(&notes, "- change number %d\n", i)
+	}
+	f := &fakeUpdater{enabled: true, offer: &updateOffer{Version: "9.9.9", Notes: notes.String()}}
+	a, tt, _ := updateApp(t, f)
+	setUpdatePrefs(updatePrefs{Check: true})
+	waitUntil(t, tt, "the offer", func() bool { return a.upd.Sheet.Open })
+	for i := 0; i < 3; i++ {
+		settle(tt)
+	}
+	first, ok := tt.Find("change number 1")
+	if !ok {
+		t.Fatal("the notes are not shown")
+	}
+	if _, onScreen := tt.Find("change number 60"); onScreen {
+		if r, _ := tt.Find("change number 60"); r.Y < 900 && r.Y > first.Y && r.Y < first.Y+300 {
+			t.Fatal("all of the notes show: nothing to scroll")
+		}
+	}
+	install, ok := tt.Find("Install and restart")
+	if !ok {
+		t.Fatal("the dialog's buttons are not shown")
+	}
+	// The wheel over the notes moves them.
+	tt.Wheel(first.X+20, first.Y+20, 0, 4000)
+	settle(tt)
+	last, ok := tt.Find("change number 60")
+	if !ok {
+		t.Fatal("scrolling did not reach the last line")
+	}
+	if last.Y < first.Y-20 || last.Y > first.Y+300 {
+		t.Fatalf("the last line is at y=%.0f, outside the notes' box that starts at y=%.0f", last.Y, first.Y)
+	}
+	if again, _ := tt.Find("Install and restart"); again.Y != install.Y {
+		t.Fatalf("the buttons moved with the notes: %.0f then %.0f", install.Y, again.Y)
+	}
 }
 
 // Turned on: one question at startup (not one per frame, not one per account),

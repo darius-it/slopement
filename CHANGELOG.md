@@ -8,6 +8,9 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+### Fixed
+- The release notes in the update dialog now scroll.
+
 ## v0.2.0-alpha.1
 
 The big one is calls, as an early prototype.

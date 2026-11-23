@@ -299,7 +299,9 @@ func (a *App) updateAvailableBody(c *ui.Context) {
 	ui.Text(c, "Version "+o.Version+" is available").FontSize(kit.SizeLabel).FontWeight(kit.WeightSemibold)
 	ui.Text(c, "You have "+mygo.App.Version()+".").FontSize(kit.SizeSmall).TextColor(p.TextMuted)
 	if o.Notes != "" {
-		ui.Column(c.Key("update-notes")).MaxHeight(240).Clip().Padding(kit.S3).Background(p.BgInset).Radius(kit.RadiusSm + 2).Children(func() {
+		// A scroll area, not a clipped column: release notes run long, and the
+		// wheel must move them.
+		ui.Scroll(c.Key("update-notes")).MaxHeight(260).Padding(kit.S3).Background(p.BgInset).Radius(kit.RadiusSm + 2).Children(func() {
 			kit.MessageBody(c, "update-notes", format.Parse(o.Notes), a.reveals, kit.BodyStyle{Size: kit.SizeSmall + 1})
 		})
 	}
