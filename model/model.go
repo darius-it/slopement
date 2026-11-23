@@ -8,7 +8,13 @@
 // given (Window.Update), then calls the change callback.
 package model
 
-import "time"
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"slopement/calls"
+)
 
 // Presence is whether someone is around.
 type Presence int
@@ -378,6 +384,26 @@ type SessionManager interface {
 type DMCreator interface {
 	OpenDMAsync(person string, done func(room string))
 }
+
+// CallSupport is what the homeserver offers for calls (matrix/rtc.go).
+type CallSupport struct {
+	LiveKit       bool   // a LiveKit service for MatrixRTC is advertised
+	Service       string // its address
+	DelayedEvents bool   // MSC4140: a call's membership can expire by itself
+}
+
+// CallHoster is what a Source may offer to run calls: the homeserver's call
+// support, the Matrix side of a call page, who it runs as, and the room's call
+// events as they arrive. The mock offers none; the app then shows the scaffold.
+type CallHoster interface {
+	CallSupport(ctx context.Context) (CallSupport, error)
+	CallBackend(room string) calls.Backend
+	CallIdentity() CallIdentity
+	WatchCall(room string, fn func(raw json.RawMessage)) (stop func())
+}
+
+// CallIdentity is who a call page runs as.
+type CallIdentity struct{ UserID, DeviceID, BaseURL string }
 
 // RoomMembers is what a Source may offer: who is joined to a room, in an order
 // that stays put (by name). It answers with what is known at once and fills in

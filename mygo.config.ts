@@ -48,7 +48,15 @@ export default defineConfig({
     webview: false,
     depends: { deb: ["libsecret-1-0"], rpm: ["libsecret"], arch: ["libsecret"] },
   },
-  macos: { dmgTitle: "slopement" },
+  macos: {
+    dmgTitle: "slopement",
+    // Calls (Element Call in a web view) ask for these; macOS ends an app that
+    // uses them without a reason.
+    infoPlist: {
+      NSMicrophoneUsageDescription: "slopement uses the microphone in calls.",
+      NSCameraUsageDescription: "slopement uses the camera when you turn it on in a call.",
+    },
+  },
   // Phones: `mygo dev -platform ios` and `-platform android` run the app on a
   // simulator, an emulator or a device (`mygo devices` lists them, and
   // `mygo doctor` tells what is missing).

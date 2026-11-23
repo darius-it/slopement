@@ -260,6 +260,7 @@ func main() {
 			setMenu()
 		}
 	})
+	app.BindCalls() // the call page's bridge (app/callsession.go)
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}

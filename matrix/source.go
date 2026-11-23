@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -52,6 +53,10 @@ type Source struct {
 	queue     []func()
 	pendToken string   // the sync token of a batch that ended inside another
 	pendLeft  []string // and the rooms it left
+
+	// callWatch are the call pages listening for a room's events (rtc.go).
+	callMu    sync.Mutex
+	callWatch map[string]func(json.RawMessage)
 
 	// keyKick wakes the key watcher when a message arrives locked.
 	keyKick chan struct{}

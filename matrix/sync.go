@@ -69,6 +69,7 @@ func NewSynced(ctx context.Context, acc *Account, cli *mautrix.Client) (*Source,
 	}
 	cli.Crypto = helper
 	syncer.OnEvent(cli.StateStoreSyncHandler)
+	syncer.OnEvent(s.onCallEvent) // a call page open in a room hears its events (rtc.go)
 
 	s.helper = helper
 	syncer.src = s

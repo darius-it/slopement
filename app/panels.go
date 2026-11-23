@@ -274,6 +274,12 @@ func (a *App) joinCall(r model.Room) {
 	if a.inCall == r.ID {
 		return
 	}
+	if a.inCall != "" { // one call at a time: leave the other
+		a.leaveCall(a.callSess)
+	}
+	if a.startCall(r) {
+		return
+	}
 	a.inCall = r.ID
 	a.call = kit.NewCall() // mic on, camera off
 	a.toast = "Calls are coming soon (this is how they will look)"
@@ -282,6 +288,10 @@ func (a *App) joinCall(r model.Room) {
 // callArea is the call over the timeline: tiles and the control bar.
 func (a *App) callArea(c *ui.Context, r model.Room) {
 	p := kit.Of(c)
+	if s := a.callSess; s != nil && s.room == r.ID {
+		a.realCallArea(c, s)
+		return
+	}
 	ui.Column(c.Key("call")).Height(260).Shrink(0).Background(p.BgInset).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).
 		Padding(kit.S3).Gap(kit.S3).Transition(ui.ElementTransition{Duration: kit.DurBase, ExitDuration: kit.DurFast,
 		Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}).Children(func() {
