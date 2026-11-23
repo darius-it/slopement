@@ -9,6 +9,11 @@ would notice; when you tag a release, rename that heading to the tag
 ## Unreleased
 
 ### Fixed
+- The red "No internet connection" bar now shows within seconds of the network
+  being switched off, and goes within seconds of it coming back. It waits for
+  the system to say the network changed (macOS and Linux; no polling), so it
+  costs nothing while the connection is steady. Elsewhere the bar still comes
+  when a sync fails.
 - The release notes in the update dialog now scroll.
 - "Waiting for this message. It will appear when the keys arrive." tiles that
   were really a call's own signalling (call reactions, ring notices) no longer

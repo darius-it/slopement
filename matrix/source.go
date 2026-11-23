@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"context"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -61,6 +62,11 @@ type Source struct {
 
 	// offline: the connection to the server is down (failure.go); the app says so.
 	offline bool
+	// The connection watcher's seams for tests (connection.go): the question put
+	// to the server, the system's change events, and its two waits (settle, retry).
+	probeFn     func(context.Context) error
+	netChanges  func(context.Context) <-chan struct{}
+	watchTiming *[2]time.Duration
 
 	// keyKick wakes the key watcher when a message arrives locked.
 	keyKick chan struct{}
