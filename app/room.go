@@ -323,7 +323,7 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	me := ev.Sender == a.src.Me().ID
 	m := kit.MessageData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Time: ev.Time.Format("15:04"), TimeFull: fullTime(ev.Time, a.now), First: tr.first,
 		Highlight: ev.Mentions, Flash: ev.ID == a.flash, FlashOut: ev.ID == a.flashOut, Edited: ev.Edited, Pending: ev.Pending, Failed: ev.Failed, Error: ev.Error, Undecryptable: ev.Kind == model.EventUndecryptable,
-		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals,
+		Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo), Reveals: a.reveals, Quick: a.quickReactions(),
 		Avatar: a.avatar(sender, 36), Unverified: sender.Trust == model.TrustWarning, ReadBy: a.readers(ev),
 		Sent: ev.ID == a.rs.sentID && a.rs.sentID != ""}
 	if ev.Thread != nil && a.threadsOn() && !a.inThread {
@@ -359,6 +359,7 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 	switch {
 	case act.React != "":
 		a.src.React(room, ev.ID, act.React)
+		a.noteReaction(ev, act.React)
 	case act.OpenEmoji:
 		a.reactTo = ev.ID
 		a.picker.Open, a.picker.Tab = true, kit.TabEmoji
@@ -523,6 +524,7 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 		switch {
 		case ch.Emoji != "" && a.reactTo != "":
 			a.src.React(r.ID, a.reactTo, ch.Emoji)
+			a.pick.UsedReaction(ch.Emoji)
 			a.reactTo, a.picker.Open = "", false
 		case ch.Emoji != "":
 			st.Text += ch.Emoji

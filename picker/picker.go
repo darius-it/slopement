@@ -90,6 +90,22 @@ type saved struct {
 	Favorites      []klipy.Item `json:"favorites"`
 	RecentEmoji    []string     `json:"recent_emoji"`
 	RecentStickers []klipy.Item `json:"recent_stickers"`
+	// RecentReactions are the emoji the user reacted with, newest first: the
+	// hover toolbar offers them.
+	RecentReactions []string `json:"recent_reactions,omitempty"`
+}
+
+// RecentReactions are the emoji the user reacted with lately, newest first.
+func (c *Controller) RecentReactions() []string { return c.saved.RecentReactions }
+
+// UsedReaction notes an emoji the user reacted with (a custom emoji, an
+// mxc:// key, is not kept here: the toolbar shows plain emoji).
+func (c *Controller) UsedReaction(key string) {
+	if key == "" || strings.HasPrefix(key, "mxc://") {
+		return
+	}
+	c.saved.RecentReactions = kit.PushRecent(c.saved.RecentReactions, key, 12)
+	c.save()
 }
 
 // New returns a controller over the user's saved favorites and recents,

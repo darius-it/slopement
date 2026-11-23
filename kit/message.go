@@ -79,7 +79,10 @@ type MessageData struct {
 	Location *LocationSpec
 	// Notice (m.notice, from bots) is shown in the quiet color.
 	Notice bool
-	Embed  *LinkCard
+	// Quick are the emoji the hover toolbar offers to react with at once; none
+	// gives the default three.
+	Quick []string
+	Embed *LinkCard
 	// YouTube is a YouTube link's card, in place of Embed.
 	YouTube *YouTubeSpec
 	// Reveals keeps the message's spoilers open once clicked.
@@ -199,7 +202,8 @@ func profilePopover(c *ui.Context, anchor ui.Element, m MessageData, colors *Use
 	}
 }
 
-// QuickReactions are offered in the hover toolbar.
+// QuickReactions are offered in the hover toolbar when the app gives none of
+// its own (MessageData.Quick: the ones used lately, then these).
 var QuickReactions = []string{"👍", "❤️", "😂"}
 
 // MessageGroupGap is the room above the first message of a group.
@@ -421,7 +425,11 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				Padding(2).Gap(1).Radius(RadiusSm+2).Background(p.Raised).Border(1, p.Border).
 				Shadow(0, 2, 6, -2, p.Shadow).Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{}}).
 				Children(func() {
-					for _, k := range QuickReactions {
+					quick := m.Quick
+					if len(quick) == 0 {
+						quick = QuickReactions
+					}
+					for _, k := range quick {
 						b := toolButton(c, "React "+k, func(fg ui.Color) { ui.Text(c, k).FontSize(15) })
 						if b.Clicked() {
 							a.React = k
