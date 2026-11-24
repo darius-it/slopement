@@ -112,7 +112,11 @@ type App struct {
 	peopleAll        bool                                // People also lists other servers and bridges (convert.go)
 	phoneNav         *ui.Router                          // a phone's pages: the lists, and the room over them (phonenav.go)
 	navSeen          string                              // the router's page as the app last saw it
-	navStarted       bool                                // the router has shown a page (the first may come at once)
+	roomX, roomXPrev float32                             // where the room's page was in the last two frames (phonenav.go: a swipe back that is let go)
+	popFrom          float32                             // where the room was as a swipe back let go: the slide out starts there
+	popAt            time.Time                           // when that slide began
+	navPop           bool                               // the router was just sent back: the slide out is a curve (phonenav.go)
+	navStarted       bool                               // the router has shown a page (the first may come at once)
 	blurSink         ui.Handle                          // takes the focus as a room closes, so the keyboard goes (blur.go)
 	wasInRoom        bool                                // a room was shown last frame
 	focusRoom        string                             // a room just opened: its composer takes the focus (room.go)

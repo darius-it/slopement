@@ -68,15 +68,24 @@ func FadeIn() ui.ElementTransition {
 	}
 }
 
-// PushSpring is a phone's page push, for its router: a lively spring (a
-// little bounce: the page overshoots its place by a few DIPs and settles back)
-// that is mostly there in a third of a second. A spring, not a curve, so a push
-// caught by a Back (or a Back caught by a push) turns around from where the
-// page is, with the speed it had, instead of restarting, and a swipe let go
-// hands its speed to it. Pushed and popped by the same spring. Keep the
-// bounce small: the router lays the page by how far it has come, so a big
-// overshoot shows the page under it at the edge.
-var PushSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 400 * time.Millisecond, Bounce: 0.2}}
+// PushSpring is a phone's page push, for its router: a spring, so a push caught
+// by a Back (or a Back caught by a push) turns around from where the page is,
+// with the speed it had, instead of restarting. It has no bounce, and must not:
+// the router holds a page's progress between 0 and 1, so a spring that goes
+// past its end shows nothing of it, and only keeps the transition alive for a
+// second after it looks over, during which the router builds both pages, the
+// room's and the lists', in every frame (a bounce made frames drop for the whole
+// tail). Without it the spring is mostly there in a third of a second and done
+// within about half of one.
+var PushSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 330 * time.Millisecond}}
+
+// PopCurve is a phone's page pop: the page goes back, by a Back button or a
+// finger's swipe let go past halfway. A curve of fixed length, not a spring:
+// it ends when it should, with no tail, whatever the speed or the distance it
+// was let go at (a swipe hands the router only where it let go, not how fast, so
+// a spring from there starts from rest, stalls and creeps), and it comes in
+// strong and eases out as UIKit's pop does.
+var PopCurve = ui.Animation{Duration: 300 * time.Millisecond, Ease: EaseDrawer}
 
 // Rise is how a message that arrives live comes in: 8 DIPs up, fading.
 // Never used for history loading or the first build of a room.

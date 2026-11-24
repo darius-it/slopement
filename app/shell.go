@@ -451,7 +451,13 @@ func (a *App) phoneLists(c *ui.Context) {
 		ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg).Children(func() { a.searchView(c, true) })
 		return
 	}
-	ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg).Children(func() {
+	page := ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg)
+	// The lists under a room being swiped away move 30% as far (the router's
+	// parallax): the share of the distance it lost goes on too (phonenav.go).
+	if k := a.popLeft(c); k > 0 {
+		page.Translate(0.3*a.popFrom*k, 0)
+	}
+	page.Children(func() {
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			switch {
 			case a.phoneTab == 3:

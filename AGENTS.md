@@ -136,8 +136,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - Phone navigation: the lists and the room over them are the two pages of a
   `ui.Router` (`app/phonenav.go`; `a.pushed` stays the source of truth and the
   router is synced each frame, both ways). The router gives iOS's finger-following
-  edge swipe and Android's back key / predictive back; its spring is
-  `kit.PushSpring`. Anything that leaves a room on a phone just sets
+  edge swipe and Android's back key / predictive back. A push uses
+  `kit.PushSpring` (no bounce: the router clamps progress to 0..1, so a bounce
+  shows nothing and only keeps both pages being built for a second), a pop
+  `kit.PopCurve`. **mygo bug (iOS edge swipe):** its `endEdgeSwipe` clears
+  `swiping` before `Back()`, so `endSwipe` never records where the finger let go
+  and the slide out restarts from 0 (the room jumps back, then slides out). The
+  app puts the lost distance back (`swipeBackRestarts`, `popLeft`, `roomX` in
+  `phonenav.go`); **remove all of that when a mygo with the fix is pinned**, or
+  it will count the distance twice. Android's back gesture is not affected. Anything that leaves a room on a phone just sets
   `a.pushed = false`. Touch sizes: `kit.Touch` is true on iOS/Android
   (`kit.PhoneOS`), as mygo never reports a coarse pointer there.
 - `model/`: the app's data types and the `Source` interface (the Matrix

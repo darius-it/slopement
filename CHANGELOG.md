@@ -46,6 +46,11 @@ would notice; when you tag a release, rename that heading to the tag
   Download. (On a computer it still shows when you point at a GIF.)
 
 ### Fixed
+- **Phones: swiping back from a chat no longer jumps.** On iPhone, letting go of
+  the edge swipe made the chat snap back to fill the screen and then slide out
+  again; it now carries on from where your finger left it. Going back by a button
+  or swipe takes a fixed 0.3 s and ends exactly there, and the slide in no longer
+  keeps the screen busy for a second after it looks finished.
 - **Phones: holding a message no longer selects a word.** The text in message
   bubbles is not selectable on a touch screen any more (it showed the system's
   Copy / Select All bar instead of the message's options); use "Copy text" in the
