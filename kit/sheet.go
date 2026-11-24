@@ -25,11 +25,11 @@ type SheetState struct {
 // it opens turns around smoothly, a sheet caught mid-flight stays under the
 // finger, and a flick hands its speed over.
 var (
-	// sheetOpen flies the sheet in: quick, with a visible bounce.
-	sheetOpen = ui.SpringOptions{Duration: 300 * time.Millisecond, Bounce: 0.22}
-	// sheetBack returns a dragged sheet to open: a lively bounce, like a
-	// let-go Control Center.
-	sheetBack = ui.SpringOptions{Duration: 340 * time.Millisecond, Bounce: 0.28}
+	// sheetOpen flies the sheet in: quick, settling without a wobble.
+	sheetOpen = ui.SpringOptions{Duration: 280 * time.Millisecond, Bounce: 0.04}
+	// sheetBack returns a dragged sheet to open: a hint of bounce, so a
+	// let-go sheet settles instead of wobbling.
+	sheetBack = ui.SpringOptions{Duration: 320 * time.Millisecond, Bounce: 0.1}
 	// sheetShut closes it: faster than it came, and no bounce.
 	sheetShut = ui.SpringOptions{Duration: 240 * time.Millisecond}
 )
@@ -86,8 +86,12 @@ func Sheet(c *ui.Context, st *SheetState, title string, fn func()) {
 			_, h = c.Size() // before its first layout: below the window
 		}
 		shut := h + S6
-		backdrop.Justify(ui.End).AlignItems(ui.Stretch)
-		panel.Radius(RadiusLg+4, RadiusLg+4, 0, 0).Background(p.Raised).Padding(0, S4, S6, S4).Gap(S3).
+		// A phone's navigation bar (Android's back/home, iOS's home
+		// indicator) covers the window's bottom edge: the sheet is an
+		// overlay, so it keeps clear of it itself.
+		top, _, bottom, _ := c.SafeArea()
+		backdrop.Justify(ui.End).AlignItems(ui.Stretch).Padding(top, 0, 0, 0)
+		panel.Radius(RadiusLg+4, RadiusLg+4, 0, 0).Background(p.Raised).Padding(0, S4, S6+bottom, S4).Gap(S3).
 			MaxHeightPercent(88).AlignSelf(ui.Stretch).Shadow(0, -8, 32, -12, p.Shadow)
 		grab := ui.Box(c).Height(24).AlignSelf(ui.Stretch).AlignItems(ui.Center).Justify(ui.Center).
 			Cursor(ui.CursorGrab).Label("Drag down to close").Children(func() {
@@ -184,7 +188,8 @@ func Dialog(c *ui.Context, open *bool, title string, width float32, fn func()) {
 		width = 400
 	}
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		backdrop.Background(p.Scrim).Padding(S4).
+		top, right, bottom, left := c.SafeArea()
+		backdrop.Background(p.Scrim).Padding(S4+top, S4+right, S4+bottom, S4+left).
 			Transition(ui.ElementTransition{Duration: DurBase, ExitDuration: DurExit, Enter: &ui.Motion{}, Exit: &ui.Motion{}})
 		panel.Width(width).MaxWidthPercent(100).Padding(S5).Gap(S5).Radius(RadiusLg).Background(p.Raised).
 			Border(1, p.Border).Shadow(0, 16, 48, -8, p.Shadow).Transition(FadeIn())

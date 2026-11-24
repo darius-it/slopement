@@ -3,7 +3,7 @@ module slopement
 go 1.27.3
 
 require (
-	github.com/egoist/mygo v0.10.0
+	github.com/egoist/mygo v0.10.1-0.20261118041501-76516b5fda74
 	github.com/forPelevin/gomoji v1.4.1
 	github.com/kazzmir/opus-go v1.7.0
 	github.com/rivo/uniseg v0.4.7

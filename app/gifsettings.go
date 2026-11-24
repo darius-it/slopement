@@ -12,11 +12,20 @@ import (
 	"slopement/kit"
 )
 
-// gifsPage is Settings → GIFs: the folders on this device whose pictures the
-// GIF picker offers beside KLIPY's.
+// gifsPage is Settings → GIFs: the KLIPY key, the folders on this computer
+// whose pictures the GIF picker offers beside KLIPY's (not on phones), and
+// the favorites.
 func (a *App) gifsPage(c *ui.Context) {
-	p := kit.Of(c)
 	a.klipyGroup(c)
+	if !kit.PhoneOS() { // a phone's apps cannot read the user's folders
+		a.gifFoldersGroup(c)
+	}
+	a.favoritesGroup(c)
+}
+
+// gifFoldersGroup is the list of folders and the button that adds one.
+func (a *App) gifFoldersGroup(c *ui.Context) {
+	p := kit.Of(c)
 	group(c, "GIF folders", "Pictures in these folders (GIF, PNG, JPEG, WebP) show in the GIF picker under My folders, and in its search by file name. They are read from this device; sending one uploads it.", func() {
 		for i, dir := range a.gifFolders {
 			ui.Row(c.Key("gf" + strconv.Itoa(i))).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
@@ -38,7 +47,6 @@ func (a *App) gifsPage(c *ui.Context) {
 				FontSize(kit.SizeCaption).TextColor(p.TextFaint)
 		}
 	})
-	a.favoritesGroup(c)
 }
 
 // favoritesGroup is Settings → GIFs → Favorites: importing from Discord,

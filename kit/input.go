@@ -46,7 +46,8 @@ func PasswordField(c *ui.Context, value *string, label, placeholder string) ui.E
 		}
 		box := ui.Row(c)
 		box.Children(func() {
-			in = ui.TextInputBase(c, value).Grow(1).Password().Placeholder(placeholder).
+			in = ui.TextInputBase(c, value).Grow(1).Password().Capitalize(ui.CapitalizeNone).Autocorrect(false).
+				Placeholder(placeholder).
 				PlaceholderColor(p.TextMuted).Label(label).FontSize(fieldSize(c))
 		})
 		field(c, box)
@@ -81,7 +82,11 @@ func SearchField(c *ui.Context, query *string, placeholder, hint string) ui.Elem
 			return false
 		})
 		if *query != "" {
-			x := ui.ButtonBase(c).Size(20, 20).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label("Clear search")
+			xs := float32(20)
+			if Touch(c) {
+				xs = 36 // inside a 44 DIP field: a fingertip's size
+			}
+			x := ui.ButtonBase(c).Size(xs, xs).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label("Clear search")
 			if x.Hovered() {
 				x.Background(p.Hover)
 			}

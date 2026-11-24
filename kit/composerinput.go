@@ -171,6 +171,9 @@ func composerField(c *ui.Context, st *ComposerState, placeholder string, size fl
 		st.fieldH = h
 		c.Invalidate()
 	}
+	// Predictions on, so iOS shows its suggestions above the keyboard (with
+	// none, it shows the Passwords shortcut, as in a sign-in form).
+	ed.Capitalize(ui.CapitalizeSentences).Autocorrect(true).Autofill(ui.AutofillNone)
 	ed.Grow(1).MinWidth(0).Height(h)
 	st.pullDoc()
 	if st.wantFocus {

@@ -110,7 +110,12 @@ type App struct {
 	fwd              forwardDialog                       // "Forward" (forward.go)
 	trail            navHistory                          // back and forward (nav.go)
 	peopleAll        bool                                // People also lists other servers and bridges (convert.go)
-	focusRoom        string                              // a room just opened: its composer takes the focus (room.go)
+	phoneNav         *ui.Router                          // a phone's pages: the lists, and the room over them (phonenav.go)
+	navSeen          string                              // the router's page as the app last saw it
+	navStarted       bool                                // the router has shown a page (the first may come at once)
+	blurSink         ui.Handle                          // takes the focus as a room closes, so the keyboard goes (blur.go)
+	wasInRoom        bool                                // a room was shown last frame
+	focusRoom        string                             // a room just opened: its composer takes the focus (room.go)
 	klipyDraft       string                              // the KLIPY key being typed (gifsettings.go)
 	gifFolders       []string                            // folders of pictures the GIF picker also offers (gifsettings.go)
 	files            map[string][]model.File             // per room, waiting in the composer (files.go)
@@ -396,6 +401,11 @@ func (a *App) View(c *ui.Context) {
 	default:
 		kit.Apply(c)
 	}
+	if kit.Compact(c) && a.pushed && a.view == viewRoom {
+		// A room on a phone is drawn on its wallpaper: the strips under the
+		// status bar and the home indicator must be that, not the page color.
+		kit.Backdrop(c, kit.Of(c).Wallpaper)
+	}
 	kit.SwitcherShortcut(c, &a.switcher)
 	a.navKeys(c)
 	a.scopeSync()
@@ -416,6 +426,8 @@ func (a *App) View(c *ui.Context) {
 		}
 		a.offlineBar(c) // no connection: said at the top, until it is back
 		if kit.Compact(c) {
+			a.blurStep(a.pushed && a.view == viewRoom)
+			a.blurSinkView(c)
 			a.phone(c)
 		} else {
 			a.desktop(c)

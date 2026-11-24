@@ -187,7 +187,7 @@ func (a *App) searchView(c *ui.Context, back bool) {
 			}
 		})
 		// The filters that are easier to press than to type.
-		ui.Scroll(c.Key("filters")).Row().Scrollbars(false).Gap(kit.S1).Padding(kit.S2, kit.S3, kit.S1, kit.S3).Shrink(0).Children(func() {
+		ui.ScrollHorizontal(c.Key("filters")).Scrollbars(false).Gap(kit.S1).Padding(kit.S2, kit.S3, kit.S1, kit.S3).Shrink(0).Children(func() {
 			for _, kind := range []string{"image", "gif", "video", "file", "link"} {
 				if kit.Chip(c.Key("has:"+kind), strings.ToUpper(kind[:1])+kind[1:], q.HasKind(kind)).Clicked() {
 					st.Text = q.Toggle(kind).Text()

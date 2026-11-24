@@ -168,7 +168,8 @@ func serverStep(c *ui.Context, st *LoginState, act *LoginAction) {
 
 	// Another server: the field, then room to breathe before the button.
 	ui.Column(c).Gap(S1).Padding(S2, 0, 0, 0).Children(func() {
-		in := TextField(c.Key("server"), &st.Field, "Other server", "your-server.org")
+		in := TextField(c.Key("server"), &st.Field, "Other server", "your-server.org").
+			Keyboard(ui.KeyboardURL).Capitalize(ui.CapitalizeNone).Autocorrect(false).ReturnKey(ui.ReturnGo)
 		if in.Submitted() && st.Field != "" {
 			act.Probe = st.Field
 		}
@@ -189,13 +190,15 @@ func passwordStep(c *ui.Context, st *LoginState, act *LoginAction) {
 	p := Of(c)
 	serverHeader(c, st)
 	ui.Column(c).Gap(S15).Children(func() {
-		TextField(c.Key("user"), &st.User, "Username", "username").AutoFocus()
+		TextField(c.Key("user"), &st.User, "Username", "username").AutoFocus().
+			Autofill(ui.AutofillUsername).Capitalize(ui.CapitalizeNone).Autocorrect(false).ReturnKey(ui.ReturnNext)
 		var pass ui.Element
 		ui.Column(c).Gap(S15).Children(func() {
 			ui.Text(c, "Password").FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.TextMuted)
 			box := ui.Row(c)
 			box.Children(func() {
 				pass = ui.TextInputBase(c.Key("pass"), &st.Pass).Grow(1).Password().
+					Autofill(ui.AutofillPassword).Capitalize(ui.CapitalizeNone).Autocorrect(false).ReturnKey(ui.ReturnGo).
 					Placeholder("••••••••").PlaceholderColor(p.TextMuted).Label("Password").FontSize(fieldSize(c))
 			})
 			field(c, box)

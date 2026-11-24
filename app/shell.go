@@ -413,7 +413,7 @@ func (a *App) inboxColumn(c *ui.Context, width float32) {
 			if kit.SearchButton(c.Key("search"), "Search", kit.CmdK()).Clicked() {
 				a.switcher.Toggle()
 			}
-			ui.Scroll(c).Row().Gap(kit.S1).Scrollbars(false).Children(func() {
+			ui.ScrollHorizontal(c.Key("chat-filters")).Gap(kit.S1).Scrollbars(false).Children(func() {
 				for i, l := range []string{"All", "People", "Communities", "Unread"} {
 					if kit.Chip(c.Key("f"+l), l, a.filter == i).Clicked() {
 						a.filter = i
@@ -440,16 +440,12 @@ func (a *App) inboxColumn(c *ui.Context, width float32) {
 // ---- Phone ----------------------------------------------------------------
 
 // phone is the compact layout: the lists under a tab bar, and the room
-// pushed over them.
-func (a *App) phone(c *ui.Context) {
+// pushed over them, the two pages of a router (phonenav.go).
+func (a *App) phone(c *ui.Context) { a.phoneNavView(c) }
+
+// phoneLists is the page under the room: the tabs, with their bar.
+func (a *App) phoneLists(c *ui.Context) {
 	p := kit.Of(c)
-	if a.pushed && a.view == viewRoom {
-		if _, ok := a.src.Room(a.room); ok {
-			a.phoneRoom(c)
-			return
-		}
-	}
-	a.pushed = false
 	inbox := a.nav.Resolve(true) == kit.NavInbox
 	if a.view == viewSearch { // message search takes the whole screen, with a Back
 		ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg).Children(func() { a.searchView(c, true) })
@@ -502,7 +498,7 @@ func (a *App) phone(c *ui.Context) {
 func (a *App) tabBar(c *ui.Context, names []string, icons []*ui.SVG) (pressed int) {
 	p := kit.Of(c)
 	pressed = -1
-	ui.Row(c).Height(64).Shrink(0).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Background(p.BgSubtle).Padding(kit.S2, 0, 0, 0).Children(func() {
+	ui.Row(c).Height(64).Shrink(0).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Background(p.Bg).Padding(kit.S2, 0, 0, 0).Children(func() {
 		for i, n := range names {
 			fg := p.TextMuted
 			if i == a.phoneTab {

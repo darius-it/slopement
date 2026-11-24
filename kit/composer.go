@@ -18,6 +18,8 @@ type ComposerState struct {
 	send  bool
 	// What the + menu chose, picked up by the next build.
 	wantAttach, wantPoll bool
+	// wantPhoto and wantCamera: the + menu's photo library and camera.
+	wantPhoto, wantCamera bool
 	// wantPaste: the paste shortcut was pressed in the field.
 	wantPaste bool
 	// wantEditLast: ↑ was pressed with nothing written (see fieldKey).
@@ -64,6 +66,14 @@ func (st *ComposerState) SuggestionsOff() bool {
 // plusMenu makes the composer's + a menu: a file, or a poll.
 func plusMenu(c *ui.Context, plus ui.Element, st *ComposerState) {
 	MenuButton(c, plus, func(m *ui.Menu) {
+		if PhoneOS() { // a phone's own picker of photos, and its camera
+			if m.Item("Photo or video").Icon(MenuIcon(IconImage)).Chosen() {
+				st.wantPhoto = true
+			}
+			if m.Item("Take a photo").Icon(MenuIcon(IconCamera)).Chosen() {
+				st.wantCamera = true
+			}
+		}
 		if m.Item("Upload a file").Icon(MenuIcon(IconPaperclip)).Chosen() {
 			st.wantAttach = true
 		}
@@ -80,6 +90,12 @@ func (st *ComposerState) takePlus(r *ComposerResult) {
 	}
 	if st.wantPoll {
 		r.Poll, st.wantPoll = true, false
+	}
+	if st.wantPhoto {
+		r.Photo, st.wantPhoto = true, false
+	}
+	if st.wantCamera {
+		r.Camera, st.wantCamera = true, false
 	}
 	if st.wantPaste {
 		r.Paste, st.wantPaste = true, false
@@ -110,6 +126,8 @@ type ComposerResult struct {
 	Send   bool
 	Attach bool
 	Poll   bool // the + menu's Create poll
+	Photo  bool // the + menu's photo or video from the library (phones)
+	Camera bool // the + menu's Take a photo (phones)
 	// Paste: the paste shortcut was pressed (look for a picture or files).
 	Paste bool
 	// EditLast: ↑ was pressed in an empty field: edit the user's last message.
@@ -151,7 +169,11 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 							ui.Span{Text: "Replying to ", Color: p.TextMuted},
 							ui.Span{Text: q.Sender, Color: colors.Color(p, q.SenderID), Weight: WeightSemibold},
 						).FontSize(SizeSmall).SingleLine().Grow(1)
-						x := ui.ButtonBase(c).Size(22, 22).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).Label("Cancel reply")
+						xs := float32(22)
+						if Touch(c) {
+							xs = 40
+						}
+						x := ui.ButtonBase(c).Size(xs, xs).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).Label("Cancel reply")
 						if x.Hovered() {
 							x.Background(p.Hover)
 						}

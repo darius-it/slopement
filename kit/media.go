@@ -481,18 +481,29 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		if viewZoom.ID != m.ID || viewZoom.Scale == 0 {
 			viewZoom.ID, viewZoom.Scale, viewZoom.X, viewZoom.Y, viewZoom.dragging = m.ID, 1, 0, 0, false
 		}
-		areaW, areaH := w-S8*2, h-140
+		// The panel is the whole window, bars included: on a phone the header
+		// keeps below the status bar (clock, battery) and the picture above the
+		// home indicator.
+		safeTop, _, safeBottom, _ := c.SafeArea()
+		areaW, areaH := w-S8*2, h-140-safeTop-safeBottom
 		// The header sits clear of the window's controls (the traffic lights
 		// on macOS), as every other bar does.
 		bar := c.TitleBar()
-		ui.Row(c).Height(max(52, bar.Height)).Padding(0, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
+		ui.Row(c).Height(max(52, bar.Height)+safeTop).Padding(safeTop, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
 			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine().MinWidth(0)
 			ui.Text(c, strconv.Itoa(*index+1)+" / "+strconv.Itoa(len(items))).FontSize(SizeSmall).FontFeatures("tnum").TextColor(white.Alpha(0.7))
 			for _, a := range []struct {
 				icon  *ui.SVG
 				label string
 			}{{IconMinus, "Zoom out"}, {IconPlus, "Zoom in"}, {IconDownload, "Download"}, {IconX, "Close"}} {
-				b := ui.ButtonBase(c.Key(a.label)).Size(36, 36).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label(a.label)
+				if Touch(c) && (a.label == "Zoom in" || a.label == "Zoom out") {
+					continue // a finger pinches
+				}
+				bs := float32(36)
+				if Touch(c) {
+					bs = TouchTarget
+				}
+				b := ui.ButtonBase(c.Key(a.label)).Size(bs, bs).Radius(RadiusFull).AlignItems(ui.Center).Justify(ui.Center).Label(a.label)
 				if b.Hovered() {
 					b.Background(white.Alpha(0.12))
 				}

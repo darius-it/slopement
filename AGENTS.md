@@ -133,6 +133,13 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   `saveFileFn`). Voice recording (and Opus/AAC decode) is in the
   mobile-polish/device-pass scope (plan step 9), not stage 5: mygo has no
   capture API yet.
+- Phone navigation: the lists and the room over them are the two pages of a
+  `ui.Router` (`app/phonenav.go`; `a.pushed` stays the source of truth and the
+  router is synced each frame, both ways). The router gives iOS's finger-following
+  edge swipe and Android's back key / predictive back; its spring is
+  `kit.PushSpring`. Anything that leaves a room on a phone just sets
+  `a.pushed = false`. Touch sizes: `kit.Touch` is true on iOS/Android
+  (`kit.PhoneOS`), as mygo never reports a coarse pointer there.
 - `model/`: the app's data types and the `Source` interface (the Matrix
   layer will implement it). `model/mock`: fake data with simulated replies.
 - `login/`: the sign-in screen over `matrix/` (probe a server, the MAS

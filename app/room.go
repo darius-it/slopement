@@ -506,6 +506,10 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 		a.pollRoom, a.pollSheet.Open = r.ID, true
 	case res.Attach:
 		a.pickFiles(r.ID)
+	case res.Photo:
+		a.pickPhotos(r.ID)
+	case res.Camera:
+		a.takePhoto(r.ID)
 	}
 	if res.Pick >= 0 && res.Pick < len(st.Suggest) {
 		a.applySuggestion(r.ID, st, st.Suggest[res.Pick])
@@ -516,7 +520,7 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 		a.editLast(r.ID)
 		c.Invalidate()
 	}
-	if res.Send || res.Paste || res.RemovedFile >= 0 || res.Attach {
+	if res.Send || res.Paste || res.RemovedFile >= 0 || res.Attach || res.Photo || res.Camera {
 		defer c.Invalidate() // these change the draft after the build, too
 	}
 	if res.Paste {

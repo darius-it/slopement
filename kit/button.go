@@ -1,6 +1,10 @@
 package kit
 
-import "github.com/egoist/mygo/ui"
+import (
+	"runtime"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Variant is the look of a button.
 type Variant int
@@ -19,8 +23,20 @@ const (
 // Touch reports whether the primary pointer is a finger, for larger
 // targets.
 func Touch(c *ui.Context) bool {
+	// mygo reports the pointer only on Linux, Windows and the web: a phone's
+	// own system never says "coarse", so its OS says it for it.
+	if isPhoneOS {
+		return true
+	}
 	return c.Preferences().Pointer == ui.PointerCoarse
 }
+
+// isPhoneOS is true where the one pointer is a finger.
+var isPhoneOS = runtime.GOOS == "ios" || runtime.GOOS == "android"
+
+// PhoneOS reports whether the app runs on a phone's system (iOS, Android),
+// for what only a computer has: folders of files the app can read, say.
+func PhoneOS() bool { return isPhoneOS }
 
 // Compact reports whether the window is a phone's width.
 func Compact(c *ui.Context) bool {

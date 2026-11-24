@@ -89,6 +89,7 @@ export default defineConfig({
   // Set `team` to your Apple developer team ID (ios: { team: "ABCDE12345", … })
   // to build for a device or TestFlight.
   ios: {
+    team: "UM5D76P9X8",
     infoPlist: {
       NSMicrophoneUsageDescription: "slopement uses the microphone in calls.",
       NSCameraUsageDescription: "slopement uses the camera when you turn it on in a call.",

@@ -68,6 +68,16 @@ func FadeIn() ui.ElementTransition {
 	}
 }
 
+// PushSpring is a phone's page push, for its router: a lively spring (a
+// little bounce: the page overshoots its place by a few DIPs and settles back)
+// that is mostly there in a third of a second. A spring, not a curve, so a push
+// caught by a Back (or a Back caught by a push) turns around from where the
+// page is, with the speed it had, instead of restarting, and a swipe let go
+// hands its speed to it. Pushed and popped by the same spring. Keep the
+// bounce small: the router lays the page by how far it has come, so a big
+// overshoot shows the page under it at the edge.
+var PushSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 400 * time.Millisecond, Bounce: 0.2}}
+
 // Rise is how a message that arrives live comes in: 8 DIPs up, fading.
 // Never used for history loading or the first build of a room.
 func Rise() ui.ElementTransition {

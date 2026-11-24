@@ -281,6 +281,34 @@ func Apply(c *ui.Context) {
 	c.SetMenuPresentation(ui.PopoverMenus)
 }
 
+type backdropKey struct {
+	base *ui.Theme
+	col  ui.Color
+}
+
+var backdrops = map[backdropKey]*ui.Theme{}
+
+// Backdrop colors what shows behind the window's content: on a phone, the
+// strips the status bar and the home indicator cover, which the root's
+// content stays clear of. Make it the color of the screen's own edge (a
+// room's wallpaper), or the strips read as a different band. Call it after
+// Apply.
+func Backdrop(c *ui.Context, col ui.Color) {
+	base := c.Theme()
+	if base.Background == col {
+		return
+	}
+	k := backdropKey{base, col}
+	t, ok := backdrops[k]
+	if !ok {
+		cp := *base
+		cp.Background = col
+		t = &cp
+		backdrops[k] = t
+	}
+	c.SetTheme(t)
+}
+
 // ApplyTheme is Apply with a theme chosen by the app (a forced light or
 // dark).
 func ApplyTheme(c *ui.Context, dark bool) {

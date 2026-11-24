@@ -9,6 +9,44 @@ would notice; when you tag a release, rename that heading to the tag
 ## Unreleased
 
 ### Added
+- **Phones: photos and the camera in the + menu.** "Photo or video" opens the
+  system's library picker (several at once, no permission needed) and "Take a
+  photo" the camera; what you choose waits in the message box like any file.
+
+### Fixed
+- **Phones: a flick that catches a flinging list now scrolls on.** Touching a
+  list that was still gliding used to stop it and then ignore the finger until you
+  lifted it; now it stops, and follows the finger as soon as it moves. (From a
+  newer mygo, not yet released: pinned to its fix.)
+- **Phones: going back feels native.** On iPhone, swipe from the left edge to
+  leave a chat: it follows your finger, with the list moving beneath it. On
+  Android, the back button and the back gesture leave the chat (and from the list
+  they leave the app). Opening and closing a chat uses a soft spring, like the
+  system's, that you can catch and turn around mid-way.
+- **Phones:** the picture viewer's buttons no longer sit under the status bar.
+- **Phones: scrolling up through history no longer stops dead.** Older messages
+  are now asked for while the top is still a few screens away, not six messages.
+- **Phones: the keyboard no longer stays up** after leaving a chat.
+- **Phones:** no "GIF folders" in Settings or the GIF picker (an app on a phone
+  can't read your folders).
+- **Phones: finger-sized controls.** Buttons, text fields, chips and the clear
+  button in search were drawn at desktop size on iPhone and Android; they are
+  now 44 DIPs tall (chips 34), as the phone layout intended.
+- **Phones: the strip under the tab bar and the home indicator** is now the same
+  color as the bar (and as a room's wallpaper inside a room), not a separate band.
+- **Phones: opening a room slides it in from the right** and Back slides it out;
+  sheets no longer bounce as they open.
+- **Sign-in:** the username and password fields tell iOS what they are (saved
+  passwords are offered, no auto-capitalizing); the server field takes a URL
+  keyboard. The message box asks for predictions instead of the Passwords key.
+- **People on a phone:** "Add person" no longer runs off the screen; the
+  "other servers and bridges" switch sits on its own line.
+- **Phones:** the Settings page bar (and the chat filters, the search filters and
+  wide code blocks) now scroll sideways with a finger. Bottom sheets and dialogs
+  stay clear of the system bars (Android's back/home buttons, the iOS home
+  indicator), and the pins and thread sheets fit short screens.
+
+### Added
 - **Notification sound** on every desktop: a soft two-note chime of the app's own
   (Settings → Notifications → Sound), at most once every 1.5 seconds, and it
   plays even when the banners are off. The system's own sound is no longer used.

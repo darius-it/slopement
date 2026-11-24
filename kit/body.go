@@ -305,7 +305,7 @@ func (b *bodyBuilder) codeBlock(n *format.Node, path string) {
 				c.AddToast(ui.Toast{Title: "Code copied"})
 			}
 		})
-		ui.Scroll(c).Row().Scrollbars(false).Padding(0, S3, S3, S3).Children(func() {
+		ui.ScrollHorizontal(c).Scrollbars(false).Padding(0, S3, S3, S3).Children(func() {
 			ui.RichText(c).Font("monospace").FontSize(SizeSmall).LineHeight(1.5).NoWrap().Children(func() {
 				// Quiet highlighting: comments, strings, numbers and the
 				// language's keywords only (format.Highlight, no dependency).

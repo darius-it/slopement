@@ -363,19 +363,34 @@ func (a *App) peopleView(c *ui.Context, back bool) {
 			ui.Icon(c, kit.IconUsers).Size(18, 18).TextColor(p.TextMuted)
 			ui.Text(c, "People").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold).Grow(1)
 			// Your own server's people first; the others and the bridges' are one press away.
-			if _, hidden := a.contactsFor(false); hidden > 0 || a.peopleAll {
-				label := "Show other servers and bridges (" + strconv.Itoa(hidden) + ")"
-				if a.peopleAll {
-					label = "Only my server"
-				}
-				if kit.Button(c, kit.Ghost, label, nil).Clicked() {
-					a.peopleAll = !a.peopleAll
-				}
+			_, hidden := a.contactsFor(false)
+			label := "Show other servers and bridges (" + strconv.Itoa(hidden) + ")"
+			if a.peopleAll {
+				label = "Only my server"
 			}
-			if kit.Button(c, kit.Secondary, "Add person", kit.IconPlus).Clicked() {
+			compact := kit.Compact(c)
+			if !compact && (hidden > 0 || a.peopleAll) && kit.Button(c, kit.Ghost, label, nil).Clicked() {
+				a.peopleAll = !a.peopleAll
+			}
+			if compact { // a phone's header has room for the title and one icon
+				if kit.IconButton(c, kit.Ghost, kit.IconPlus, "Add person").Clicked() {
+					a.openAddPerson()
+				}
+			} else if kit.Button(c, kit.Secondary, "Add person", kit.IconPlus).Clicked() {
 				a.openAddPerson()
 			}
 		})
+		if _, hidden := a.contactsFor(false); kit.Compact(c) && (hidden > 0 || a.peopleAll) {
+			label := "Show other servers and bridges (" + strconv.Itoa(hidden) + ")"
+			if a.peopleAll {
+				label = "Only my server"
+			}
+			ui.Row(c).PaddingX(kit.S3).PaddingY(kit.S1).Shrink(0).Children(func() {
+				if kit.Button(c, kit.Ghost, label, nil).Clicked() {
+					a.peopleAll = !a.peopleAll
+				}
+			})
+		}
 		ui.Scroll(c).Grow(1).Padding(kit.S4).Children(func() {
 			var act kit.PeopleAction
 			a.people.Sub = a.prefs.peopleSub

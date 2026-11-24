@@ -314,6 +314,9 @@ func gifTab(c *ui.Context, st *PickerState, m *PickerModel, r *PickerResult) {
 		ui.Grid(c.Key("front")).Columns(2).Gap(S1 + 2).Children(func() {
 			for i := range m.Front {
 				t := &m.Front[i]
+				if t.Kind == TileFolders && PhoneOS() {
+					continue // no folders of the user's on a phone
+				}
 				if categoryTile(c, t).Clicked() {
 					switch t.Kind {
 					case TileFavorites:

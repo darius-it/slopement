@@ -98,7 +98,7 @@ func (a *App) settingsView(c *ui.Context, back bool) {
 			}
 		})
 		if compact {
-			ui.Scroll(c).Row().Gap(kit.S1).Scrollbars(false).Padding(kit.S2, kit.S3).Shrink(0).Children(func() {
+			ui.ScrollHorizontal(c.Key("settings-pages")).Gap(kit.S1).Scrollbars(false).Padding(kit.S2, kit.S3).Shrink(0).Children(func() {
 				for _, pg := range settingsPages {
 					if kit.Chip(c.Key("sp:"+pg.name), pg.name, a.settings == pg.name).Clicked() {
 						a.settings = pg.name

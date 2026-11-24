@@ -272,12 +272,17 @@ func (a *App) panelSheetView(c *ui.Context, r model.Room) {
 	if a.panelShown == panelThread {
 		title = "Thread"
 	}
+	// 460 DIPs, but never more than the sheet can show on a short screen
+	// (landscape, or the keyboard up): a taller body is cut off, not scrolled.
+	_, wh := c.Size()
+	_, _, safeBottom, _ := c.SafeArea()
+	bodyH := min(460, wh*0.6-safeBottom)
 	kit.Sheet(c, &a.panelSheet, title, func() {
 		switch a.panelShown {
 		case panelThread:
-			ui.Column(c.Key("pthread")).Height(460).Children(func() { a.threadPanel(c, r) })
+			ui.Column(c.Key("pthread")).Height(bodyH).Children(func() { a.threadPanel(c, r) })
 		case panelPins:
-			ui.Scroll(c.Key("ppins:" + r.ID)).Height(460).Gap(kit.S3).Children(func() { a.pinsPanel(c, r) })
+			ui.Scroll(c.Key("ppins:" + r.ID)).Height(bodyH).Gap(kit.S3).Children(func() { a.pinsPanel(c, r) })
 		}
 	})
 	if !a.panelSheet.Open && a.panelShown != panelNone && want {
