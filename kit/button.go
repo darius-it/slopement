@@ -34,6 +34,14 @@ func Touch(c *ui.Context) bool {
 // isPhoneOS is true where the one pointer is a finger.
 var isPhoneOS = runtime.GOOS == "ios" || runtime.GOOS == "android"
 
+// SetPhoneOS makes the kit behave as on a phone's system (finger-sized
+// controls, swiping messages, no hover) where the OS is a computer's: for
+// tests and the gallery's phone pages. It returns what to give it back to.
+func SetPhoneOS(on bool) (was bool) {
+	was, isPhoneOS = isPhoneOS, on
+	return was
+}
+
 // PhoneOS reports whether the app runs on a phone's system (iOS, Android),
 // for what only a computer has: folders of files the app can read, say.
 func PhoneOS() bool { return isPhoneOS }

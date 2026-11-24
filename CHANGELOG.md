@@ -9,6 +9,18 @@ would notice; when you tag a release, rename that heading to the tag
 ## Unreleased
 
 ### Added
+- **Phones: swipe a message to reply.** Drag a message toward the middle of the
+  screen (to the right for messages on the left, to the left for your own): an
+  arrow comes out beside it and ticks when it is far enough; let go there to
+  reply, or sooner to let it spring back.
+- **Phones: flick a picture away to close it.** In the picture viewer, drag the
+  picture up or down (or flick it): it follows your finger, the background
+  clears, and it closes if you take it far enough or flick it.
+- **Phones: holding a message opens its options over the blurred chat,** as in
+  Signal: the message stays sharp where it was and a card of options (Reply, Copy
+  text, Pin, Forward, Delete…) extends down from it, on its side; it moves up with
+  the message if it would not fit above the keyboard. The message sinks slightly
+  under your finger as you hold it, with the system's tap of feedback.
 - **Phones: counts on the tab bar.** Chats and Communities each show a solid
   count of what is waiting there (the accent color when it includes a mention), so
   you can see from any tab that something came in elsewhere. Muted rooms are left
@@ -29,8 +41,15 @@ would notice; when you tag a release, rename that heading to the tag
 - **AAC (.m4a) audio no longer plays in the app.** Voice messages are Ogg Opus
   (what Element sends) and still play; an AAC attachment now shows as a file you
   can save. (Apple Lossless .m4a still plays.)
+- **Phones: the favorite star for GIFs moved to the picture viewer's top bar.** It
+  no longer sits over every GIF in the chat; open a GIF and press the star beside
+  Download. (On a computer it still shows when you point at a GIF.)
 
 ### Fixed
+- **Phones: holding a message no longer selects a word.** The text in message
+  bubbles is not selectable on a touch screen any more (it showed the system's
+  Copy / Select All bar instead of the message's options); use "Copy text" in the
+  message's options.
 - **Phones: a flick that catches a flinging list now scrolls on.** Touching a
   list that was still gliding used to stop it and then ignore the finger until you
   lifted it; now it stops, and follows the finger as soon as it moves. (From a

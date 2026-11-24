@@ -107,6 +107,9 @@ type YouTubeSpec struct {
 
 // MessageAction is what the user did to a message.
 type MessageAction struct {
+	// At is where the message's row was in the last frame, in window DIPs: for
+	// a phone's menu, which draws the message again where it is.
+	At ui.Rect
 	// Retry: "Try again" on a message that was not sent was pressed.
 	Retry     bool
 	React     string // a reaction key toggled

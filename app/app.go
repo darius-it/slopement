@@ -121,7 +121,7 @@ type App struct {
 	files            map[string][]model.File             // per room, waiting in the composer (files.go)
 	previews         map[string]*previewState            // link previews by URL (previews.go)
 	noPreview        map[string]bool                     // messages whose preview the user dismissed
-	msgSheet         kit.SheetState                      // phones: a message's menu (actions.go)
+	msgPop           msgPopState                         // phones: a message's menu, over the blurred chat (msgmenu.go)
 	msgRoom, msgID   string
 	readMarked       map[string]string // per room, the last event marked read while open (readmark.go)
 	jumpRoom, jumpID string            // a jump to a message asked for (jump.go)

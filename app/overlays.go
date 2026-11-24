@@ -291,9 +291,7 @@ func (a *App) panelSheetView(c *ui.Context, r model.Room) {
 }
 
 func (a *App) phoneSheets(c *ui.Context) {
-	if a.msgID != "" {
-		a.messageSheet(c)
-	}
+	a.messageMenuView(c)
 	if r, ok := a.src.Room(a.roomSheetID); ok {
 		kit.Sheet(c, &a.roomSheet, r.Name, func() {
 			st := a.menuState(r)

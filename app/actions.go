@@ -42,7 +42,8 @@ func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 	case kit.MsgThread:
 		a.openThread(room, ev)
 	case kit.MsgOpenSheet:
-		a.msgSheet.Open, a.msgRoom, a.msgID = true, room, ev.ID
+		a.msgPop = msgPopState{Open: true}
+		a.msgRoom, a.msgID = room, ev.ID
 	case kit.MsgCopyText:
 		a.copyToClipboard(ev.Body, "Copied")
 	case kit.MsgCopyLink:
@@ -140,61 +141,6 @@ func (a *App) editStep(room string, st *kit.ComposerState) bool {
 	}
 	st.Text = ""
 	return true
-}
-
-// messageSheet is a phone's menu of one message, shown on a long press.
-func (a *App) messageSheet(c *ui.Context) {
-	var ev model.Event
-	found := false
-	for _, e := range a.src.Timeline(a.msgRoom) {
-		if e.ID == a.msgID {
-			ev, found = e, true
-		}
-	}
-	if !found {
-		a.msgSheet.Open = false
-		return
-	}
-	st := a.msgMenu(ev)
-	kit.Sheet(c, &a.msgSheet, "", func() {
-		row := func(icon *ui.SVG, title string, ch kit.MessageChoice) {
-			if kit.ChoiceRow(c, icon, title, "").Clicked() {
-				a.msgSheet.Open = false
-				if ch == kit.MsgReply {
-					d := a.draft(a.msgRoom)
-					d.Reply = a.quote(a.msgRoom, ev.ID)
-					a.replyTo[a.msgRoom] = ev.ID
-					return
-				}
-				a.messageChoice(a.msgRoom, ev, ch)
-			}
-		}
-		row(kit.IconReply, "Reply", kit.MsgReply)
-		if st.HasText {
-			row(kit.IconCopy, "Copy text", kit.MsgCopyText)
-		}
-		row(kit.IconLink, "Copy message link", kit.MsgCopyLink)
-		if st.Sticker {
-			row(kit.IconPlus, "Add to my emoji", kit.MsgAddToPack)
-		}
-		if st.Pinned {
-			row(kit.IconPin, "Unpin", kit.MsgUnpin)
-		} else {
-			row(kit.IconPin, "Pin", kit.MsgPin)
-		}
-		if st.Forward {
-			row(kit.IconForward, "Forward", kit.MsgForward)
-		}
-		if st.Source {
-			row(kit.IconCode, "View source", kit.MsgViewSource)
-		}
-		if st.Mine {
-			if st.HasText {
-				row(kit.IconPencil, "Edit", kit.MsgEdit)
-			}
-			row(kit.IconTrash, "Delete", kit.MsgDelete)
-		}
-	})
 }
 
 // pinnedEvents are a room's pinned messages, in the order pinned: all of

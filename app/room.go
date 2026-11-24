@@ -605,7 +605,17 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 func (a *App) phoneRoom(c *ui.Context) {
 	p := kit.Of(c)
 	r, _ := a.roomByID(a.room)
-	ui.Column(c).Grow(1).MinHeight(0).Background(p.Wallpaper).Children(func() {
+	col := ui.Column(c).Grow(1).MinHeight(0).Background(p.Wallpaper)
+	// The chat blurs as a message's menu opens over it (msgmenu.go), and clears
+	// as it closes: the message is drawn sharp above, where it was.
+	menuBlur := float32(0)
+	if a.msgPop.Open {
+		menuBlur = 14
+	}
+	if sigma := col.AnimateWith("menu-blur", menuBlur, kit.DurBase, kit.EaseOut); sigma > 0.1 {
+		col.Blur(sigma)
+	}
+	col.Children(func() {
 		sub := ""
 		av := kit.AvatarSpec{Name: r.Name, ID: r.ID, Colors: &a.colors, Square: r.Kind != model.KindDM}
 		if r.Kind == model.KindDM {
@@ -681,6 +691,13 @@ func (a *App) phoneRoom(c *ui.Context) {
 // bubbleRow is row i of a phone's timeline: a date, a system line, or a
 // message bubble.
 func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
+	a.bubbleRowAs(c, r, rows, i, false)
+}
+
+// bubbleRowAs is bubbleRow; lifted draws the message again, without gestures
+// and without acting on what it asks for, as a phone's menu shows it over the
+// blurred chat (msgmenu.go).
+func (a *App) bubbleRowAs(c *ui.Context, r model.Room, rows []trow, i int, lifted bool) {
 	me := a.src.Me().ID
 	tr := rows[i]
 	if tr.ev == nil {
@@ -727,7 +744,22 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 	if !b.Out {
 		b.Profile, b.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
 	}
-	ui.Column(c.Key(ev.ID)).Children(func() {
-		a.messageAct(r.ID, ev, b.Media, kit.Bubble(c, b, &a.colors, a.reveals))
+	if lifted {
+		b.Plain, b.Menu.Off = true, true
+		b.Profile, b.ProfileOpen = nil, false // only to be seen
+	}
+	key := ev.ID
+	if lifted {
+		key = "lift:" + ev.ID
+	}
+	ui.Column(c.Key(key)).Children(func() {
+		act := kit.Bubble(c, b, &a.colors, a.reveals)
+		if lifted {
+			return
+		}
+		if a.msgPop.Open && ev.ID == a.msgID {
+			a.msgPop.At = act.At // the menu draws the message where it is now
+		}
+		a.messageAct(r.ID, ev, b.Media, act)
 	})
 }

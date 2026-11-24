@@ -182,24 +182,29 @@ func TestPhoneWithNewControls(t *testing.T) {
 	}
 }
 
-// A long press on a phone opens the message's sheet, and a choice from it acts.
-func TestMessageSheetOnPhone(t *testing.T) {
+// A long press on a phone opens the message's menu over the blurred chat, and a
+// choice from it acts.
+func TestMessageMenuOnPhone(t *testing.T) {
 	a, src, room := actApp(t)
-	ev := src.tl[10]
+	ev := src.tl[len(src.tl)-3] // one in view, as a long press has
 	a.messageChoice(room.ID, ev, kit.MsgOpenSheet)
-	if !a.msgSheet.Open || a.msgID != ev.ID {
-		t.Fatalf("the sheet did not open: %+v %q", a.msgSheet, a.msgID)
+	if !a.msgPop.Open || a.msgID != ev.ID {
+		t.Fatalf("the menu did not open: %+v %q", a.msgPop, a.msgID)
 	}
 	tt := ui.NewTester(a.View, 390, 844)
 	settle(tt)
+	snap(t, "message-menu", tt)
+	if a.msgPop.At.W <= 0 || a.msgPop.At.H <= 0 {
+		t.Fatalf("the message's place was not found: %+v", a.msgPop.At)
+	}
 	if !tt.HasText("Copy message link") || !tt.HasText("Reply") {
-		t.Fatal("the sheet does not list the actions")
+		t.Fatal("the menu does not list the actions")
 	}
 	if err := tt.Click("Pin"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
-	if !src.pins[ev.ID] || a.msgSheet.Open {
-		t.Fatalf("Pin did not pin and close: pins=%v open=%v", src.pins, a.msgSheet.Open)
+	if !src.pins[ev.ID] || a.msgPop.Open {
+		t.Fatalf("Pin did not pin and close: pins=%v open=%v", src.pins, a.msgPop.Open)
 	}
 }

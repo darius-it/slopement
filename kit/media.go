@@ -143,11 +143,13 @@ func mediaTile(c *ui.Context, m MediaSpec, w, h, radius float32, rv Reveals) ui.
 			ui.Box(c).Fill().Attach(ui.AnchorTopLeft, ui.AnchorTopLeft).Background(ui.RGBA(10, 8, 20, 0.3)).PassThrough()
 			progressRing(c, m.Progress, white)
 		}
-		// The favorite star appears at the top-right corner on pointer hover
-		// (and on touch), never just because the GIF is starred — nor while
-		// the tile merely holds the keyboard focus, which a click leaves
-		// behind; starred is a filled gold star.
-		if m.Star != nil && !hidden && (b.Hovered() || Touch(c)) {
+		// The favorite star appears at the top-right corner on pointer hover,
+		// never just because the GIF is starred — nor while the tile merely holds
+		// the keyboard focus, which a click leaves behind; starred is a filled
+		// gold star. Not on a touch screen, which has no hover to bring it only
+		// when wanted: it would sit over every GIF. There it is in the viewer's
+		// top bar (MediaViewer).
+		if m.Star != nil && !hidden && b.Hovered() && !Touch(c) {
 			label := "Add to favorite GIFs"
 			if m.Starred {
 				label = "Remove from favorite GIFs"
@@ -463,6 +465,43 @@ func clampPan(mw, mh, aw, ah float32) {
 	viewZoom.Y = min(max(viewZoom.Y, -limY), limY)
 }
 
+// viewDismiss is where a finger has put the picture, down or up, to close the
+// viewer (flickAway).
+var viewDismiss ui.Point
+
+// flickAway lets a finger take the picture away to close the viewer, as
+// Photos' and Instagram's do: it follows the finger up or down (shrinking a
+// little), the backdrop clearing as it goes; let go past a third of the way, or
+// flicked, it carries on off the screen and the viewer closes; let go before,
+// it springs back. It is a vertical Draggable, so a finger going across or two
+// pinching are not taken. Only at 1×: a zoomed picture is panned instead. It
+// returns how far the picture is gone, 0 to 1.
+func flickAway(c *ui.Context, pic ui.Element, open *bool) float32 {
+	_, wh := c.Size()
+	reach := wh * 0.33 // past this (counting the throw), it goes
+	pic.Draggable(&viewDismiss, ui.DraggableOptions{
+		Axis: ui.Vertical,
+		Snap: func(p ui.Point) ui.Point {
+			switch {
+			case p.Y > reach:
+				return ui.Point{Y: wh}
+			case p.Y < -reach:
+				return ui.Point{Y: -wh}
+			}
+			return ui.Point{}
+		},
+	})
+	away := min(float32(math.Abs(float64(pic.DragOffset().Y)))/(wh*0.45), 1)
+	sc := 1 - 0.12*away
+	pic.Scale(sc, sc)
+	// It went off the screen: close, once it is there.
+	if math.Abs(float64(viewDismiss.Y)) >= float64(wh) && !pic.Transitioning() {
+		viewDismiss = ui.Point{}
+		*open = false
+	}
+	return away
+}
+
 // MediaViewer shows attachments full screen over a dark backdrop: the
 // picture fitted at full resolution, zoomed with the wheel, a pinch,
 // double-click or +/−, and dragged when zoomed; arrows (and keys) between
@@ -472,6 +511,7 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		return
 	}
 	*index = min(max(*index, 0), len(items)-1)
+	p := Of(c)
 	white := ui.Hex("#FFFFFF")
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(8, 6, 14, 0.94)).Transition(ui.ElementTransition{Duration: DurBase, ExitDuration: DurExit, Enter: &ui.Motion{}, Exit: &ui.Motion{}})
@@ -480,6 +520,7 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		m := items[*index]
 		if viewZoom.ID != m.ID || viewZoom.Scale == 0 {
 			viewZoom.ID, viewZoom.Scale, viewZoom.X, viewZoom.Y, viewZoom.dragging = m.ID, 1, 0, 0, false
+			viewDismiss = ui.Point{}
 		}
 		// The panel is the whole window, bars included: on a phone the header
 		// keeps below the status bar (clock, battery) and the picture above the
@@ -492,10 +533,23 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		ui.Row(c).Height(max(52, bar.Height)+safeTop).Padding(safeTop, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
 			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine().MinWidth(0)
 			ui.Text(c, strconv.Itoa(*index+1)+" / "+strconv.Itoa(len(items))).FontSize(SizeSmall).FontFeatures("tnum").TextColor(white.Alpha(0.7))
-			for _, a := range []struct {
+			type viewAction struct {
 				icon  *ui.SVG
 				label string
-			}{{IconMinus, "Zoom out"}, {IconPlus, "Zoom in"}, {IconDownload, "Download"}, {IconX, "Close"}} {
+				gold  bool // a starred favorite is gold, as the picker's
+			}
+			actions := []viewAction{{IconMinus, "Zoom out", false}, {IconPlus, "Zoom in", false}, {IconDownload, "Download", false}, {IconX, "Close", false}}
+			if m.Star != nil {
+				// A GIF's favorite star lives here, in the top bar, not over the
+				// picture in the timeline (where a finger has no hover to show it
+				// only when wanted). Before Download.
+				fav := viewAction{IconStar, "Add to favorite GIFs", false}
+				if m.Starred {
+					fav = viewAction{IconStarFilled, "Remove from favorite GIFs", true}
+				}
+				actions = append(actions[:2:2], append([]viewAction{fav}, actions[2:]...)...)
+			}
+			for _, a := range actions {
 				if Touch(c) && (a.label == "Zoom in" || a.label == "Zoom out") {
 					continue // a finger pinches
 				}
@@ -507,9 +561,18 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				if b.Hovered() {
 					b.Background(white.Alpha(0.12))
 				}
-				b.Children(func() { ui.Icon(c, a.icon).Size(18, 18).TextColor(white) })
+				b.Children(func() {
+					col := white
+					if a.gold {
+						col = p.Warning
+					}
+					ui.Icon(c, a.icon).Size(18, 18).TextColor(col)
+				})
 				if b.Clicked() {
 					switch a.label {
+					case "Add to favorite GIFs", "Remove from favorite GIFs":
+						m.Star(!m.Starred)
+						items[*index].Starred = !m.Starred // the viewer shows it at once
 					case "Close":
 						*open = false
 					case "Zoom in":
@@ -524,12 +587,15 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		var picBox ui.Rect // the picture, last frame, in window DIPs
 		area := ui.Row(c.Key("area")).Grow(1).AlignItems(ui.Center).Justify(ui.Center).PaddingX(S4).Clip()
 		var mw, mh float32
+		var away float32 // 0..1: how far a finger has taken the picture off, to close it
 		area.Children(func() {
 			mw, mh = fit(m.W, m.H, areaW, areaH)
 			s := viewZoom.Scale
 			pic := ui.Box(c.Key(m.ID)).Size(mw, mh).Radius(RadiusSm).Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{Scale: 0.98}})
 			if s != 1 {
 				pic.Scale(s, s).Translate(viewZoom.X/s, viewZoom.Y/s)
+			} else if Touch(c) {
+				away = flickAway(c, pic, open)
 			}
 			picBox = pic.Bounds()
 			var full ui.ImageSource
@@ -549,6 +615,10 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				}
 			})
 		})
+		if away > 0 {
+			// The backdrop clears as the picture goes: the chat comes back under it.
+			backdrop.Background(ui.RGBA(8, 6, 14, 0.94*(1-away)))
+		}
 		ab := area.Bounds() // as of the last frame: the callback outlives this element
 		area.HandleInput(func(ev ui.InputEvent) bool {
 			px, py := ev.X-ab.W/2, ev.Y-ab.H/2 // from the area's center

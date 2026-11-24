@@ -49,7 +49,10 @@ func MessageBody(c *ui.Context, key string, doc *format.Node, rv Reveals, s Body
 	}
 	b := &bodyBuilder{c: c, key: key, rv: rv, s: s, p: Of(c)}
 	col := ui.Column(c).Gap(S15).MinWidth(0)
-	if !s.Shared {
+	// Not on a touch screen: a held finger would select a word and show the
+	// system's Copy / Select All bar, in place of the message's own menu (which
+	// has Copy text, and is what a long press on a message is for).
+	if !s.Shared && !Touch(c) {
 		col.Selectable()
 	}
 	col.Children(func() {

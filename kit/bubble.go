@@ -57,6 +57,9 @@ type BubbleData struct {
 	// until it is delivered.
 	Unsent bool
 	Failed bool
+	// Plain draws it again without gestures or menu: the message lifted in a
+	// phone's menu, where it is only to be seen.
+	Plain bool
 	// CanRetry says a failed message can be sent again ("Try again" shows).
 	CanRetry bool
 	Error    string
@@ -129,8 +132,29 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 			row.TransformOrigin(0, 1)
 		}
 	}
-	if !b.Menu.Off && (row.LongPressed() || row.RightClicked()) {
-		a.Menu = MsgOpenSheet // the app shows what can be done, as a sheet
+	a.At = row.Bounds()
+	if !b.Plain && !b.Menu.Off && (row.LongPressed() || row.RightClicked()) {
+		a.Menu = MsgOpenSheet // the app shows what can be done, over the message
+	}
+	// On a phone: a message held for the menu sinks a little under the
+	// finger as it is held (iOS's Haptic Touch does, before its menu comes,
+	// which mygo's long press goes with a tick of its own), and a finger
+	// pulling it sideways replies (swipereply.go).
+	swipe := Touch(c) && !b.Menu.Off && !b.Plain
+	if swipe {
+		s := float32(1)
+		if row.Pressed() && !swipeState(row).dragging {
+			s = 0.97
+		}
+		s = row.AnimateWith("lift", s, DurPress, EaseOut)
+		row.Scale(s, s)
+		if !b.Live {
+			if b.Out {
+				row.TransformOrigin(1, 0.5)
+			} else {
+				row.TransformOrigin(0, 0.5)
+			}
+		}
 	}
 	row.Children(func() {
 		if !b.Out {
@@ -152,7 +176,15 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 		if b.Out && bubbleMeta(c, b) {
 			a.Retry = true
 		}
-		ui.Column(c).Gap(S1).MinWidth(0).Shrink(1).AlignItems(alignFor(b.Out)).Children(func() {
+		col := ui.Column(c.Key("body:" + b.ID)).Gap(S1).MinWidth(0).Shrink(1).AlignItems(alignFor(b.Out))
+		pulled := float32(0)
+		if swipe {
+			pulled = swipeToReply(row, col, b.Out, &a)
+		}
+		col.Children(func() {
+			if swipe {
+				replyCue(c, row, b.Out, pulled)
+			}
 			if b.First && !b.Out {
 				md := MessageData{Sender: b.Sender, SenderID: b.SenderID, Profile: b.Profile, ProfileOpen: b.ProfileOpen}
 				name := senderName(c, md, colors, SizeSmall).PaddingX(S1)
