@@ -101,7 +101,7 @@ func (a *App) formattingPage(c *ui.Context) {
 	})
 	a.specimen(c, "In a bubble", "The same body in an outgoing phone bubble: links, code and quotes recolor to read on purple.", false, func() {
 		ui.Column(c).Padding(kit.S3).Radius(kit.RadiusMd).Background(kit.Of(c).Wallpaper).Children(func() {
-			kit.Bubble(c, kit.BubbleData{ID: "fmt-bubble", Out: true, First: true, Last: true, Read: true, Time: "14:05",
+			kit.Bubble(c, kit.BubbleData{ID: "fmt-bubble", Out: true, First: true, Last: true, Sent: true, Time: "14:05",
 				Doc: format.Parse("**Shipping** today ||(surprise)||, see `v0.4` and https://matrix.org\n> quoted bit\n- one\n- two")},
 				&a.colors, a.reveals)
 		})

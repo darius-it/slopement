@@ -92,7 +92,7 @@ func bubbles() []kit.BubbleData {
 	r := b("b7", true, "13:50", "omg the view 😍")
 	r.Reply = &kit.Quote{Sender: "Alex Rivera", SenderID: alex, Body: "perfect. here's the plan: coffee, walk, cake"}
 	r.Reactions = []kit.Reaction{{Key: "❤️", Count: 1}}
-	r.Read = true
+	r.Sent = true
 	list = append(list, r)
 	// Runs: First on a change of sender, Last before one.
 	for i := range list {

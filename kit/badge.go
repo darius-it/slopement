@@ -42,6 +42,29 @@ func Count(c *ui.Context, n int, mention bool) {
 	pillText(c, CountText(n), 18, SizeCaption, WeightSemibold, fg, bg).Label(CountText(n) + " unread")
 }
 
+// SolidCount is the count on a phone's tab bar icon or on a button: a solid
+// pill that reads at a glance, unlike Count's quiet one that sits in a list
+// row (which was too faint to notice from the tab bar). Mentions are the
+// accent; other unread is the text color's inverse (white on dark, near-black
+// on light), so it stands out in either theme without a second color. A ring
+// in the surface's color (ring) parts it from the icon under it. Nothing is
+// built for 0.
+func SolidCount(c *ui.Context, n int, mention bool, ring ui.Color) {
+	if n <= 0 {
+		return
+	}
+	p := Of(c)
+	bg, fg := p.Text, p.Bg
+	if mention {
+		bg, fg = p.Accent, p.OnAccent
+	}
+	text := strconv.Itoa(n)
+	if n > 99 {
+		text = "99+"
+	}
+	pillText(c, text, 20, 11, WeightSemibold, fg, bg).Border(2, ring).Label(text + " unread")
+}
+
 // Dot is an unread dot without a count.
 func Dot(c *ui.Context, mention bool) ui.Element {
 	p := Of(c)

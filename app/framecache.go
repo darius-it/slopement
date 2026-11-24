@@ -29,6 +29,34 @@ type srcCache struct {
 	names    bool   // the lists were made with usernames shown (names.go)
 	online   [2]int // by "all"
 	onlineOK [2]bool
+	tabs     [2]tabCount // Chats, Communities
+	tabsOK   bool
+}
+
+// tabCount is what a phone's tab bar says is waiting in a tab: how many
+// unread messages, and how many of them mention the user.
+type tabCount struct{ unread, mentions int }
+
+// tabCounts are the counts for the Chats tab (rooms in no community) and the
+// Communities tab (rooms in one), muted rooms left out. Kept with the source's
+// lists, which it is made from.
+func (a *App) tabCounts() (chats, comms tabCount) {
+	a.scEnsure()
+	if !a.sc.tabsOK {
+		for _, r := range a.roomList() {
+			if r.Muted {
+				continue
+			}
+			t := &a.sc.tabs[0]
+			if r.Community != "" {
+				t = &a.sc.tabs[1]
+			}
+			t.unread += r.Unread
+			t.mentions += r.Mentions
+		}
+		a.sc.tabsOK = true
+	}
+	return a.sc.tabs[0], a.sc.tabs[1]
 }
 
 type frameCache struct {

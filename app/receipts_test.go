@@ -63,9 +63,13 @@ func TestReceiptState(t *testing.T) {
 	if got.readID != "" || got.sentID != "1" {
 		t.Fatalf("read=%q sent=%q", got.readID, got.sentID)
 	}
-	// Off: nothing at all.
-	if got = state(false, ev("1", me)); got != (receiptState{}) {
+	// Off: nothing of who has read what (the place that was read is not looked
+	// at), but the last message is still sent: that says nothing of anyone else.
+	if got = state(false, ev("1", me), ev("2", "@kai", "@kai")); got != (receiptState{sentID: "1"}) {
 		t.Fatalf("off: %+v", got)
+	}
+	if got = state(false); got != (receiptState{}) {
+		t.Fatalf("off, no messages: %+v", got)
 	}
 	// The check is for a message the server has: not one still being sent, and
 	// not one that failed — the last delivered one carries it.

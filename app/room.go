@@ -665,6 +665,13 @@ func (a *App) phoneRoom(c *ui.Context) {
 				ui.Column(c.Key("ptyping")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(kit.S3).Top(-kit.S1).PassThrough().
 					Children(func() { kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors) })
 			}
+			// Away from the newest messages: a small arrow on the right takes
+			// you back (the seeking pill, when it shows, takes its place).
+			if !ls.AtEnd() && len(rows) > 0 && !(a.jumpLooking && a.jumpRoom == r.ID) {
+				if kit.JumpToLatest(c, r.Unread, r.Mentions) {
+					ls.ScrollToEnd() // the list knows where its end is, rows not measured yet too
+				}
+			}
 			a.seekPill(c, r.ID)
 		})
 		a.composer(c, r)
@@ -695,13 +702,12 @@ func (a *App) bubbleRow(c *ui.Context, r model.Room, rows []trow, i int) {
 		Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
 		First: tr.first, Last: last, Pending: ev.Pending, Unsent: ev.Pending && a.offline(), Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300,
 		CanRetry: ev.Failed && a.canRetry(r.ID, ev.ID)}
-	if a.prefs.receipts {
-		b.Read = b.Out && ev.ID == a.rs.readID // your last message that was read
-		b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
-		if r.Kind != model.KindDM { // a DM's "Read" says it all
-			b.ReadBy = a.readers(ev)
-		}
-	}
+	// On the bubble's side, as on desktop: the hollow circle on your last
+	// message while nobody has read it (it says only that the server has it, so
+	// it shows with Read receipts off too), and the circles of whoever has read
+	// up to a message (only with Read receipts on).
+	b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
+	b.ReadBy = a.readers(ev)
 	if ev.Kind != model.EventUndecryptable {
 		var yt *kit.YouTubeSpec
 		b.Doc, b.Media, yt = a.content(ev)

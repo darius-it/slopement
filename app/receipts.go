@@ -35,25 +35,28 @@ type receiptState struct {
 func delivered(ev model.Event) bool { return !ev.Pending && !ev.Failed }
 
 // receiptStateOf reads it off a room's timeline (one pass, once a frame).
+//
+// With the setting off nothing is shown of who has read what (the furthest
+// read place is not looked at), but the user's last message is still "sent":
+// that says only that the server has it, nothing about anyone else.
 func (a *App) receiptStateOf(room string) (st receiptState) {
-	if !a.prefs.receipts {
-		return
-	}
 	me := a.src.Me().ID
 	evs := a.src.Timeline(room)
 	furthest, lastOwn := -1, -1
 	for i, ev := range evs {
-		if len(ev.ReadBy) > 0 {
+		if a.prefs.receipts && len(ev.ReadBy) > 0 {
 			furthest = i // the furthest anyone has read
 		}
 		if ev.Sender == me && ev.Kind != model.EventSystem && delivered(ev) {
 			lastOwn = i
 		}
 	}
-	for i := min(lastOwn, furthest); i >= 0; i-- {
-		if evs[i].Sender == me && evs[i].Kind != model.EventSystem && delivered(evs[i]) {
-			st.readID = evs[i].ID
-			break
+	if furthest >= 0 {
+		for i := min(lastOwn, furthest); i >= 0; i-- {
+			if evs[i].Sender == me && evs[i].Kind != model.EventSystem && delivered(evs[i]) {
+				st.readID = evs[i].ID
+				break
+			}
 		}
 	}
 	if lastOwn >= 0 && lastOwn > furthest {

@@ -41,11 +41,13 @@ type BubbleData struct {
 	Embed *LinkCard
 	// First and Last place it in a run of one sender's messages.
 	First, Last bool
-	Read        bool // outgoing: read by the other side
-	// ReadBy are the people who have read up to this message, in a room
-	// with more than one other (a DM says "Read" instead).
+	// ReadBy are the people who have read up to this message: their small
+	// round avatars on the bubble's side, as on desktop and in Element X. Only
+	// with the Read receipts setting on.
 	ReadBy []AvatarSpec
-	// Sent: the user's last message, sent and not read yet.
+	// Sent: the user's last message, sent and not read yet: a hollow circle
+	// with a check on the bubble's side, as on desktop. It says nothing of
+	// anyone else, so it shows whatever the Read receipts setting is.
 	Sent bool
 	// Menu says what the message's menu (a long press) offers.
 	Menu MessageMenuState
@@ -295,12 +297,12 @@ func bubbleMeta(c *ui.Context, b BubbleData) (retry bool) {
 				retry = true
 			}
 			return
-		case b.Out && b.Read:
-			ui.Text(c, "Read").FontSize(SizeCaption - 1).FontWeight(WeightMedium).TextColor(p.AccentStrong)
-		case b.Out && b.Sent:
-			ui.Text(c, "Sent").FontSize(SizeCaption - 1).TextColor(p.TextMuted)
 		}
+		// On the bubble's side, over the time: the circles of who has read up
+		// to it, or the hollow circle of a message that is sent (a clock while
+		// it is still going), as on desktop and in Element X.
 		ReadStack(c, b.ReadBy)
+		statusMark(c, b)
 		if b.Last || len(b.Media) > 0 {
 			t := b.Time
 			if b.Edited {
@@ -310,6 +312,22 @@ func bubbleMeta(c *ui.Context, b BubbleData) (retry bool) {
 		}
 	})
 	return retry
+}
+
+// statusMark is where the user's last message stands, a small circle: a clock
+// while it is sent, a hollow check once the server has it. Read is the
+// reader circles (ReadStack), which take its place.
+func statusMark(c *ui.Context, b BubbleData) {
+	if !b.Out {
+		return
+	}
+	p := Of(c)
+	switch {
+	case b.Pending && !b.Unsent && !b.Failed:
+		ui.Icon(c, IconClock).Size(15, 15).TextColor(p.TextFaint).Label("Sending")
+	case b.Sent && len(b.ReadBy) == 0:
+		ui.Icon(c, IconCircleCheck).Size(15, 15).TextColor(p.TextFaint).Label("Sent")
+	}
 }
 
 func bubbleReaction(c *ui.Context, r Reaction) ui.Element {

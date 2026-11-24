@@ -9,6 +9,18 @@ would notice; when you tag a release, rename that heading to the tag
 ## Unreleased
 
 ### Added
+- **Phones: counts on the tab bar.** Chats and Communities each show a solid
+  count of what is waiting there (the accent color when it includes a mention), so
+  you can see from any tab that something came in elsewhere. Muted rooms are left
+  out.
+- **Phones: a small arrow to jump to the latest message** appears at the bottom
+  right of a chat when you scroll away from the newest messages, with a count of
+  the messages that arrived meanwhile.
+- **Phones: read circles.** As on desktop, the small avatar circles of who has
+  read up to a message sit on the side of the bubble (in direct chats too), and
+  your last message shows a hollow check circle until it is read (a clock while it
+  is still sending). The check circle shows even with "Read receipts" off, since it
+  only means the server has the message; the avatars need the setting on.
 - **Phones: photos and the camera in the + menu.** "Photo or video" opens the
   system's library picker (several at once, no permission needed) and "Take a
   photo" the camera; what you choose waits in the message box like any file.

@@ -479,10 +479,15 @@ func (a *App) phoneLists(c *ui.Context) {
 		})
 		names := []string{"Chats", "Communities", "People", "Settings"}
 		icons := []*ui.SVG{kit.IconMessage, kit.IconUsers, kit.IconUser, kit.IconSettings}
+		// What is waiting, tab by tab: so a message in a community says to look
+		// there, not only in Chats. One inbox has chats and communities together.
+		chatsN, commsN := a.tabCounts()
+		counts := []tabCount{chatsN, commsN}
 		if inbox {
 			names[0], names[1], icons[1] = "Inbox", "Calls", kit.IconPhone
+			counts = []tabCount{{chatsN.unread + commsN.unread, chatsN.mentions + commsN.mentions}}
 		}
-		if i := a.tabBar(c, names, icons); i >= 0 {
+		if i := a.tabBar(c, names, icons, counts); i >= 0 {
 			if inbox && i == 1 {
 				a.toast = "Calls are coming soon"
 			} else {
@@ -495,7 +500,7 @@ func (a *App) phoneLists(c *ui.Context) {
 
 // tabBar is the phone's tab bar; it returns the tab pressed, or -1. (In a
 // packaged phone build this becomes mygo.NewTabs, the system's.)
-func (a *App) tabBar(c *ui.Context, names []string, icons []*ui.SVG) (pressed int) {
+func (a *App) tabBar(c *ui.Context, names []string, icons []*ui.SVG, counts []tabCount) (pressed int) {
 	p := kit.Of(c)
 	pressed = -1
 	ui.Row(c).Height(64).Shrink(0).BorderWidth(1, 0, 0, 0).BorderColor(p.Border).Background(p.Bg).Padding(kit.S2, 0, 0, 0).Children(func() {
@@ -504,9 +509,32 @@ func (a *App) tabBar(c *ui.Context, names []string, icons []*ui.SVG) (pressed in
 			if i == a.phoneTab {
 				fg = p.AccentStrong
 			}
-			tab := ui.ButtonBase(c.Key("tab:" + n)).Grow(1).Gap(2).Column().AlignItems(ui.Center).Label(n).AccessSelected(i == a.phoneTab)
+			var cnt tabCount
+			if i < len(counts) {
+				cnt = counts[i]
+			}
+			label := n
+			if cnt.mentions > 0 {
+				label += ", " + strconv.Itoa(cnt.mentions) + " mentions"
+			} else if cnt.unread > 0 {
+				label += ", " + strconv.Itoa(cnt.unread) + " unread"
+			}
+			tab := ui.ButtonBase(c.Key("tab:" + n)).Grow(1).Gap(2).Column().AlignItems(ui.Center).Label(label).AccessSelected(i == a.phoneTab)
 			tab.Children(func() {
-				ui.Icon(c, icons[i]).Size(22, 22).TextColor(fg)
+				// The count sits on the icon's top right corner, solid, so a tab
+				// with something waiting reads from the bar (Mobbin's chat apps).
+				ui.Box(c).Children(func() {
+					ui.Icon(c, icons[i]).Size(22, 22).TextColor(fg)
+					if cnt.unread > 0 || cnt.mentions > 0 {
+						ui.Box(c).Attach(ui.AnchorTopRight, ui.AnchorCenter).Top(1).Left(2).PassThrough().Children(func() {
+							if cnt.mentions > 0 {
+								kit.SolidCount(c, cnt.mentions, true, p.Bg)
+							} else {
+								kit.SolidCount(c, cnt.unread, false, p.Bg)
+							}
+						})
+					}
+				})
 				ui.Text(c, n).FontSize(10).FontWeight(kit.WeightMedium).TextColor(fg)
 			})
 			if tab.Clicked() {
