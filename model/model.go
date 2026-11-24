@@ -531,6 +531,13 @@ type Uploader interface {
 	SendFile(room string, f File, replyTo string)
 }
 
+// UploadLimiter is what a Source may offer: the largest file its server takes,
+// so a file over it is refused when it is added, not after it is uploaded.
+type UploadLimiter interface {
+	// UploadLimit is the limit in bytes, 0 while unknown.
+	UploadLimit() int64
+}
+
 // KeyStatus is what is known of the account's key storage.
 type KeyStatus struct {
 	Asked bool // it was asked for (the rest is meaningless before)

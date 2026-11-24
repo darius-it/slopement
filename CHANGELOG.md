@@ -45,6 +45,11 @@ would notice; when you tag a release, rename that heading to the tag
   like one that failed, and turns normal once it is delivered.
 
 ### Fixed
+- **A file too large for your server** is now turned away when you drop, pick or
+  paste it, with the server's own limit in the message ("big.zip (60 MB) is over
+  your server's limit of 25 MB"), instead of uploading and then failing. The
+  app asks the server for its limit after sign-in; a server (or proxy) that
+  refuses with a bare "413" now also reads as "too large for the server".
 - **A new device on every restart or switch between builds.** A development
   build and the installed app shared one saved login but kept its token in
   different places, so each found the other's device without a token, signed in

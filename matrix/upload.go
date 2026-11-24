@@ -76,11 +76,12 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 	pending := model.Event{ID: local, Room: room, Sender: s.me.ID, Time: time.Now(), Kind: model.EventMedia,
 		Body: f.Name, Media: []model.Media{media}, ReplyTo: replyTo, Pending: true}
 	s.appendLocal(room, pending)
+	limit := s.sendLimit() // the server's, when it has said it
 
 	go func() {
 		fail := func(why string) { s.post(func() { s.roomOf(room).failLocal(local, why) }) }
-		if len(f.Data) > maxUpload {
-			fail("Too large to send (over 50 MB)")
+		if int64(len(f.Data)) > limit {
+			fail(tooLargeText(limit))
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

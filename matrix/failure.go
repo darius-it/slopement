@@ -77,7 +77,8 @@ func sendReason(err error) string {
 			return "You do not have permission to send here."
 		case code == "M_LIMIT_EXCEEDED":
 			return "You are sending too fast. Try again in a moment."
-		case code == "M_TOO_LARGE":
+		case code == "M_TOO_LARGE" || status == http.StatusRequestEntityTooLarge:
+			// A proxy in front of the server says 413 with no Matrix error.
 			return "It is too large for the server."
 		case code == "M_UNKNOWN_TOKEN" || code == "M_MISSING_TOKEN" || status == http.StatusUnauthorized:
 			return "You were signed out. Sign in again."

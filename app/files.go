@@ -34,6 +34,43 @@ func sizeLabel(n int) string {
 	return fmt.Sprintf("%d B", n)
 }
 
+// fileLimit is the largest file that can be sent: the server's limit when it has
+// said one, never more than the app's own.
+func (a *App) fileLimit() (limit int64, server bool) {
+	limit = maxFile
+	if ul, ok := a.src.(model.UploadLimiter); ok {
+		if l := ul.UploadLimit(); l > 0 && l < limit {
+			return l, true
+		}
+	}
+	return limit, false
+}
+
+// tooLarge says why a file cannot be sent for its size ("" when it can): the
+// server's limit is named, so the user knows it is not the app being fussy.
+func (a *App) tooLarge(name string, size int64) string {
+	return a.sizeChecker()(name, size)
+}
+
+// sizeChecker is tooLarge with the limit taken now, for work off the UI thread.
+// Call it on the UI thread.
+func (a *App) sizeChecker() func(name string, size int64) string {
+	limit, server := a.fileLimit()
+	return func(name string, size int64) string {
+		if size <= limit {
+			return ""
+		}
+		lim := fmt.Sprintf("%d MB", limit>>20)
+		if limit%(1<<20) != 0 {
+			lim = fmt.Sprintf("%.1f MB", float64(limit)/(1<<20))
+		}
+		if server {
+			return fmt.Sprintf("%s (%s) is over your server's limit of %s", name, sizeLabel(int(size)), lim)
+		}
+		return fmt.Sprintf("%s is too large to send (over %s)", name, lim)
+	}
+}
+
 // pickFiles opens the system's file dialog; what is chosen waits in the
 // composer, to go with the message. The dialog is native, so it runs off the
 // view.
@@ -59,14 +96,28 @@ func (a *App) addPaths(room string, paths []string) {
 		return
 	}
 	go func() {
+		// The limit (the server's, once known) is read on the UI thread, once.
+		got := make(chan func(string, int64) string, 1)
+		runUI(func() { got <- a.sizeChecker() })
+		var check func(string, int64) string
+		select {
+		case check = <-got:
+		case <-time.After(2 * time.Second):
+			check = func(name string, size int64) string { // the window is gone: the app's own limit
+				if size > maxFile {
+					return name + " is too large to send (over 50 MB)"
+				}
+				return ""
+			}
+		}
 		for _, p := range paths {
 			info, err := os.Stat(p)
-			switch {
-			case err != nil || info.IsDir():
+			if err != nil || info.IsDir() {
 				runUI(func() { a.toast = "Could not read " + filepath.Base(p) })
 				continue
-			case info.Size() > maxFile:
-				runUI(func() { a.toast = filepath.Base(p) + " is too large to send (over 50 MB)" })
+			}
+			if why := check(filepath.Base(p), info.Size()); why != "" {
+				runUI(func() { a.toast = why })
 				continue
 			}
 			data, err := os.ReadFile(p)
@@ -82,6 +133,10 @@ func (a *App) addPaths(room string, paths []string) {
 
 // addFile puts a file in the room's composer, to go with the next message.
 func (a *App) addFile(room string, f model.File) {
+	if why := a.tooLarge(f.Name, int64(len(f.Data))); why != "" {
+		a.toast = why // pasted or dropped: turned away here, not after an upload
+		return
+	}
 	a.files[room] = append(a.files[room], f)
 	st := a.draft(room)
 	a.fileSeq++

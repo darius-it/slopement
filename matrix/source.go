@@ -30,6 +30,7 @@ type Source struct {
 	// statusTimer ends it on time (status.go).
 	personNotes map[string]model.PersonNote // private nicknames and notes (notes.go)
 	roomNicks   map[string]string           // private room names (roomnames.go)
+	uploadLimit int64                       // the server's largest file, 0 unknown (uploadlimit.go)
 	savedStatus model.Status
 	statusSeen  bool // the saved status was compared with the server's once this run
 	statusTimer *time.Timer

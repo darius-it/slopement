@@ -131,28 +131,29 @@ func (a *App) sendShare(s Share, room, name string) {
 		a.open(room)
 		a.toast = "Sent to " + name
 	}
+	check := a.sizeChecker() // the limit, read here on the UI thread
 	if runUI == nil {
-		files, err := readShared(s)
+		files, err := readShared(s, check)
 		finish(files, err)
 		return
 	}
 	go func() {
-		files, err := readShared(s)
+		files, err := readShared(s, check)
 		runUI(func() { finish(files, err) })
 	}()
 }
 
 // readShared reads the files of a share, refusing one too large to send and
 // removing the copies made for it.
-func readShared(s Share) ([]model.File, string) {
+func readShared(s Share, check func(name string, size int64) string) ([]model.File, string) {
 	var out []model.File
 	for _, p := range s.Paths {
 		st, err := os.Stat(p)
 		if err != nil || st.IsDir() {
 			return nil, "Couldn't read " + filepath.Base(p)
 		}
-		if st.Size() > 50<<20 {
-			return nil, filepath.Base(p) + " is too large to send (over 50 MB)"
+		if why := check(filepath.Base(p), st.Size()); why != "" {
+			return nil, why
 		}
 		b, err := os.ReadFile(p)
 		if err != nil {
