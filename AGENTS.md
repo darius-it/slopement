@@ -255,8 +255,10 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 ## Newer pieces
 - `animwebp/`: animated WebP decoder (a `ui.VideoDecoder`); `app/media.go`
   plays them like GIFs (the player comes from the fetched bytes, by URL).
-- `audiodec/`: Ogg Opus and AAC-in-m4a to WAV (pure-Go libraries
-  `kazzmir/opus-go`, `tphakala/go-m4a`), used by `app/audio.go`'s `openSound`.
+- `audiodec/`: Ogg Opus to WAV (pure-Go `kazzmir/opus-go`), used by
+  `app/audio.go`'s `openSound`. AAC in .m4a is deliberately not decoded. If it is
+  ever needed on phones, use a native module over the system's decoders
+  (AVFoundation, MediaCodec).
 - Private nicknames and notes: `model.PrivateNotes`, `matrix/notes.go` (account
   data `com.slopement.person_notes`), `app/notes.go`, `app/names.go`
   (`nameFor`: nickname, else username/display name by the setting).

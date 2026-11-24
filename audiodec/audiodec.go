@@ -1,8 +1,11 @@
 // Package audiodec decodes the audio mygo's audio package cannot — Ogg Opus,
-// which is what Element's voice messages are, and AAC in .m4a, which is what
-// most phones record — into WAV, which it can play. Both decoders are pure Go
-// (no cgo): github.com/kazzmir/opus-go (libopus transpiled to Go) and
-// github.com/tphakala/go-m4a with its AAC-LC decoder.
+// which is what voice messages are (MSC3245, and what Element Web, Desktop and
+// X send) — into WAV, which it can play. The decoder is pure Go (no cgo):
+// github.com/kazzmir/opus-go (libopus transpiled to Go).
+//
+// AAC in .m4a is not decoded here. A phone has AAC decoders of its own
+// (AVFoundation, MediaCodec); a native module over them would be the way, if it
+// is ever needed.
 //
 // The whole clip decodes at once, to 16-bit PCM in memory; a clip that would
 // take more than MaxBytes of it is refused.
@@ -13,11 +16,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/kazzmir/opus-go/ogg"
 	"github.com/kazzmir/opus-go/opus"
-	"github.com/tphakala/go-m4a/aacm4a"
 )
 
 // MaxBytes bounds the PCM of a clip: about 25 minutes of 48 kHz stereo.
@@ -31,16 +32,10 @@ func IsOggOpus(data []byte) bool {
 	return len(data) > 40 && string(data[:4]) == "OggS" && bytes.Contains(data[:min(len(data), 128)], []byte("OpusHead"))
 }
 
-// IsMP4 reports an ISO base media file (.m4a, .mp4): "ftyp" after its size.
-func IsMP4(data []byte) bool { return len(data) > 12 && string(data[4:8]) == "ftyp" }
-
-// ToWAV decodes Ogg Opus or AAC (in .m4a) to a 16-bit PCM WAV file.
+// ToWAV decodes Ogg Opus to a 16-bit PCM WAV file.
 func ToWAV(data []byte) ([]byte, error) {
-	switch {
-	case IsOggOpus(data):
+	if IsOggOpus(data) {
 		return opusToWAV(data)
-	case IsMP4(data):
-		return aacToWAV(data)
 	}
 	return nil, ErrUnsupported
 }
@@ -86,32 +81,6 @@ func opusToWAV(data []byte) ([]byte, error) {
 		return nil, errors.New("audiodec: opus: no audio")
 	}
 	return wav(pcm, 48000, channels), nil
-}
-
-func aacToWAV(data []byte) ([]byte, error) {
-	dec, info, err := aacm4a.NewDecoder(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("audiodec: m4a: %w", err)
-	}
-	if info.Channels < 1 || info.Channels > 2 || info.SampleRate <= 0 {
-		return nil, fmt.Errorf("audiodec: m4a: %d channels at %d Hz", info.Channels, info.SampleRate)
-	}
-	pcm, err := io.ReadAll(io.LimitReader(dec, MaxBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("audiodec: m4a: %w", err)
-	}
-	if len(pcm) > MaxBytes {
-		return nil, errors.New("audiodec: the clip is too long")
-	}
-	if len(pcm) == 0 {
-		return nil, errors.New("audiodec: m4a: no audio")
-	}
-	// The decoder does not apply the file's edit list: the encoder's priming
-	// leads the clip, a few hundredths of a second.
-	if lead := int(info.EncoderDelay) * info.Channels * 2; lead > 0 && lead < len(pcm) {
-		pcm = pcm[lead:]
-	}
-	return wav(pcm, info.SampleRate, info.Channels), nil
 }
 
 // wav wraps 16-bit little-endian interleaved PCM as a WAV file.

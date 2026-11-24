@@ -13,6 +13,11 @@ would notice; when you tag a release, rename that heading to the tag
   system's library picker (several at once, no permission needed) and "Take a
   photo" the camera; what you choose waits in the message box like any file.
 
+### Changed
+- **AAC (.m4a) audio no longer plays in the app.** Voice messages are Ogg Opus
+  (what Element sends) and still play; an AAC attachment now shows as a file you
+  can save. (Apple Lossless .m4a still plays.)
+
 ### Fixed
 - **Phones: a flick that catches a flinging list now scrolls on.** Touching a
   list that was still gliding used to stop it and then ignore the finger until you

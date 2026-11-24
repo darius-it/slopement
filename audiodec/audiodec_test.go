@@ -4,15 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"io"
 	"math"
 	"testing"
 
 	"github.com/egoist/mygo/audio"
 	"github.com/kazzmir/opus-go/ogg"
 	"github.com/kazzmir/opus-go/opus"
-	"github.com/tphakala/go-aac/pcm"
-	"github.com/tphakala/go-m4a/aacm4a"
 )
 
 // tone is a sine at hz, as 16-bit mono PCM samples.
@@ -107,7 +104,7 @@ func peak(s []int16) int {
 // the formats it does not know.
 func TestOggOpusToWAV(t *testing.T) {
 	file := oggOpus(t, tone(48000, 440, 0.6))
-	if !IsOggOpus(file) || IsMP4(file) {
+	if !IsOggOpus(file) {
 		t.Fatal("the file is not seen as Ogg Opus")
 	}
 	wavData, err := ToWAV(file)
@@ -136,62 +133,15 @@ func TestOggOpusToWAV(t *testing.T) {
 	}
 }
 
-// memFile is a WriteSeeker in memory (the encoder writes an .m4a to one).
-type memFile struct {
-	b   []byte
-	pos int
-}
-
-func (m *memFile) Write(p []byte) (int, error) {
-	if end := m.pos + len(p); end > len(m.b) {
-		m.b = append(m.b, make([]byte, end-len(m.b))...)
+// AAC in an .m4a is not decoded: it is said to be unsupported, not mistaken for
+// Opus, so the card can offer the file instead.
+func TestAACInM4AIsUnsupported(t *testing.T) {
+	// The start of an .m4a: a box size, "ftyp", the "M4A " brand.
+	m4a := append([]byte{0, 0, 0, 0x20, 'f', 't', 'y', 'p', 'M', '4', 'A', ' '}, make([]byte, 64)...)
+	if IsOggOpus(m4a) {
+		t.Fatal("an .m4a is seen as Ogg Opus")
 	}
-	copy(m.b[m.pos:], p)
-	m.pos += len(p)
-	return len(p), nil
-}
-
-func (m *memFile) Seek(off int64, whence int) (int64, error) {
-	switch whence {
-	case io.SeekStart:
-		m.pos = int(off)
-	case io.SeekCurrent:
-		m.pos += int(off)
-	case io.SeekEnd:
-		m.pos = len(m.b) + int(off)
-	}
-	return int64(m.pos), nil
-}
-
-// AAC in an .m4a decodes to a WAV with the clip's rate, channels and length.
-func TestAACInM4AToWAV(t *testing.T) {
-	samples := tone(44100, 440, 0.8)
-	raw := make([]byte, 2*len(samples))
-	for i, v := range samples {
-		binary.LittleEndian.PutUint16(raw[2*i:], uint16(v))
-	}
-	var f memFile
-	if err := aacm4a.EncodeInterleaved(&f, pcm.Config{SampleRate: 44100, BitDepth: 16, Channels: 1, Bitrate: 64000}, raw); err != nil {
-		t.Fatal(err)
-	}
-	if !IsMP4(f.b) || IsOggOpus(f.b) {
-		t.Fatal("the file is not seen as an MP4")
-	}
-	wavData, err := ToWAV(f.b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := audio.DecodeSound(wavData); err != nil {
-		t.Fatalf("mygo's audio cannot read the WAV: %v", err)
-	}
-	rate, ch, s := parseWAV(t, wavData)
-	if rate != 44100 || ch != 1 {
-		t.Fatalf("%d Hz, %d channels", rate, ch)
-	}
-	if secs := float64(len(s)) / 44100; secs < 0.7 || secs > 1.0 {
-		t.Fatalf("the clip is %.2f s, want about 0.8", secs)
-	}
-	if p := peak(s); p < 4000 {
-		t.Fatalf("the decoded clip is nearly silent (peak %d)", p)
+	if _, err := ToWAV(m4a); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("an .m4a: %v", err)
 	}
 }

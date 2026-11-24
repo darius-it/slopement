@@ -53,13 +53,12 @@ func TestAboutListsTheOpenSourceItUses(t *testing.T) {
 }
 
 // What the license check says is as it was thought: nothing in the build is
-// stronger than the weak copyleft that was looked at, and the one LGPL module
-// is the one that was found.
+// stronger than the weak (file-level) copyleft that was looked at, the two MPL
+// modules below.
 func TestOnlyKnownCopyleftIsInTheBuild(t *testing.T) {
 	known := map[string]string{
-		"maunium.net/go/mautrix":     "MPL-2.0",
-		"go.mau.fi/util":             "MPL-2.0",
-		"github.com/tphakala/go-aac": "BSD-3-Clause + LGPL-2.1",
+		"maunium.net/go/mautrix": "MPL-2.0",
+		"go.mau.fi/util":         "MPL-2.0",
 	}
 	for _, n := range licenses.All() {
 		if licenses.Copyleft(n.License) && known[n.Name] != n.License {

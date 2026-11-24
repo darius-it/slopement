@@ -8,8 +8,6 @@ require (
 	github.com/kazzmir/opus-go v1.7.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.35.1
-	github.com/tphakala/go-aac v0.7.2
-	github.com/tphakala/go-m4a v0.9.0
 	go.mau.fi/util v0.11.1
 	golang.org/x/image v0.46.0
 	golang.org/x/net v0.62.0
@@ -37,11 +35,11 @@ require (
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/petermattis/goid v0.0.0-20261109124353-7cfa343ad0ab // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.3.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/tphakala/simd v1.16.0 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4 // indirect
 	golang.org/x/text v0.44.0 // indirect

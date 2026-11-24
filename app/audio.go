@@ -17,9 +17,9 @@ import (
 
 // Audio messages play in their card. What the audio package decodes is what
 // plays: WAV, MP3, Ogg Vorbis, FLAC, and Apple Lossless in .m4a, and — decoded
-// to WAV first by package audiodec — Ogg Opus (what Element's voice messages
-// are) and AAC-LC in .m4a (most phones' recordings). Anything else: the card
-// says so, and the file card beside it saves the file. One message plays at a
+// to WAV first by package audiodec — Ogg Opus (what voice messages are: Element
+// Web, Desktop and X send it). AAC in .m4a is not played. Anything else: the
+// card says so, and the file card beside it saves the file. One message plays at a
 // time: starting another stops the first.
 
 // soundPlayer is what the app needs of a player (audio.Player's, so tests
@@ -36,8 +36,8 @@ type soundPlayer interface {
 }
 
 // openSound decodes audio bytes into a player: a variable, for the tests. What
-// the audio package does not decode — Ogg Opus, AAC in .m4a — is decoded to WAV
-// first (audiodec), which it plays.
+// the audio package does not decode — Ogg Opus — is decoded to WAV first
+// (audiodec), which it plays.
 var openSound = func(data []byte) (soundPlayer, error) {
 	p, err := audio.OpenStream(bytes.NewReader(data))
 	if err == nil {
