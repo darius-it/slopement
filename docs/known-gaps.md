@@ -12,8 +12,12 @@ of 2026-11-22. It is not a promise of when anything lands.
   purpose: MatrixRTC is the only call system. Element Call is AGPL-3.0, so it
   is not bundled with the app.
 - **Moderation:** no kick, ban, report or bulk delete from the app.
-- **Voice message recording.** Playing them works (Opus, AAC and the usual
-  formats); recording needs a device pass.
+- **Voice message recording is unproven.** It is built (the `modules/mic`
+  native module: AVFoundation on Macs and iPhones, AudioRecord on Android) and
+  tested against a fake microphone only: it has never recorded on real hardware.
+  There is no microphone code for Linux and Windows, so no mic button there. It
+  sends WAV (about 2 MB a minute), not Opus. Playing voice messages works (Opus,
+  AAC and the usual formats).
 - **Creating a new key backup**, on purpose: restoring one works, but a new
   backup holds the keys to all your encrypted history, so it is left to Element,
   which has had that code tested for years.
@@ -34,8 +38,15 @@ needs its AppIndicator extension); without it the settings turn themselves off.
 
 ## Phones
 The phone layout exists and renders, but the app has **never been run on an
-iPhone, iPad or Android device**. Treat it as untested. Share extensions and
-push notifications are not built.
+iPhone, iPad or Android device**. Treat it as untested. Push notifications are
+not built.
+
+- **Sharing into slopement:** on desktops, "Open with" and the Dock drop work as
+  built, but only from the documentation; on Android the share sheet is a plugin
+  (`sharetarget/`) never compiled or run on a device. **iPhone has no share
+  extension**: an iOS share extension is a separate app-extension target, and
+  mygo 0.10 builds the app without one. It needs support in mygo (or a custom
+  Xcode project), so it is waiting on that.
 
 ## Not verified
 - Only tried with a few accounts on a few servers. Not tested with large

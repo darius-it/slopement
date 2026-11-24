@@ -28,6 +28,7 @@ import (
 	"slopement/model/mock"
 	"slopement/picker"
 	"slopement/platform"
+	"slopement/sharetarget"
 )
 
 // trayIcon is the app's icon, for the tray ("Minimize to tray").
@@ -75,6 +76,56 @@ func main() {
 	}
 
 	app.TrayIcon = trayIcon
+	useNativeMic() // voice messages, where the platform has a microphone module
+
+	// Files handed to the app (Open with, the Dock icon, a command line) wait here
+	// until there is an app on an account to ask "Send to…" in (sharein.go).
+	var shareWin *mygo.Window
+	flushShares := func() { // UI thread
+		if a == nil || (lg != nil && !signed) {
+			return
+		}
+		if s := takeShared(); len(s.Paths) > 0 || s.Text != "" {
+			a.ReceiveShare(s)
+		}
+	}
+	bringForward := func() {
+		if shareWin != nil {
+			shareWin.Update(func() {
+				flushShares()
+				shareWin.Show() // out of the tray, if it hid the window
+				shareWin.Restore()
+				shareWin.Focus()
+			})
+		}
+	}
+	mygo.App.OnOpenFile(func(path string) {
+		addShared(app.Share{Paths: []string{path}})
+		bringForward()
+	})
+	// Android's share sheet (and nothing elsewhere): files copied into the cache
+	// for us, and words.
+	sharetarget.OnShare(func(s sharetarget.Share) {
+		in := app.Share{Text: s.Text, Temp: true}
+		for _, f := range s.Files {
+			in.Paths = append(in.Paths, f.Path)
+		}
+		addShared(in)
+		bringForward()
+	})
+	// Windows and Linux start a new process for each file opened: the first one
+	// keeps the window and gets the others' files. Not for a development build,
+	// which must run beside an installed app.
+	if os.Getenv(matrix.DevSecretsEnv) != "1" {
+		if !mygo.App.RequestSingleInstanceLock() {
+			return
+		}
+		mygo.App.OnSecondInstance(func([]string, string) {
+			if shareWin != nil {
+				shareWin.Update(func() { shareWin.Show(); shareWin.Restore(); shareWin.Focus() })
+			}
+		})
+	}
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(platform.Window(mygo.WindowOptions{
 			Title:     "slopement",
@@ -88,6 +139,7 @@ func main() {
 			Content:         ui.View(root),
 		}))
 
+		shareWin = win
 		setMenu := func() { mygo.App.SetMenu(platform.MenuBar(a.Actions(), win.Update)) }
 
 		// A click on a desktop notification brings the window forward on the
@@ -246,6 +298,7 @@ func main() {
 						signed = true
 						setMenu()
 						src.Start(syncCtx)
+						flushShares() // a file the app was opened with
 					})
 				}()
 			}
@@ -267,6 +320,7 @@ func main() {
 			a.Attach(win)
 			a.MenuChanged = setMenu
 			setMenu()
+			flushShares()
 		}
 	})
 	app.BindCalls() // the call page's bridge (app/callsession.go)

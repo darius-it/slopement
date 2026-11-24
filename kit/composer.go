@@ -23,6 +23,14 @@ type ComposerState struct {
 	// wantEditLast: ↑ was pressed with nothing written (see fieldKey).
 	wantEditLast bool
 
+	// Voice messages. CanRecord is set by the app when this device can record
+	// (a microphone is there): the mic button shows with nothing written. Voice
+	// is the recording in progress, which the composer then shows in place of its
+	// field. The want flags are what was pressed, handed on by takePlus.
+	CanRecord                               bool
+	Voice                                   VoiceState
+	wantMic, wantVoiceCancel, wantVoiceSend bool
+
 	// Suggest are what the word being typed could become (a person to
 	// mention, an emoji): set by the app before each build, shown above the
 	// field. sel is the highlighted one; suggestOff is the text they were
@@ -79,6 +87,15 @@ func (st *ComposerState) takePlus(r *ComposerResult) {
 	if st.wantEditLast {
 		r.EditLast, st.wantEditLast = true, false
 	}
+	if st.wantMic {
+		r.Mic, st.wantMic = true, false
+	}
+	if st.wantVoiceCancel {
+		r.VoiceCancel, st.wantVoiceCancel = true, false
+	}
+	if st.wantVoiceSend {
+		r.VoiceSend, st.wantVoiceSend = true, false
+	}
 	if st.wantPick {
 		st.wantPick = false
 		if len(st.Suggest) > 0 {
@@ -90,18 +107,21 @@ func (st *ComposerState) takePlus(r *ComposerResult) {
 // ComposerResult is what the composer asked for in this build. The
 // buttons are returned so popovers (the GIF picker) can anchor to them.
 type ComposerResult struct {
-	Send        bool
-	Attach      bool
-	Poll        bool // the + menu's Create poll
+	Send   bool
+	Attach bool
+	Poll   bool // the + menu's Create poll
 	// Paste: the paste shortcut was pressed (look for a picture or files).
 	Paste bool
 	// EditLast: ↑ was pressed in an empty field: edit the user's last message.
 	EditLast bool
+	// Mic: the microphone button was pressed (start a voice message);
+	// VoiceCancel and VoiceSend: the recording bar's bin and send.
+	Mic, VoiceCancel, VoiceSend bool
 	// RemovedFile is the waiting file whose ✕ was pressed, -1 for none.
 	RemovedFile int
 	// Pick is the suggestion taken (clicked, or Enter or Tab on the
 	// highlighted one), -1 for none.
-	Pick int
+	Pick        int
 	Emoji       bool
 	GIF         bool
 	GIFButton   ui.Element
@@ -147,39 +167,47 @@ func Composer(c *ui.Context, st *ComposerState, placeholder string, colors *User
 			// Keyed: the banner, the file chips and the suggestions come and
 			// go above, and the field must be the same field when they do —
 			// by position it would be a new one, and the focus would be gone.
-			ui.Row(c.Key("composer-row")).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
-				plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
-				// The row is bottom-aligned (it grows upward with the text), so
-				// the margin that centers one line on the buttons is what is
-				// left of the control's height around the line. The glyphs sit
-				// a little high in their line box (the ascenders' room), so the
-				// text goes down by optical nudge to read centered on the icons.
-				size := fieldSize(c)
-				gap := max((controlHeight(c)-size*1.45)/2, 0)
-				const nudge = 1.5
-				composerField(c.Key("composer-input"), st, placeholder, size, 8, touch).Margin(gap+nudge, 0, max(gap-nudge, 0), 0)
-				r.EmojiButton = IconButton(c, Ghost, IconSmile, "Emoji")
-				r.Emoji = r.EmojiButton.Clicked()
-				r.GIFButton = IconButton(c, Ghost, IconGIF, "GIFs and stickers")
-				r.GIF = r.GIFButton.Clicked()
-				if st.canSend() {
-					s := controlHeight(c)
-					b := ui.ButtonBase(c).Size(s, s).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).
-						Label("Send").Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.9}, Exit: &ui.Motion{Scale: 0.9}})
-					bg := p.Accent
-					if b.Pressed() {
-						bg = p.AccentPressed
-					} else if b.Hovered() {
-						bg = p.AccentHover
+			if st.Voice.Active {
+				voiceRow(c, st, false) // recording: the bar takes the field's place
+			} else {
+				ui.Row(c.Key("composer-row")).Gap(S1).Padding(S1+2, S1+2).AlignItems(ui.End).Children(func() {
+					plusMenu(c, IconButton(c, Ghost, IconPlus, "Attach or create"), st)
+					// The row is bottom-aligned (it grows upward with the text), so
+					// the margin that centers one line on the buttons is what is
+					// left of the control's height around the line. The glyphs sit
+					// a little high in their line box (the ascenders' room), so the
+					// text goes down by optical nudge to read centered on the icons.
+					size := fieldSize(c)
+					gap := max((controlHeight(c)-size*1.45)/2, 0)
+					const nudge = 1.5
+					composerField(c.Key("composer-input"), st, placeholder, size, 8, touch).Margin(gap+nudge, 0, max(gap-nudge, 0), 0)
+					r.EmojiButton = IconButton(c, Ghost, IconSmile, "Emoji")
+					r.Emoji = r.EmojiButton.Clicked()
+					r.GIFButton = IconButton(c, Ghost, IconGIF, "GIFs and stickers")
+					r.GIF = r.GIFButton.Clicked()
+					if st.canSend() {
+						s := controlHeight(c)
+						b := ui.ButtonBase(c).Size(s, s).Radius(RadiusSm).AlignItems(ui.Center).Justify(ui.Center).
+							Label("Send").Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.9}, Exit: &ui.Motion{Scale: 0.9}})
+						bg := p.Accent
+						if b.Pressed() {
+							bg = p.AccentPressed
+						} else if b.Hovered() {
+							bg = p.AccentHover
+						}
+						b.Background(b.AnimateColor("bg", bg, Color))
+						Pressable(b)
+						b.Children(func() { ui.Icon(c, IconSend).Size(16, 16).TextColor(p.OnAccent) })
+						if b.Clicked() {
+							st.send = true
+						}
+					} else if st.CanRecord {
+						if IconButton(c.Key("mic"), Ghost, IconMic, "Record a voice message").Clicked() {
+							st.wantMic = true
+						}
 					}
-					b.Background(b.AnimateColor("bg", bg, Color))
-					Pressable(b)
-					b.Children(func() { ui.Icon(c, IconSend).Size(16, 16).TextColor(p.OnAccent) })
-					if b.Clicked() {
-						st.send = true
-					}
-				}
-			})
+				})
+			}
 		})
 		border := p.Border
 		if box.FocusWithin() {

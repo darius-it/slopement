@@ -49,6 +49,14 @@ func defaultConfigDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A development build (DevSecretsEnv) keeps everything of its own, apart from
+	// an installed app's: the two keep their tokens in different places (a file
+	// and the keychain), so sharing one account record made each build find the
+	// other's device without its token, sign in again, and overwrite the record —
+	// a new device on the server for every switch between them.
+	if os.Getenv(DevSecretsEnv) == "1" {
+		return filepath.Join(d, "slopement-dev"), nil
+	}
 	return filepath.Join(d, "slopement"), nil
 }
 

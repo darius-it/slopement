@@ -459,32 +459,39 @@ func PhoneComposer(c *ui.Context, st *ComposerState, placeholder string, colors 
 					}
 				})
 		}
-		ui.Row(c.Key("composer-row")).Padding(S2, S2, S2, S2).Gap(S2).AlignItems(ui.End).Children(func() {
-			plusMenu(c, roundIcon(c, IconPlus, "Attach or create", ui.Transparent, p.Text), st)
-			pill := ui.Row(c).Grow(1).MinWidth(0).MinHeight(40).PaddingStart(S4).PaddingEnd(S1).Gap(S1).
-				Radius(20).Background(p.Raised).AlignItems(ui.End)
-			if !p.Dark {
-				pill.Border(1, p.Border)
-			}
-			pill.Children(func() {
-				composerField(c.Key("composer-input"), st, placeholder, SizeBodyTouch, 6, Touch(c)).MarginY(10)
-				r.EmojiButton = roundIcon(c, IconSmile, "Emoji, GIFs and stickers", ui.Transparent, p.TextMuted)
-				r.GIFButton = r.EmojiButton
-				r.Emoji, r.Unified = r.EmojiButton.Clicked(), true
-			})
-			// Mic, or send once there is text: they swap with a quick
-			// scale, as one button changing its mind.
-			if st.canSend() {
-				s := roundIcon(c.Key("send"), IconSend, "Send", p.Accent, p.OnAccent)
-				s.Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.6, Rotate: -30}, Exit: &ui.Motion{Scale: 0.6}})
-				if s.Clicked() {
-					st.send = true
+		if st.Voice.Active {
+			voiceRow(c, st, true) // recording: the bar takes the pill's place
+		} else {
+			ui.Row(c.Key("composer-row")).Padding(S2, S2, S2, S2).Gap(S2).AlignItems(ui.End).Children(func() {
+				plusMenu(c, roundIcon(c, IconPlus, "Attach or create", ui.Transparent, p.Text), st)
+				pill := ui.Row(c).Grow(1).MinWidth(0).MinHeight(40).PaddingStart(S4).PaddingEnd(S1).Gap(S1).
+					Radius(20).Background(p.Raised).AlignItems(ui.End)
+				if !p.Dark {
+					pill.Border(1, p.Border)
 				}
-			} else {
-				m := roundIcon(c.Key("mic"), IconMic, "Record a voice message", ui.Transparent, p.Text)
-				m.Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.6}, Exit: &ui.Motion{Scale: 0.6}})
-			}
-		})
+				pill.Children(func() {
+					composerField(c.Key("composer-input"), st, placeholder, SizeBodyTouch, 6, Touch(c)).MarginY(10)
+					r.EmojiButton = roundIcon(c, IconSmile, "Emoji, GIFs and stickers", ui.Transparent, p.TextMuted)
+					r.GIFButton = r.EmojiButton
+					r.Emoji, r.Unified = r.EmojiButton.Clicked(), true
+				})
+				// Mic, or send once there is text: they swap with a quick
+				// scale, as one button changing its mind.
+				if st.canSend() {
+					s := roundIcon(c.Key("send"), IconSend, "Send", p.Accent, p.OnAccent)
+					s.Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.6, Rotate: -30}, Exit: &ui.Motion{Scale: 0.6}})
+					if s.Clicked() {
+						st.send = true
+					}
+				} else if st.CanRecord {
+					m := roundIcon(c.Key("mic"), IconMic, "Record a voice message", ui.Transparent, p.Text)
+					m.Transition(ui.ElementTransition{Duration: DurFast, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.6}, Exit: &ui.Motion{Scale: 0.6}})
+					if m.Clicked() {
+						st.wantMic = true
+					}
+				}
+			})
+		}
 	})
 	if st.send {
 		st.send = false

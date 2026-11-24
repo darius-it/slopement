@@ -1,0 +1,14 @@
+{
+  "mobile": {
+    "id": "sharetarget",
+    "android": {
+      "sources": [
+        "android/*.kt"
+      ],
+      "class": "ShareTargetPlugin",
+      "application": [
+        "        <activity-alias android:name=\"dev.mygo.ShareTarget\" android:targetActivity=\"dev.mygo.MyGoActivity\" android:exported=\"true\" android:label=\"slopement\"><intent-filter><action android:name=\"android.intent.action.SEND\" /><action android:name=\"android.intent.action.SEND_MULTIPLE\" /><category android:name=\"android.intent.category.DEFAULT\" /><data android:mimeType=\"*/*\" /></intent-filter></activity-alias>"
+      ]
+    }
+  }
+}

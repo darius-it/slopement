@@ -19,6 +19,19 @@ would notice; when you tag a release, rename that heading to the tag
   messages and notifications still arrive. Quit from the tray menu or ⌘Q still
   ends it.
 - **↑ in an empty message box edits your last message** (on a computer).
+- **Voice messages (recording):** a microphone button in the message box on
+  Macs and iPhones/Android phones (Linux and Windows have none yet). Press it,
+  speak, and send; the bar shows the time and the level, and the bin throws it
+  away. It goes out as a normal voice message with a waveform, which Element and
+  other apps show as one. The microphone is only on while the bar is up, and is
+  switched off if you leave the chat. Only tried with a fake microphone so far.
+- **Send files to slopement from other apps:** "Open with slopement" on common
+  pictures, videos, audio, PDFs, text and zip files (or drop one on the Dock
+  icon) asks "Send to…" with your chats; on Android, slopement is in the share
+  sheet for words, pictures and files. Nothing is sent until you pick a chat.
+  Windows and Linux now run one copy of the app, so a file opened while it runs
+  goes to that window. The Android share sheet is not tried on a device yet, and
+  iPhone has none (see known gaps).
 - **Private names for rooms and chats:** "Private name…" in a room's menu (and
   the phone's room sheet) gives it a name only you see, on all your devices. It
   is stored with your account, so your homeserver can read it.
@@ -32,6 +45,13 @@ would notice; when you tag a release, rename that heading to the tag
   like one that failed, and turns normal once it is delivered.
 
 ### Fixed
+- **A new device on every restart or switch between builds.** A development
+  build and the installed app shared one saved login but kept its token in
+  different places, so each found the other's device without a token, signed in
+  again and overwrote the record: one more device in your session list each
+  time. A development build now keeps its own folder (`slopement-dev`, signing
+  in once there). Sessions already made stay on your account until you sign them
+  out (Settings → Security → sessions, or your server's account page).
 - The red "No internet connection" bar now shows within seconds of the network
   being switched off, and goes within seconds of it coming back. It waits for
   the system to say the network changed (macOS and Linux; no polling), so it

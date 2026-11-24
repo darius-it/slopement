@@ -87,6 +87,7 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 		defer cancel()
 
 		content := &event.MessageEventContent{MsgType: msgType, Body: f.Name, FileName: f.Name, Info: info}
+		voiceContent(content, f.Voice)
 		upload, uploadType := f.Data, mimeType
 		var enc *attachment.EncryptedFile
 		if encrypted {
@@ -119,6 +120,20 @@ func (s *Source) SendFile(room string, f model.File, replyTo string) {
 			}
 		})
 	}()
+}
+
+// voiceContent marks an audio message as a voice message (MSC3245) with its
+// length and waveform (MSC1767), as Element and the other clients write them:
+// they show it with a waveform and a play button, not as a file. Nothing for a
+// message that is not one.
+func voiceContent(c *event.MessageEventContent, v *model.VoiceNote) {
+	if v == nil || c.MsgType != event.MsgAudio {
+		return
+	}
+	ms := int(v.Duration / time.Millisecond)
+	c.Info.Duration = ms
+	c.MSC3245Voice = &event.MSC3245Voice{}
+	c.MSC1767Audio = &event.MSC1767Audio{Duration: ms, Waveform: v.Waveform}
 }
 
 // appendLocal shows a message the user is sending, at once.

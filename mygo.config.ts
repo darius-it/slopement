@@ -19,10 +19,19 @@ const publicKey =
   process.env.MYGO_UPDATER_PUBLIC_KEY ||
   (existsSync("mygo-update.pub") ? readFileSync("mygo-update.pub", "utf8").trim() : "");
 
+// Android's package name must be a valid Java name: no hyphens, so the desktop
+// identifier below (which has one, and is the keychain service: never change it)
+// cannot be Android's. An Android build, which names "android" in its command
+// line or sets SLOPEMENT_ANDROID=1, gets this one; keep it once an APK is shared:
+// installed copies update only in place.
+const androidBuild =
+  process.env.SLOPEMENT_ANDROID === "1" || process.argv.some((a) => a.includes("android"));
+const identifier = androidBuild ? "io.github.dariusit.slopement" : "io.github.darius-it.slopement";
+
 export default defineConfig({
   name: "slopement",
   // The keychain service secrets are stored under: keep it once released.
-  identifier: "io.github.darius-it.slopement",
+  identifier,
   version,
   copyright: "slopement",
   out: "build",
@@ -39,6 +48,25 @@ export default defineConfig({
         },
       }
     : {}),
+  // "Open with slopement" for the files people send most: it opens "Send to…",
+  // where a chat is picked. Viewer role, with the types' real MIME types: slopement
+  // is offered in the menu, never made the default for anything.
+  fileAssociations: [
+    { ext: ["png"], name: "PNG image", mimeType: "image/png", role: "Viewer" },
+    { ext: ["jpg", "jpeg"], name: "JPEG image", mimeType: "image/jpeg", role: "Viewer" },
+    { ext: ["gif"], name: "GIF image", mimeType: "image/gif", role: "Viewer" },
+    { ext: ["webp"], name: "WebP image", mimeType: "image/webp", role: "Viewer" },
+    { ext: ["mp4"], name: "MP4 video", mimeType: "video/mp4", role: "Viewer" },
+    { ext: ["mov"], name: "QuickTime video", mimeType: "video/quicktime", role: "Viewer" },
+    { ext: ["webm"], name: "WebM video", mimeType: "video/webm", role: "Viewer" },
+    { ext: ["mp3"], name: "MP3 audio", mimeType: "audio/mpeg", role: "Viewer" },
+    { ext: ["m4a"], name: "M4A audio", mimeType: "audio/mp4", role: "Viewer" },
+    { ext: ["ogg", "opus"], name: "Ogg audio", mimeType: "audio/ogg", role: "Viewer" },
+    { ext: ["wav"], name: "WAV audio", mimeType: "audio/wav", role: "Viewer" },
+    { ext: ["pdf"], name: "PDF document", mimeType: "application/pdf", role: "Viewer" },
+    { ext: ["txt"], name: "Text document", mimeType: "text/plain", role: "Viewer" },
+    { ext: ["zip"], name: "ZIP archive", mimeType: "application/zip", role: "Viewer" },
+  ],
   linux: {
     comment: "A minimal Matrix client (super early alpha)",
     categories: ["Network", "Chat"],

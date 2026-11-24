@@ -512,6 +512,16 @@ type File struct {
 	Name string
 	Mime string
 	Data []byte
+	// Voice marks the file as a recorded voice message (audio only): it is sent
+	// with the voice marker, its length and its waveform, which clients show as a
+	// voice message rather than a file.
+	Voice *VoiceNote
+}
+
+// VoiceNote is what is known of a recorded voice message.
+type VoiceNote struct {
+	Duration time.Duration
+	Waveform []int // 0 to 1024 per bar (org.matrix.msc1767.audio)
 }
 
 // Uploader is what a Source may offer: sending a file or picture to a room

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"maunium.net/go/mautrix"
 
@@ -36,6 +37,7 @@ func (f *sendServer) handler(w http.ResponseWriter, r *http.Request) {
 		f.uploaded, f.uploadAs = body, r.Header.Get("Content-Type")
 		_, _ = w.Write([]byte(`{"content_uri":"mxc://example.org/uploaded"}`))
 	case strings.Contains(r.URL.Path, "/send/m.room.message/"):
+		f.sent = map[string]any{} // each message on its own, not merged into the last
 		_ = json.Unmarshal(body, &f.sent)
 		_, _ = w.Write([]byte(`{"event_id":"$sent"}`))
 	default:
@@ -86,6 +88,42 @@ func TestSendFileToPlainRoom(t *testing.T) {
 	if msg["msgtype"] != "m.image" || msg["url"] != "mxc://example.org/uploaded" || msg["body"] != "pic.png" ||
 		info["w"] != float64(4) || info["h"] != float64(3) || msg["file"] != nil {
 		t.Fatalf("message = %v", msg)
+	}
+}
+
+// A recorded voice message goes as an m.audio carrying the voice marker, its
+// length and its waveform, which is what makes other clients show it as a voice
+// message; an ordinary audio file carries none of them.
+func TestSendVoiceMessage(t *testing.T) {
+	fake := &sendServer{}
+	srv := httptest.NewServer(http.HandlerFunc(fake.handler))
+	defer srv.Close()
+
+	s, _ := testSynced()
+	cli, _ := mautrix.NewClient(srv.URL, "@me:example.org", "token")
+	s.cli = cli
+	r := s.roomOf("!a")
+	wave := []int{0, 512, 1024}
+	s.SendFile("!a", model.File{Name: "Voice message.wav", Mime: "audio/wav", Data: []byte("RIFFxxxxWAVE"),
+		Voice: &model.VoiceNote{Duration: 4500 * time.Millisecond, Waveform: wave}}, "")
+	waitFor(t, "the message to settle", func() bool { return len(r.events) == 1 && r.events[0].ID == "$sent" })
+
+	msg := fake.message()
+	info, _ := msg["info"].(map[string]any)
+	audio, _ := msg["org.matrix.msc1767.audio"].(map[string]any)
+	_, voice := msg["org.matrix.msc3245.voice"]
+	if msg["msgtype"] != "m.audio" || !voice || info["duration"] != float64(4500) || audio["duration"] != float64(4500) {
+		t.Fatalf("message = %v", msg)
+	}
+	if w, _ := audio["waveform"].([]any); len(w) != 3 || w[1] != float64(512) {
+		t.Fatalf("waveform = %v", audio["waveform"])
+	}
+
+	// A plain audio file is not a voice message.
+	s.SendFile("!a", model.File{Name: "song.mp3", Mime: "audio/mpeg", Data: []byte("ID3")}, "")
+	waitFor(t, "the second message", func() bool { return fake.message()["body"] == "song.mp3" })
+	if _, voice := fake.message()["org.matrix.msc3245.voice"]; voice {
+		t.Fatal("an audio file was sent as a voice message")
 	}
 }
 

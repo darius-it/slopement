@@ -482,6 +482,7 @@ func (a *App) composer(c *ui.Context, r model.Room) {
 	a.typingStep(r.ID, st.Text) // tell the room they are typing
 	st.Suggest = a.suggestions(r.ID, st)
 	st.OnPick = func(it kit.SuggestItem) { a.applySuggestion(r.ID, st, it) }
+	a.voiceStep(r, st)
 	var res kit.ComposerResult
 	if kit.Compact(c) {
 		res = kit.PhoneComposer(c.Key("composer:"+r.ID), st, "Message", &a.colors)
@@ -565,6 +566,17 @@ func (a *App) composerAct(c *ui.Context, r model.Room, st *kit.ComposerState, re
 	}
 	if !a.picker.Open {
 		a.reactTo = ""
+	}
+	switch {
+	case res.Mic:
+		a.startVoice(r.ID)
+		c.Invalidate()
+	case res.VoiceCancel:
+		a.endVoice(false)
+		c.Invalidate()
+	case res.VoiceSend:
+		a.endVoice(true)
+		c.Invalidate()
 	}
 	if res.Send && a.editStep(r.ID, st) {
 		return // the words replaced a message; nothing new was sent

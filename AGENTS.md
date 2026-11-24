@@ -217,6 +217,34 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - `main.go`: the app entry: the app on mock data; the gallery behind Debug.
 - App snapshots: `SNAP_DIR=… go test -run 'Layouts|SendAndNavigate' ./app/`.
 
+## Voice messages and dev builds
+- Voice recording: `voice/` (WAV, waveform, level; no platform code), `app/voice.go`
+  (the `Mic` seam, `NewMic` nil where there is no microphone, the recording
+  state, send as a voice message via `model.File.Voice` and `matrix/upload.go`'s
+  `voiceContent`), `kit/voicebar.go` (the bar), and the native module
+  `modules/mic` (Swift for macOS+iOS, Kotlin for Android; `mic_native.go` and the
+  `*.mygo.*` files are generated: never edit). `micnative.go` hands it to the app.
+  **Building the module runs `swift build` inside `modules/mic/swift`, which macOS
+  refuses under ~/Documents for some processes** ("You don't have permission to
+  save the file “repositories” in the folder “.build”"): check the Swift code with
+  `swift build --package-path modules/mic/swift --scratch-path <scratch>` (add
+  `--sdk $(xcrun --sdk iphonesimulator --show-sdk-path) --triple
+  arm64-apple-ios16.0-simulator` for iOS).
+- A development build (`SLOPEMENT_DEV_SECRETS=1`, which `npm run dev` sets) keeps
+  its accounts in `<config>/slopement-dev`, apart from the installed app's
+  `<config>/slopement`: sharing one record made the two builds sign in over each
+  other, a new device each time (`defaultConfigDir`).
+- Android APK: `SLOPEMENT_ANDROID=1 GOFLAGS=-tags=goolm mygo build -platform android/arm64`
+  (add `SLOPEMENT_VERSION=x.y.z` to name the version), written to
+  `build/android/slopement-<version>.apk` (and `.aab`), signed with the debug key
+  unless `android.keystore` is set. `SLOPEMENT_ANDROID=1` is needed: Android's
+  package is `io.github.dariusit.slopement` (no hyphens allowed), while desktop
+  and iOS keep `io.github.darius-it.slopement` (the keychain service: never
+  change it). Keep the Android one once an APK is shared. A stale Gradle daemon
+  once failed aapt2 on the launcher icons; stopping it fixed that.
+- Do not `go build .` for another OS in the repo root: it overwrites the tracked
+  `slopement` binary. Use `-o /dev/null`.
+
 ## Newer pieces
 - `animwebp/`: animated WebP decoder (a `ui.VideoDecoder`); `app/media.go`
   plays them like GIFs (the player comes from the fetched bytes, by URL).

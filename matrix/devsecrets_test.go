@@ -60,6 +60,30 @@ func TestDevSecretsMigrateFromKeychain(t *testing.T) {
 	}
 }
 
+// A development build and an installed app must not share an account record: they
+// keep tokens in different places, so sharing it made each sign in again and
+// overwrite the other's device, one new device per switch.
+func TestDevBuildHasItsOwnConfigDir(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(DevSecretsEnv, "")
+	stable, err := defaultConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(DevSecretsEnv, "1")
+	dev, err := defaultConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stable == dev || filepath.Base(stable) != "slopement" || filepath.Base(dev) != "slopement-dev" {
+		t.Fatalf("stable %q, dev %q", stable, dev)
+	}
+	if filepath.Dir(stable) != filepath.Dir(dev) {
+		t.Fatal("not side by side")
+	}
+}
+
 // The last account used comes first in the list of accounts.
 func TestLastUsedAccountComesFirst(t *testing.T) {
 	openTest(t)

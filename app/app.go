@@ -101,6 +101,9 @@ type App struct {
 	chatsLS          ui.ListState                        // the Chats list's scroll (lists.go)
 	noteEd           noteEditor                          // a person's private nickname and note (notes.go)
 	roomNickEd       roomNickEditor                      // a room's private name (roomnick.go)
+	shareIn          Share                               // what other apps handed over, collected (shareto.go)
+	shareWait        bool                                // the burst is being waited out
+	shareDlg         shareDialog                         // "Send to…"
 	updCheck         bool                                // the switch "Check for updates at startup"
 	updInit          bool                                // updCheck was read from the saved choice
 	upd              updateDialog                        // an update found (updates.go)
@@ -214,7 +217,8 @@ type App struct {
 	tray          *mygo.Tray      // the tray icon, while "Minimize to tray" is on (tray.go)
 	badge         int             // the unread count shown on the icons (traybadge.go)
 	badgeTray     *mygo.Tray      // the tray that count was put on
-	quitting      atomic.Bool     // the app is quitting: closing the window then really closes it (tray.go)
+	rec           *recording      // the voice message being recorded (voice.go)
+	quitting      atomic.Bool    // the app is quitting: closing the window then really closes it (tray.go)
 	holdOnClose   atomic.Bool     // closing the window hides it in the tray instead
 	noticeOpen    map[string]bool // Settings → About: which licenses are open (about.go)
 	callHeight    float32         // the call page's height on desktop: dragged by its divider (room.go)
@@ -377,6 +381,7 @@ func (a *App) View(c *ui.Context) {
 	a.receiptsSync()
 	a.traySync()
 	a.badgeSync()
+	a.voiceGuard()
 	a.syncColors()
 	a.pendingStep()
 	if a.openURL != "" { // a page to show in the browser, asked for off the view
