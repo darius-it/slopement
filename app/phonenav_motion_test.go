@@ -32,6 +32,29 @@ func roomEdge(tt *ui.Tester) float32 {
 	return float32(img.Bounds().Dx())
 }
 
+// drawn says something is drawn in rect r (in DIPs, the tester's scale 1): not
+// all of it one color.
+func drawn(img *image.RGBA, r ui.Rect) bool {
+	x0, y0 := max(int(r.X), 0), max(int(r.Y), 0)
+	if x0 >= img.Bounds().Dx() || y0 >= img.Bounds().Dy() {
+		return false
+	}
+	o0 := img.PixOffset(x0, y0)
+	for y := y0; y < int(r.Y+r.H) && y < img.Bounds().Dy(); y++ {
+		for x := x0; x < int(r.X+r.W) && x < img.Bounds().Dx(); x++ {
+			o := img.PixOffset(x, y)
+			d := 0
+			for k := 0; k < 3; k++ {
+				d += int(math.Abs(float64(img.Pix[o+k]) - float64(img.Pix[o0+k])))
+			}
+			if d > 60 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // backFrames steps a back from a room in 16 ms frames and returns, for each, the
 // room's edge and the lists' Search field's left edge.
 func backFrames(t *testing.T, back func(a *App)) (room, lists []float32) {
@@ -95,6 +118,12 @@ func TestPhoneSwipeBackContinuesFromTheFinger(t *testing.T) {
 		room = append(room, roomEdge(tt))
 		if r, ok := tt.Find("Settings"); ok {
 			lists = append(lists, r.X)
+			// Left of the room the lists show: no empty page over them (the
+			// router's own page, background and shadow, sliding from the start
+			// as mygo's swipe leaves it, covered them with nothing).
+			if r.X+r.W < room[i] && !drawn(tt.Image(), r) {
+				t.Errorf("frame %d: the lists' Settings tab is covered (room edge %v)", i, room[i])
+			}
 		}
 	}
 	t.Logf("room edge: %v", room)

@@ -9,14 +9,20 @@ import (
 )
 
 // swipeBackRestarts says mygo's iOS edge swipe loses where the finger let go
-// (as of the mygo this builds against): its router's endEdgeSwipe clears its
+// (as of the mygo this builds against): its endEdgeSwipe clears the router's
 // "swiping" before going Back, so Back's endSwipe returns early and never
-// records the position (Router.resume), and the slide out starts from the very
-// start — the room jumps back to fill the screen, then slides out again, a
-// double jitter. Android's back gesture ends through the back key, which does
-// record it, so it is iOS only. TODO: remove popCompensation, roomX, popFrom and
-// this once a mygo with that fixed is pinned (the fix is a one-line reorder:
-// commit before clearing r.swiping).
+// records the position (Router.resume), and the router's slide out starts from
+// the very start, its page (background and shadow) filling the screen again.
+// Android's back gesture ends through the back key, which does record it, so it
+// is iOS only.
+//
+// The app works around it: as the swipe commits, the router changes page at
+// once (no transition) and the app slides the room out itself, from where the
+// finger left it, over the lists (swipeOut). TODO: remove swipeBackRestarts,
+// swipeOut, popLeft, swipeGap, noteRoomX/lostByRouter and the fields they use
+// once a mygo with the fix is pinned (the fix: commitSwipe records
+// r.resume = r.swipe before Back, or endEdgeSwipe commits before clearing
+// r.swiping). Not reported upstream yet (AGENTS.md, phone navigation).
 var swipeBackRestarts = runtime.GOOS == "ios"
 
 // A phone's lists and the room pushed over them are the two pages of a
@@ -39,21 +45,30 @@ const (
 	pathRoom  = "/room"
 )
 
-// popLeft is how much of a swipe back's lost distance is still to take off, 1
-// as the slide out begins and 0 as it ends, along the same curve the router
-// moves the pages by (kit.PopCurve, from the same frame's clock): the pages are
-// drawn where the router puts them plus this much of what the finger had
-// already taken them, so the slide goes on from the finger's place.
+// popLeft is how much of a swipe back's slide out is still to go, 1 as it
+// begins and 0 as it ends, along kit.PopCurve (the curve of every other pop),
+// by the frame's clock.
 func (a *App) popLeft(c *ui.Context) float32 {
-	if a.popFrom == 0 {
+	if !a.swipeOut {
 		return 0
 	}
 	t := float32(c.Now().Sub(a.popAt)) / float32(kit.PopCurve.Duration)
 	if t >= 1 {
-		a.popFrom = 0
+		a.swipeOut = false
 		return 0
 	}
 	return 1 - kit.PopCurve.Ease(max(t, 0))
+}
+
+// swipeGap is how far in from the window's right edge the room still reaches
+// as the app slides it out after a swipe back: 0 when it does not.
+func (a *App) swipeGap(c *ui.Context) float32 {
+	k := a.popLeft(c)
+	if k == 0 {
+		return 0
+	}
+	w, _ := c.Size()
+	return max(w-a.popFrom, 0) * k
 }
 
 // noteRoomX remembers where the room's page is, from its last two frames, for
@@ -77,7 +92,8 @@ func (a *App) phoneNavSync(c *ui.Context) {
 	}
 	r := a.phoneNav
 	// Back to the normal slide, after the first frame's push of a room the
-	// last run left open (which should not slide in as the app starts).
+	// last run left open (which should not slide in as the app starts), or a
+	// swipe back the app slides out itself.
 	r.Transition = ui.TransitionAuto
 
 	// The system took the room back (the edge swipe, the back key): the app
@@ -88,13 +104,18 @@ func (a *App) phoneNavSync(c *ui.Context) {
 		switch p {
 		case pathLists:
 			a.pushed = false
-			a.navPop = true // the room slides out by PopCurve, from where the finger let go
 			if swipeBackRestarts {
+				// The router would slide from the start: it shows the lists at
+				// once, and the app slides the room out from the finger's place.
 				w, _ := c.Size()
-				a.popFrom, a.popAt = a.lostByRouter(w), c.Now()
+				a.popFrom, a.popAt, a.swipeOut = a.lostByRouter(w), c.Now(), true
+				r.Transition = ui.TransitionNone
+			} else {
+				a.navPop = true // the room slides out by PopCurve
 			}
 		case pathRoom:
 			a.pushed = true // forward in the history
+			a.swipeOut = false
 		}
 	}
 
@@ -113,6 +134,7 @@ func (a *App) phoneNavSync(c *ui.Context) {
 		if !a.navStarted {
 			r.Transition = ui.TransitionNone // the room of the last run: there at once
 		}
+		a.swipeOut = false // a room opened as another slid out: it takes the screen
 		r.Push(pathRoom)
 	case r.CanGoBack():
 		r.Back()
@@ -139,11 +161,31 @@ func (a *App) phoneNavView(c *ui.Context) {
 		a.phoneNav.Animation = &kit.PushSpring
 	}
 	a.navPop = false
-	a.phoneNav.View(c, func(r *ui.Route) {
-		if r.Match(pathRoom) {
-			a.phoneRoom(c)
-			return
-		}
-		a.phoneLists(c)
+	ui.Column(c).Grow(1).AlignSelf(ui.Stretch).MinWidth(0).MinHeight(0).Clip().Children(func() {
+		a.phoneNav.View(c, func(r *ui.Route) {
+			if r.Match(pathRoom) {
+				a.phoneRoom(c)
+				return
+			}
+			a.phoneLists(c)
+		})
+		a.swipeOutView(c)
 	})
+}
+
+// swipeOutView is the room sliding out after a swipe back, drawn by the app
+// over the lists (see swipeBackRestarts): it goes on from where the finger let
+// it go, with the router's shadow, and takes no input, as a page going away.
+// Its scroll and its draft are the app's (listState, the composer's state), so
+// it shows as it was.
+func (a *App) swipeOutView(c *ui.Context) {
+	gap := a.swipeGap(c)
+	if gap <= 0 {
+		return
+	}
+	c.AnimationFrame()
+	w, _ := c.Size()
+	ui.Column(c.Key("swipe-out")).Absolute().Top(0).Fill().Translate(w-gap, 0).
+		Shadow(0, 0, 16, 0, kit.PageShadow).IgnoreInput(true).AccessHidden(true).
+		Children(func() { a.phoneRoom(c) })
 }

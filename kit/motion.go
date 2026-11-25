@@ -79,6 +79,13 @@ func FadeIn() ui.ElementTransition {
 // within about half of one.
 var PushSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 330 * time.Millisecond}}
 
+// PageShadow is the shadow of a page sliding over another, and PageShade the
+// shade over the page beneath while f (0..1) of it is covered: those of mygo's
+// router, for a slide the app draws itself (app/phonenav.go's swipe back).
+var PageShadow = ui.RGBA(0, 0, 0, 0.15)
+
+func PageShade(f float32) ui.Color { return ui.RGBA(0, 0, 0, 0.06*f) }
+
 // PopCurve is a phone's page pop: the page goes back, by a Back button or a
 // finger's swipe let go past halfway. A curve of fixed length, not a spring:
 // it ends when it should, with no tail, whatever the speed or the distance it

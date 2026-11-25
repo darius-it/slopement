@@ -452,10 +452,14 @@ func (a *App) phoneLists(c *ui.Context) {
 		return
 	}
 	page := ui.Column(c).Grow(1).MinHeight(0).Background(p.Bg)
-	// The lists under a room being swiped away move 30% as far (the router's
-	// parallax): the share of the distance it lost goes on too (phonenav.go).
-	if k := a.popLeft(c); k > 0 {
-		page.Translate(0.3*a.popFrom*k, 0)
+	// Under a room the app slides out after a swipe back (phonenav.go), the
+	// lists do as the router's: 30% as far back as the room still covers,
+	// shaded as much as it does.
+	if gap := a.swipeGap(c); gap > 0 {
+		w, _ := c.Size()
+		page.Translate(-0.3*gap, 0).DrawOver(func(pt *ui.Painter, rc ui.Rect) {
+			pt.Fill(rc, kit.PageShade(gap/w), 0)
+		})
 	}
 	page.Children(func() {
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {

@@ -115,6 +115,7 @@ type App struct {
 	roomX, roomXPrev float32                             // where the room's page was in the last two frames (phonenav.go: a swipe back that is let go)
 	popFrom          float32                             // where the room was as a swipe back let go: the slide out starts there
 	popAt            time.Time                           // when that slide began
+	swipeOut         bool                                // the app slides the room out after a swipe back (phonenav.go: mygo loses the finger's place)
 	navPop           bool                               // the router was just sent back: the slide out is a curve (phonenav.go)
 	navStarted       bool                               // the router has shown a page (the first may come at once)
 	blurSink         ui.Handle                          // takes the focus as a room closes, so the keyboard goes (blur.go)

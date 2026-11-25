@@ -607,11 +607,10 @@ func (a *App) phoneRoom(c *ui.Context) {
 	r, _ := a.roomByID(a.room)
 	col := ui.Column(c).Grow(1).MinHeight(0).Background(p.Wallpaper)
 	// Where the page is (its bounds, a frame behind), for a swipe back that is
-	// let go; and, as that slide out goes on, the distance the router lost
-	// (phonenav.go).
-	a.noteRoomX(col.Bounds().X)
-	if k := a.popLeft(c); k > 0 {
-		col.Translate(a.popFrom*k, 0)
+	// let go: the app slides it out from there (phonenav.go). Not while it is
+	// that slide itself.
+	if !a.swipeOut {
+		a.noteRoomX(col.Bounds().X)
 	}
 	// The chat blurs as a message's menu opens over it (msgmenu.go), and clears
 	// as it closes: the message is drawn sharp above, where it was.

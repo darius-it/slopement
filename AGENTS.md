@@ -141,10 +141,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   shows nothing and only keeps both pages being built for a second), a pop
   `kit.PopCurve`. **mygo bug (iOS edge swipe):** its `endEdgeSwipe` clears
   `swiping` before `Back()`, so `endSwipe` never records where the finger let go
-  and the slide out restarts from 0 (the room jumps back, then slides out). The
-  app puts the lost distance back (`swipeBackRestarts`, `popLeft`, `roomX` in
-  `phonenav.go`); **remove all of that when a mygo with the fix is pinned**, or
-  it will count the distance twice. Android's back gesture is not affected. Anything that leaves a room on a phone just sets
+  and the slide out restarts from 0 (the router's page, background and shadow,
+  covers the screen again and slides out empty). Moving the app's content inside
+  that page cannot hide it, so on iOS the swipe's commit switches the router with
+  no transition and the app draws the room sliding out itself over the lists
+  (`swipeOut`, `swipeOutView` in `phonenav.go`, `IgnoreInput`+`AccessHidden`;
+  the room and the router must never both build it: one `ListState`, two Lists
+  panics). **Remove all of that when a mygo with the fix is pinned** (the list
+  is in the plan's "Upstream (mygo) to file later"; not reported upstream yet).
+  Android's back gesture is not affected. Anything that leaves a room on a phone just sets
   `a.pushed = false`. Touch sizes: `kit.Touch` is true on iOS/Android
   (`kit.PhoneOS`), as mygo never reports a coarse pointer there.
 - `model/`: the app's data types and the `Source` interface (the Matrix
