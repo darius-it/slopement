@@ -21,6 +21,8 @@ would notice; when you tag a release, rename that heading to the tag
   groups, a few overlapping pictures and "+N"). Each person shows once, on your
   latest message they've seen. Someone who answered counts as having read, even
   with Read receipts off.
+- **A new app icon** on every platform, with a Liquid Glass version for macOS
+  that follows light and dark.
 - **Faster reconnecting.** Coming back to the app (unlocking your phone,
   switching to it, waking the computer) reconnects at once instead of after the
   offline bar's retries, and a dropped connection is retried after 1, 2, 4 and 8

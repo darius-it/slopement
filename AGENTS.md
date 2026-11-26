@@ -299,6 +299,19 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
 - Account data a resumed sync does not resend is fetched at start
   (`matrix/accountdata.go`): add new `com.slopement.*` account data there.
 
+## Icons
+Sources: `icons/logo-{dark,light}.svg`. `go run ./internal/icons/gen` (needs
+`rsvg-convert`) writes `resources/icon.png` (desktop tile and tray, dark),
+`icons/ios.png`, `icons/android-foreground.png` and the layers of
+`icons/AppIcon.icon` (macOS Liquid Glass, light and dark; `icon.json` is
+hand-written; keep the name `AppIcon`). Preview the glass with Icon Composer's
+`ictool` (`--export-image`). mygo gives iOS one flat icon only (no `.icon` or
+dark variant there), and Android has no themed (monochrome) icon.
+`mygo.config.ts` is evaluated without mygo's arguments (`process.argv` is the
+runtime's own), so it reads them from the parent process with `ps` to give iOS
+`icons/ios.png` (`SLOPEMENT_IOS=1` forces it). The desktop tile on iOS shows as
+a white border.
+
 ## Updates
 Opt-in, never automatic (`app/updates.go`): Settings → About switch (off by
 default, kept per device in `<config>/slopement/updates.json`), one check at

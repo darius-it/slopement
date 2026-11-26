@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "mygo-cli";
 
@@ -28,8 +29,24 @@ const androidBuild =
   process.env.SLOPEMENT_ANDROID === "1" || process.argv.some((a) => a.includes("android"));
 const identifier = androidBuild ? "io.github.dariusit.slopement" : "io.github.darius-it.slopement";
 
+// Icons are made from icons/logo-*.svg by `go run ./internal/icons/gen`. iOS
+// takes no transparency and rounds the corners itself, so it gets a full-bleed
+// square; everything else starts from the rounded tile.
+// mygo evaluates this file in a process of its own, without its arguments, so
+// they are read off that process's parent (iOS builds only on a Mac, which has
+// ps). SLOPEMENT_IOS=1 says it too.
+function mygoArgs(): string {
+  try {
+    return execFileSync("ps", ["-o", "args=", "-p", String(process.ppid)], { encoding: "utf8" });
+  } catch {
+    return ""; // no ps (Windows): not an iOS build
+  }
+}
+const iosBuild = process.env.SLOPEMENT_IOS === "1" || /(\s|=|,)ios(\s|,|\/|$)/.test(mygoArgs());
+
 export default defineConfig({
   name: "slopement",
+  icon: iosBuild ? "icons/ios.png" : "resources/icon.png",
   // The keychain service secrets are stored under: keep it once released.
   identifier,
   version,
@@ -78,6 +95,9 @@ export default defineConfig({
   },
   macos: {
     dmgTitle: "slopement",
+    // The Liquid Glass icon (light and dark) of macOS 26, with an .icns made
+    // from it for older systems. Needs Xcode 26+; without it the PNG is used.
+    icon: "icons/AppIcon.icon",
     // Calls (Element Call in a web view) ask for these; macOS ends an app that
     // uses them without a reason.
     infoPlist: {
@@ -100,6 +120,7 @@ export default defineConfig({
   // sharing an .apk by hand, not for Google Play.
   android: {
     permissions: ["RECORD_AUDIO", "CAMERA", "MODIFY_AUDIO_SETTINGS"],
+    adaptiveIcon: { foreground: "icons/android-foreground.png", background: "#121116" },
   },
   // Phones: `mygo dev -platform ios` and `-platform android` run the app on a
   // simulator, an emulator or a device (`mygo devices` lists them, and
