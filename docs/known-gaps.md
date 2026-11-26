@@ -1,7 +1,7 @@
 # Known gaps
 
 slopement is a **super early alpha**. This is what is missing or unproven, as
-of 2026-11-22. It is not a promise of when anything lands.
+of 2026-11-26. It is not a promise of when anything lands.
 
 ## Not built yet
 - **Calls** are an early prototype: MatrixRTC through Element Call, whose page
@@ -16,18 +16,17 @@ of 2026-11-22. It is not a promise of when anything lands.
   native module: AVFoundation on Macs and iPhones, AudioRecord on Android) and
   tested against a fake microphone only: it has never recorded on real hardware.
   There is no microphone code for Linux and Windows, so no mic button there. It
-  sends WAV (about 2 MB a minute), not Opus. Playing voice messages works (Opus,
-  AAC and the usual formats).
+  sends WAV (about 2 MB a minute), not Opus. Playing voice messages works (Opus
+  and the usual formats; AAC is not played).
 - **Creating a new key backup**, on purpose: restoring one works, but a new
   backup holds the keys to all your encrypted history, so it is left to Element,
   which has had that code tested for years.
 - **Live location sharing.** A shared place shows as a map when you turn maps
   on (Settings → Privacy → Maps); a place that moves (a "live location") is not
   followed, and sending your location is not built.
-- **Hardly tested:** animated WebP, Opus and AAC playback and custom emoji
-  reactions are checked against samples and a fake server only; the Opus and AAC
-  decoders are young pure-Go libraries, so report a voice message that sounds
-  wrong or won't play.
+- **Hardly tested:** animated WebP, Opus playback and custom emoji reactions are
+  checked against samples and a fake server only; the Opus decoder is a young
+  pure-Go library, so report a voice message that sounds wrong or won't play.
 
 ## Tray
 "Minimize to tray" and "When the window is closed → Keep in tray" (Settings →
@@ -37,9 +36,12 @@ tray needs `libayatana-appindicator3` (and a panel that shows tray icons: GNOME
 needs its AppIndicator extension); without it the settings turn themselves off.
 
 ## Phones
-The phone layout exists and renders, but the app has **never been run on an
-iPhone, iPad or Android device**. Treat it as untested. Push notifications are
-not built.
+The app has been tried on an iPhone, but only lightly; **iPad and Android are
+untested**. Releases carry desktop builds only: phone builds are made from the
+source. Push notifications are not built.
+
+- **Icons:** iOS gets one flat dark icon (no light or dark variants), and
+  Android has no themed icon.
 
 - **Sharing into slopement:** on desktops, "Open with" and the Dock drop work as
   built, but only from the documentation; on Android the share sheet is a plugin

@@ -8,14 +8,20 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+## v0.3.0-alpha.1
+
+Mostly phones, plus a new icon.
+
 ### Added
 - **Phones: a new Communities overview.** Every community is a card on one page,
   with its busiest rooms (last message, time, unread count) right under its
   name: tap a room to open it, or "All rooms" to see the rest in place. The ⋯
   on a card has Invite and the community's options. No more small "All
   communities" back.
-- **Phones: a bigger + menu.** The + beside the message field opens a sheet of
-  large buttons: Photos, Camera, File and Poll.
+- **Phones: a bigger + menu, with photos and the camera.** The + beside the
+  message field opens a sheet of large buttons: Photos (the system's library
+  picker, several at once, no permission needed), Camera, File and Poll. What you
+  choose waits in the message box like any file.
 - **Read receipts fill the check with who read it.** Your message shows a hollow
   check once sent; when someone reads it, the check turns into their picture (in
   groups, a few overlapping pictures and "+N"). Each person shows once, on your
@@ -46,16 +52,40 @@ would notice; when you tag a release, rename that heading to the tag
 - **Phones: a small arrow to jump to the latest message** appears at the bottom
   right of a chat when you scroll away from the newest messages, with a count of
   the messages that arrived meanwhile.
-- **Phones: read circles.** As on desktop, the small avatar circles of who has
-  read up to a message sit on the side of the bubble (in direct chats too), and
-  your last message shows a hollow check circle until it is read (a clock while it
-  is still sending). The check circle shows even with "Read receipts" off, since it
-  only means the server has the message; the avatars need the setting on.
-- **Phones: photos and the camera in the + menu.** "Photo or video" opens the
-  system's library picker (several at once, no permission needed) and "Take a
-  photo" the camera; what you choose waits in the message box like any file.
+- **Notification sound** on every desktop: a soft two-note chime of the app's own
+  (Settings → Notifications → Sound), at most once every 1.5 seconds, and it
+  plays even when the banners are off. The system's own sound is no longer used.
+- **Unread count on the icons:** a red dot with the number on the tray icon, and
+  the count on the Dock or launcher icon. Muted rooms are not counted.
+- **Settings → Advanced → Window → When the window is closed:** Quit (as
+  before) or Keep in tray, which hides the window and keeps slopement running so
+  messages and notifications still arrive. Quit from the tray menu or ⌘Q still
+  ends it.
+- **↑ in an empty message box edits your last message** (on a computer).
+- **Voice messages (recording):** a microphone button in the message box on
+  Macs and iPhones/Android phones (Linux and Windows have none yet). Press it,
+  speak, and send; the bar shows the time and the level, and the bin throws it
+  away. It goes out as a normal voice message with a waveform, which Element and
+  other apps show as one. The microphone is only on while the bar is up, and is
+  switched off if you leave the chat. Only tried with a fake microphone so far.
+- **Send files to slopement from other apps:** "Open with slopement" on common
+  pictures, videos, audio, PDFs, text and zip files (or drop one on the Dock
+  icon) asks "Send to…" with your chats; on Android, slopement is in the share
+  sheet for words, pictures and files. Nothing is sent until you pick a chat.
+  Windows and Linux now run one copy of the app, so a file opened while it runs
+  goes to that window. The Android share sheet is not tried on a device yet, and
+  iPhone has none (see known gaps).
+- **Private names for rooms and chats:** "Private name…" in a room's menu (and
+  the phone's room sheet) gives it a name only you see, on all your devices. It
+  is stored with your account, so your homeserver can read it.
+- **Maps for shared places** (Settings → Privacy → Maps, off by default): a
+  place someone shares is drawn as a small map with a pin. The map's pictures
+  come from OpenStreetMap's servers, which see your IP address and the area;
+  nothing is fetched while it is off.
 
 ### Changed
+- A message that is still sending while there is no connection is drawn in red,
+  like one that failed, and turns normal once it is delivered.
 - **AAC (.m4a) audio no longer plays in the app.** Voice messages are Ogg Opus
   (what Element sends) and still play; an AAC attachment now shows as a file you
   can save. (Apple Lossless .m4a still plays.)
@@ -92,8 +122,8 @@ would notice; when you tag a release, rename that heading to the tag
 - **Phones: going back feels native.** On iPhone, swipe from the left edge to
   leave a chat: it follows your finger, with the list moving beneath it. On
   Android, the back button and the back gesture leave the chat (and from the list
-  they leave the app). Opening and closing a chat uses a soft spring, like the
-  system's, that you can catch and turn around mid-way.
+  they leave the app). Opening a chat uses a soft spring, like the system's, that
+  you can catch and turn around mid-way.
 - **Phones:** the picture viewer's buttons no longer sit under the status bar.
 - **Phones: scrolling up through history no longer stops dead.** Older messages
   are now asked for while the top is still a few screens away, not six messages.
@@ -116,44 +146,6 @@ would notice; when you tag a release, rename that heading to the tag
   wide code blocks) now scroll sideways with a finger. Bottom sheets and dialogs
   stay clear of the system bars (Android's back/home buttons, the iOS home
   indicator), and the pins and thread sheets fit short screens.
-
-### Added
-- **Notification sound** on every desktop: a soft two-note chime of the app's own
-  (Settings → Notifications → Sound), at most once every 1.5 seconds, and it
-  plays even when the banners are off. The system's own sound is no longer used.
-- **Unread count on the icons:** a red dot with the number on the tray icon, and
-  the count on the Dock or launcher icon. Muted rooms are not counted.
-- **Settings → Advanced → Window → When the window is closed:** Quit (as
-  before) or Keep in tray, which hides the window and keeps slopement running so
-  messages and notifications still arrive. Quit from the tray menu or ⌘Q still
-  ends it.
-- **↑ in an empty message box edits your last message** (on a computer).
-- **Voice messages (recording):** a microphone button in the message box on
-  Macs and iPhones/Android phones (Linux and Windows have none yet). Press it,
-  speak, and send; the bar shows the time and the level, and the bin throws it
-  away. It goes out as a normal voice message with a waveform, which Element and
-  other apps show as one. The microphone is only on while the bar is up, and is
-  switched off if you leave the chat. Only tried with a fake microphone so far.
-- **Send files to slopement from other apps:** "Open with slopement" on common
-  pictures, videos, audio, PDFs, text and zip files (or drop one on the Dock
-  icon) asks "Send to…" with your chats; on Android, slopement is in the share
-  sheet for words, pictures and files. Nothing is sent until you pick a chat.
-  Windows and Linux now run one copy of the app, so a file opened while it runs
-  goes to that window. The Android share sheet is not tried on a device yet, and
-  iPhone has none (see known gaps).
-- **Private names for rooms and chats:** "Private name…" in a room's menu (and
-  the phone's room sheet) gives it a name only you see, on all your devices. It
-  is stored with your account, so your homeserver can read it.
-- **Maps for shared places** (Settings → Privacy → Maps, off by default): a
-  place someone shares is drawn as a small map with a pin. The map's pictures
-  come from OpenStreetMap's servers, which see your IP address and the area;
-  nothing is fetched while it is off.
-
-### Changed
-- A message that is still sending while there is no connection is drawn in red,
-  like one that failed, and turns normal once it is delivered.
-
-### Fixed
 - **A file too large for your server** is now turned away when you drop, pick or
   paste it, with the server's own limit in the message ("big.zip (60 MB) is over
   your server's limit of 25 MB"), instead of uploading and then failing. The
