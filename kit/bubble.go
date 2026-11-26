@@ -41,6 +41,10 @@ type BubbleData struct {
 	Embed *LinkCard
 	// First and Last place it in a run of one sender's messages.
 	First, Last bool
+	// Direct: a chat with one person, whose name and picture the header
+	// already shows — the bubbles go without them, as WhatsApp's, Signal's and
+	// Element X's do.
+	Direct bool
 	// ReadBy are the people who have read up to this message: their small
 	// round avatars on the bubble's side, as on desktop and in Element X. Only
 	// with the Read receipts setting on.
@@ -49,6 +53,9 @@ type BubbleData struct {
 	// with a check on the bubble's side, as on desktop. It says nothing of
 	// anyone else, so it shows whatever the Read receipts setting is.
 	Sent bool
+	// Read: the user's last message someone has read (or answered): a double
+	// check in the accent, where no reader circles show.
+	Read bool
 	// Menu says what the message's menu (a long press) offers.
 	Menu MessageMenuState
 	// Pending shows as any sent message does; only a failure is marked.
@@ -157,7 +164,7 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 		}
 	}
 	row.Children(func() {
-		if !b.Out {
+		if !b.Out && !b.Direct {
 			// The avatar column: the avatar on the run's first message,
 			// room on the others so the bubbles line up.
 			ui.Box(c).Width(bubbleAvatar).Shrink(0).AlignSelf(ui.Start).Children(func() {
@@ -185,7 +192,7 @@ func Bubble(c *ui.Context, b BubbleData, colors *UserColors, rv Reveals) (a Mess
 			if swipe {
 				replyCue(c, row, b.Out, pulled)
 			}
-			if b.First && !b.Out {
+			if b.First && !b.Out && !b.Direct {
 				md := MessageData{Sender: b.Sender, SenderID: b.SenderID, Profile: b.Profile, ProfileOpen: b.ProfileOpen}
 				name := senderName(c, md, colors, SizeSmall).PaddingX(S1)
 				if b.Profile != nil && name.Clicked() {
@@ -359,6 +366,8 @@ func statusMark(c *ui.Context, b BubbleData) {
 		ui.Icon(c, IconClock).Size(15, 15).TextColor(p.TextFaint).Label("Sending")
 	case b.Sent && len(b.ReadBy) == 0:
 		ui.Icon(c, IconCircleCheck).Size(15, 15).TextColor(p.TextFaint).Label("Sent")
+	case b.Read && len(b.ReadBy) == 0:
+		ui.Icon(c, IconCheckCheck).Size(15, 15).TextColor(p.AccentStrong).Label("Read")
 	}
 }
 
@@ -406,16 +415,28 @@ func UnreadDivider(c *ui.Context, n int) {
 // TypingBubble is an incoming bubble of three dots that breathe, while
 // someone types.
 func TypingBubble(c *ui.Context, who string, avatar AvatarSpec, colors *UserColors) {
+	typingBubble(c, who, &avatar, colors)
+}
+
+// TypingBubbleDirect is TypingBubble in a chat with one person: no avatar,
+// as the bubbles there have none (BubbleData.Direct).
+func TypingBubbleDirect(c *ui.Context, who string) {
+	typingBubble(c, who, nil, nil)
+}
+
+func typingBubble(c *ui.Context, who string, avatar *AvatarSpec, colors *UserColors) {
 	p := Of(c)
 	ui.Row(c.Key("typing")).Padding(S3, S3, 0, S3).Gap(S2).AlignItems(ui.End).
 		Transition(ui.ElementTransition{Duration: DurBase, ExitDuration: DurExit, Enter: &ui.Motion{Scale: 0.9, X: -6}, Exit: &ui.Motion{Scale: 0.9}}).
 		Children(func() {
-			av := avatar
-			av.Size, av.Colors = bubbleAvatar, colors
-			if av.Name == "" {
-				av.Name = who
+			if avatar != nil {
+				av := *avatar
+				av.Size, av.Colors = bubbleAvatar, colors
+				if av.Name == "" {
+					av.Name = who
+				}
+				Avatar(c, av)
 			}
-			Avatar(c, av)
 			tl, tr, br, bl := bubbleRadii(false, true)
 			ui.Row(c).Height(36).PaddingX(S3+2).Gap(4).Radius(tl, tr, br, bl).Background(p.BubbleIn).AlignItems(ui.Center).
 				Label(who + " is typing").Children(func() {

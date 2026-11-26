@@ -253,9 +253,12 @@ func (a *App) settingsPage(c *ui.Context) {
 			})
 			switchRow(c, "Compact timeline", "Less space between messages", &a.prefs.dense)
 		})
-		group(c, "Layout", "How Chats and Communities are laid out. At phone widths the rail shows as tabs.", func() {
-			ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
-		})
+		// Phones have one layout (the tabs): the choice is for wide windows.
+		if !kit.Compact(c) {
+			group(c, "Layout", "How Chats and Communities are laid out.", func() {
+				ui.Column(c).Padding(kit.S3).Children(func() { kit.LayoutPicker(c, &a.nav) })
+			})
+		}
 		// The small switches of how chats and people look and behave: one group,
 		// a line under each, no notes between them.
 		group(c, "Chats and people", "", func() {

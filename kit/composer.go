@@ -20,6 +20,8 @@ type ComposerState struct {
 	wantAttach, wantPoll bool
 	// wantPhoto and wantCamera: the + menu's photo library and camera.
 	wantPhoto, wantCamera bool
+	// plusSheet is the phone's + sheet (plusSheet).
+	plusSheet SheetState
 	// wantPaste: the paste shortcut was pressed in the field.
 	wantPaste bool
 	// wantEditLast: ↑ was pressed with nothing written (see fieldKey).
@@ -63,8 +65,17 @@ func (st *ComposerState) SuggestionsOff() bool {
 	return st.suggestOff != "" && st.suggestOff == st.Text
 }
 
-// plusMenu makes the composer's + a menu: a file, or a poll.
+// plusMenu makes the composer's + a menu: a file, or a poll. On a phone it
+// is a sheet of large tiles instead, as WhatsApp's and Muse's attach sheets
+// (Mobbin): a drawn menu's rows were too small for a thumb.
 func plusMenu(c *ui.Context, plus ui.Element, st *ComposerState) {
+	if Touch(c) {
+		if plus.Clicked() {
+			st.plusSheet.Open = true
+		}
+		plusSheet(c, st)
+		return
+	}
 	MenuButton(c, plus, func(m *ui.Menu) {
 		if PhoneOS() { // a phone's own picker of photos, and its camera
 			if m.Item("Photo or video").Icon(MenuIcon(IconImage)).Chosen() {
@@ -80,6 +91,45 @@ func plusMenu(c *ui.Context, plus ui.Element, st *ComposerState) {
 		if m.Item("Create poll").Icon(MenuIcon(IconPoll)).Chosen() {
 			st.wantPoll = true
 		}
+	})
+}
+
+// plusSheet is the phone's + : a bottom sheet with a tile for each thing to
+// add — a round icon over its name, the whole tile pressable.
+func plusSheet(c *ui.Context, st *ComposerState) {
+	if !st.plusSheet.Open && !SheetAlive(&st.plusSheet) {
+		return
+	}
+	type tile struct {
+		icon  *ui.SVG
+		label string
+		want  *bool
+	}
+	var tiles []tile
+	if PhoneOS() {
+		tiles = append(tiles, tile{IconImage, "Photos", &st.wantPhoto}, tile{IconCamera, "Camera", &st.wantCamera})
+	}
+	tiles = append(tiles, tile{IconFile, "File", &st.wantAttach}, tile{IconPoll, "Poll", &st.wantPoll})
+	Sheet(c, &st.plusSheet, "", func() {
+		p := Of(c)
+		ui.Row(c).Gap(S2).PaddingY(S2).Justify(ui.SpaceAround).Children(func() {
+			for _, t := range tiles {
+				b := ui.ButtonBase(c.Key("plus:"+t.label)).Column().Gap(S2).AlignItems(ui.Center).Padding(S1).
+					Radius(RadiusMd).MinWidth(72).Label(t.label)
+				Pressable(b)
+				b.Children(func() {
+					ui.Box(c).Size(60, 60).Radius(RadiusFull).Background(p.AccentSubtle).
+						AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+						ui.Icon(c, t.icon).Size(26, 26).TextColor(p.AccentStrong)
+					})
+					ui.Text(c, t.label).FontSize(SizeSmall).FontWeight(WeightMedium).TextColor(p.Text).SingleLine()
+				})
+				if b.Clicked() {
+					*t.want = true
+					st.plusSheet.Open = false
+				}
+			}
+		})
 	})
 }
 

@@ -474,7 +474,7 @@ func (a *App) phoneLists(c *ui.Context) {
 				if listHeader(c, "Communities", kit.IconPlus, "Join or create") {
 					a.openRooms(2, 0)
 				}
-				ui.Scroll(c.Key("comms")).Grow(1).PaddingX(kit.S2).Gap(1).Children(func() { a.communitiesTab(c) })
+				a.phoneCommunities(c)
 			default:
 				if listHeader(c, "Chats", kit.IconPencil, "New chat") {
 					a.phoneTab = 2

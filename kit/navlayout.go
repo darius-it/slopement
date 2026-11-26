@@ -40,10 +40,12 @@ func DefaultNavLayout() NavLayout {
 	return NavRail
 }
 
-// Resolve returns the layout to show: the rail, which needs room, shows as
-// tabs at phone widths.
+// Resolve returns the layout to show: the one chosen on wide windows, the
+// tabs at phone widths whatever was chosen.
 func (l NavLayout) Resolve(compact bool) NavLayout {
-	if l == NavRail && compact {
+	if compact {
+		// A phone has one layout, ours: the tabs. The others are for wide
+		// windows (the setting is not offered on phones).
 		return NavTabs
 	}
 	return l

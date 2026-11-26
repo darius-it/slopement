@@ -65,8 +65,15 @@ func TestReceiptState(t *testing.T) {
 	}
 	// Off: nothing of who has read what (the place that was read is not looked
 	// at), but the last message is still sent: that says nothing of anyone else.
-	if got = state(false, ev("1", me), ev("2", "@kai", "@kai")); got != (receiptState{sentID: "1"}) {
+	if got = state(false, ev("1", me), ev("2", "@kai", "@kai"), ev("3", me, "@kai")); got != (receiptState{sentID: "3", readID: "1"}) {
 		t.Fatalf("off: %+v", got)
+	}
+	// Someone answered: they have read it, setting or not (their answer is
+	// there for all to see). No lone "sent" under a message that was answered.
+	for _, on := range []bool{false, true} {
+		if got = state(on, ev("1", me), ev("2", "@kai")); got != (receiptState{readID: "1"}) {
+			t.Fatalf("answered (receipts %v): %+v", on, got)
+		}
 	}
 	if got = state(false); got != (receiptState{}) {
 		t.Fatalf("off, no messages: %+v", got)
@@ -76,7 +83,7 @@ func TestReceiptState(t *testing.T) {
 	pending, failed := ev("3", me), ev("4", me)
 	pending.Pending = true
 	failed.Failed, failed.Error = true, "Not sent: No internet connection."
-	got = state(true, ev("1", me), ev("2", "@kai"), pending)
+	got = state(true, ev("1", me), pending)
 	if got.sentID != "1" {
 		t.Fatalf("a message still being sent took the check: %q", got.sentID)
 	}

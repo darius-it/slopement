@@ -670,16 +670,22 @@ func (a *App) phoneRoom(c *ui.Context) {
 		a.jumpStep(r.ID, rows, ls)
 		a.readStep(r, rows, ls)
 		a.pageStep(r.ID, ls)
-		// The messages with the typing bubble floating on their bottom
-		// edge: it takes no room, so nothing above it moves when it comes
-		// and goes.
-		ui.Column(c.Key("ptlarea:" + r.ID)).Grow(1).Children(func() {
+		// The messages, then who is typing: a bubble of its own under the last
+		// message, as Messages, WhatsApp and Element X show it. It takes its
+		// room (the list is held to its end, so the messages move up for it):
+		// floating over the timeline it covered the last message.
+		ui.Column(c.Key("ptlarea:" + r.ID)).Grow(1).MinHeight(0).Children(func() {
 			ui.List(c.Key("ptl:"+r.ID), ls, len(rows), func(i int) { a.safeRow(c, rows[i], func() { a.bubbleRow(c, r, rows, i) }) }).
 				Grow(1).Justify(ui.End).Padding(kit.S2, 0, kit.S4, 0)
-			if len(r.Typing) > 0 && r.Kind == model.KindDM {
-				pp, _ := a.person(r.Partner)
-				ui.Column(c.Key("ptyping")).Attach(ui.AnchorBottomLeft, ui.AnchorBottomLeft).Left(kit.S3).Top(-kit.S1).PassThrough().
-					Children(func() { kit.TypingBubble(c, pp.Name, a.avatar(pp, 0), &a.colors) })
+			if len(r.Typing) > 0 {
+				ui.Column(c.Key("ptyping")).Shrink(0).Padding(0, 0, kit.S2, 0).Children(func() {
+					if r.Kind == model.KindDM {
+						pp, _ := a.person(r.Partner)
+						kit.TypingBubbleDirect(c, pp.Name)
+					} else {
+						kit.TypingBubble(c, typingWho(r.Typing), kit.AvatarSpec{Name: r.Typing[0]}, &a.colors)
+					}
+				})
 			}
 			// Away from the newest messages: a small arrow on the right takes
 			// you back (the seeking pill, when it shows, takes its place).
@@ -692,6 +698,20 @@ func (a *App) phoneRoom(c *ui.Context) {
 		})
 		a.composer(c, r)
 	})
+}
+
+// typingWho names who is typing, for the bubble's label: "Kai", "Kai and
+// Leo", "Kai and 2 others".
+func typingWho(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " and " + names[1]
+	}
+	return names[0] + " and " + strconv.Itoa(len(names)-1) + " others"
 }
 
 // bubbleRow is row i of a phone's timeline: a date, a system line, or a
@@ -723,13 +743,14 @@ func (a *App) bubbleRowAs(c *ui.Context, r model.Room, rows []trow, i int, lifte
 	last := i == len(rows)-1 || rows[i+1].ev == nil || rows[i+1].first
 	b := kit.BubbleData{ID: ev.ID, Sender: sender.Name, SenderID: sender.ID, Avatar: a.avatar(sender, 0), Out: ev.Sender == me,
 		Time: ev.Time.Format("15:04"), Reactions: reactions(ev.Reactions), Reply: a.quote(r.ID, ev.ReplyTo),
-		First: tr.first, Last: last, Pending: ev.Pending, Unsent: ev.Pending && a.offline(), Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300,
+		First: tr.first, Last: last, Direct: r.Kind == model.KindDM, Pending: ev.Pending, Unsent: ev.Pending && a.offline(), Failed: ev.Failed, Error: ev.Error, Edited: ev.Edited, MaxWidth: 300,
 		CanRetry: ev.Failed && a.canRetry(r.ID, ev.ID)}
 	// On the bubble's side, as on desktop: the hollow circle on your last
 	// message while nobody has read it (it says only that the server has it, so
 	// it shows with Read receipts off too), and the circles of whoever has read
 	// up to a message (only with Read receipts on).
 	b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
+	b.Read = b.Out && a.rs.readID != "" && ev.ID == a.rs.readID
 	b.ReadBy = a.readers(ev)
 	if ev.Kind != model.EventUndecryptable {
 		var yt *kit.YouTubeSpec

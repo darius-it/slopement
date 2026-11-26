@@ -9,6 +9,15 @@ would notice; when you tag a release, rename that heading to the tag
 ## Unreleased
 
 ### Added
+- **Phones: a new Communities overview.** Every community is a card on one page,
+  with its busiest rooms (last message, time, unread count) right under its
+  name: tap a room to open it, or "All rooms" to see the rest in place. The ⋯
+  on a card has Invite and the community's options. No more small "All
+  communities" back.
+- **Phones: a bigger + menu.** The + beside the message field opens a sheet of
+  large buttons: Photos, Camera, File and Poll.
+- **Phones: a message someone answered shows as read** (a double check), instead
+  of keeping the "sent" circle.
 - **Phones: swipe a message to reply.** Drag a message toward the middle of the
   screen (to the right for messages on the left, to the left for your own): an
   arrow comes out beside it and ticks when it is far enough; let go there to
@@ -44,8 +53,20 @@ would notice; when you tag a release, rename that heading to the tag
 - **Phones: the favorite star for GIFs moved to the picture viewer's top bar.** It
   no longer sits over every GIF in the chat; open a GIF and press the star beside
   Download. (On a computer it still shows when you point at a GIF.)
+- **Phones: chats with one person no longer repeat their picture and name** over
+  their messages: the header already says who it is.
+- **Phones: "is typing" sits under the last message** instead of over it, and
+  shows in group rooms too.
+- **Phones: one layout.** Phones always show the Chats / Communities / People /
+  Settings tabs; the Layout setting is now only on computers.
+- **Phones: the GIF picker opens without the keyboard,** so there is room to
+  browse; tap the search to type. The "Powered by KLIPY" line moved below the
+  results instead of taking its own row. (On a computer the search still takes
+  your typing at once.)
 
 ### Fixed
+- **Phones: the picture viewer's top bar no longer stays over the chat** after
+  flicking a picture away.
 - **Phones: swiping back from a chat no longer jumps.** On iPhone, letting go of
   the edge swipe made the chat snap back to fill the screen and then slide out
   again; it now carries on from where your finger left it. Going back by a button

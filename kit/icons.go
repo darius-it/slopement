@@ -43,6 +43,7 @@ var (
 	IconCircleCheck = lucide(`<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>`)
 	IconChevronR    = lucide(`<path d="m9 18 6-6-6-6"/>`)
 	IconChevronD    = lucide(`<path d="m6 9 6 6 6-6"/>`)
+	IconChevronU    = lucide(`<path d="m18 15-6-6-6 6"/>`)
 	IconChevronL    = lucide(`<path d="m15 18-6-6 6-6"/>`)
 	IconMore        = lucide(`<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>`)
 	IconLock        = lucide(`<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`)

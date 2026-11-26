@@ -469,6 +469,12 @@ func clampPan(mw, mh, aw, ah float32) {
 // viewer (flickAway).
 var viewDismiss ui.Point
 
+// viewAway is how far the picture was taken away in the last frame, 0 to 1.
+var (
+	viewAway    float32
+	viewWasOpen bool
+)
+
 // flickAway lets a finger take the picture away to close the viewer, as
 // Photos' and Instagram's do: it follows the finger up or down (shrinking a
 // little), the backdrop clearing as it goes; let go past a third of the way, or
@@ -491,11 +497,16 @@ func flickAway(c *ui.Context, pic ui.Element, open *bool) float32 {
 			return ui.Point{}
 		},
 	})
-	away := min(float32(math.Abs(float64(pic.DragOffset().Y)))/(wh*0.45), 1)
+	off := float32(math.Abs(float64(pic.DragOffset().Y)))
+	away := min(off/(wh*0.45), 1)
 	sc := 1 - 0.12*away
 	pic.Scale(sc, sc)
-	// It went off the screen: close, once it is there.
-	if math.Abs(float64(viewDismiss.Y)) >= float64(wh) && !pic.Transitioning() {
+	// It went off the screen: close, once it is there. Not by Transitioning,
+	// which says what the frame before did: the frame where the picture
+	// arrives is the last one built (DragOffset asks for frames only while it
+	// moves), so the viewer stayed open, see-through, with its bar over the
+	// chat, until something else drew a frame.
+	if math.Abs(float64(viewDismiss.Y)) >= float64(wh) && off >= wh-1 {
 		viewDismiss = ui.Point{}
 		*open = false
 	}
@@ -511,6 +522,10 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		return
 	}
 	*index = min(max(*index, 0), len(items)-1)
+	if *open && !viewWasOpen {
+		viewAway = 0 // it opens with its bar shown
+	}
+	viewWasOpen = *open
 	p := Of(c)
 	white := ui.Hex("#FFFFFF")
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
@@ -530,7 +545,9 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 		// The header sits clear of the window's controls (the traffic lights
 		// on macOS), as every other bar does.
 		bar := c.TitleBar()
-		ui.Row(c).Height(max(52, bar.Height)+safeTop).Padding(safeTop, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
+		// The bar goes with the backdrop as a finger takes the picture away
+		// (as of the frame before: the picture is built after it).
+		ui.Row(c).Opacity(1-viewAway).Height(max(52, bar.Height)+safeTop).Padding(safeTop, bar.Right+S3, 0, bar.Left+S3).Gap(S2).AlignItems(ui.Center).DragWindow().Children(func() {
 			ui.Text(c, m.Label).FontSize(SizeBody).FontWeight(WeightMedium).TextColor(white).Grow(1).SingleLine().MinWidth(0)
 			ui.Text(c, strconv.Itoa(*index+1)+" / "+strconv.Itoa(len(items))).FontSize(SizeSmall).FontFeatures("tnum").TextColor(white.Alpha(0.7))
 			type viewAction struct {
@@ -615,6 +632,7 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				}
 			})
 		})
+		viewAway = away
 		if away > 0 {
 			// The backdrop clears as the picture goes: the chat comes back under it.
 			backdrop.Background(ui.RGBA(8, 6, 14, 0.94*(1-away)))

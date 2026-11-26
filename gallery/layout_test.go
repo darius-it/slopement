@@ -20,9 +20,11 @@ func TestLayoutDefaults(t *testing.T) {
 	if testApp().navLayout != want {
 		t.Fatal("the gallery does not start on the platform's default")
 	}
-	// The rail needs room: at phone widths it shows as tabs.
+	// Phones have one layout, the tabs, whatever was chosen; wide windows
+	// show the choice.
 	if kit.NavRail.Resolve(true) != kit.NavTabs || kit.NavRail.Resolve(false) != kit.NavRail ||
-		kit.NavInbox.Resolve(true) != kit.NavInbox || kit.NavTabs.Resolve(false) != kit.NavTabs {
+		kit.NavInbox.Resolve(true) != kit.NavTabs || kit.NavInbox.Resolve(false) != kit.NavInbox ||
+		kit.NavTabs.Resolve(false) != kit.NavTabs {
 		t.Fatal("Resolve")
 	}
 	if len(kit.NavLayouts) != 3 {

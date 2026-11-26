@@ -39,6 +39,10 @@ func delivered(ev model.Event) bool { return !ev.Pending && !ev.Failed }
 // With the setting off nothing is shown of who has read what (the furthest
 // read place is not looked at), but the user's last message is still "sent":
 // that says only that the server has it, nothing about anyone else.
+//
+// Someone who wrote after a message has read it, setting or not (their
+// message is there for all to see): the mark moves on to "read" then, rather
+// than a lone "sent" staying under a message that was answered.
 func (a *App) receiptStateOf(room string) (st receiptState) {
 	me := a.src.Me().ID
 	evs := a.src.Timeline(room)
@@ -46,6 +50,9 @@ func (a *App) receiptStateOf(room string) (st receiptState) {
 	for i, ev := range evs {
 		if a.prefs.receipts && len(ev.ReadBy) > 0 {
 			furthest = i // the furthest anyone has read
+		}
+		if ev.Sender != me && ev.Sender != "" && ev.Kind != model.EventSystem && !ev.Pending {
+			furthest = i // they answered: they have read what came before
 		}
 		if ev.Sender == me && ev.Kind != model.EventSystem && delivered(ev) {
 			lastOwn = i
@@ -66,15 +73,23 @@ func (a *App) receiptStateOf(room string) (st receiptState) {
 }
 
 // readers are the avatars of who has read up to ev — none while the
-// setting is off.
+// setting is off. The sender of ev is left out: whoever wrote a message is
+// placed on it (sending is reading), and their own circle beside their own
+// words says nothing.
 func (a *App) readers(ev model.Event) []kit.AvatarSpec {
 	if !a.prefs.receipts || len(ev.ReadBy) == 0 {
 		return nil
 	}
 	out := make([]kit.AvatarSpec, 0, len(ev.ReadBy))
 	for _, id := range ev.ReadBy {
+		if id == ev.Sender {
+			continue
+		}
 		p, _ := a.person(id)
 		out = append(out, a.avatar(p, 16))
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

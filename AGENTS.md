@@ -149,7 +149,14 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   the room and the router must never both build it: one `ListState`, two Lists
   panics). **Remove all of that when a mygo with the fix is pinned** (the list
   is in the plan's "Upstream (mygo) to file later"; not reported upstream yet).
-  Android's back gesture is not affected. Anything that leaves a room on a phone just sets
+  Android's back gesture is not affected. Phones have one layout, the tabs
+  (`NavLayout.Resolve(true)`; the Layout setting shows only on wide windows).
+  The phone's Communities tab is one page of cards, WhatsApp-style
+  (`app/phonecomms.go`: each community with its liveliest rooms, "All N rooms"
+  unfolds in place, kept in `a.expanded` under `phone:<id>`; the user rejected a
+  Discord-style rail); the phone's composer + is a sheet of large tiles
+  (`kit/composer.go` `plusSheet`); DM bubbles carry no avatar or name
+  (`BubbleData.Direct`). Anything that leaves a room on a phone just sets
   `a.pushed = false`. Touch sizes: `kit.Touch` is true on iOS/Android
   (`kit.PhoneOS`), as mygo never reports a coarse pointer there.
 - `model/`: the app's data types and the `Source` interface (the Matrix

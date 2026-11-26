@@ -126,14 +126,30 @@ func Picker(c *ui.Context, anchor ui.Element, st *PickerState, m *PickerModel) (
 				}
 			}
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				SearchField(c.Key("picker-search"), &st.Query, pickerPlaceholders[st.Tab], "").AutoFocus()
+				in := SearchField(c.Key("picker-search"), &st.Query, pickerPlaceholders[st.Tab], "")
+				// On a computer the search takes the keys at once. On a phone the
+				// keyboard would cover half of what there is to choose from: it
+				// comes up only when the search is tapped.
+				if !Touch(c) {
+					in.AutoFocus()
+				}
 			})
 		})
+		compact := Compact(c)
 		h := float32(360)
-		if Compact(c) {
+		if compact {
+			// What is left of the sheet for the results: half the window, or less
+			// when the keyboard is up (the bottom inset includes it), after the
+			// grabber, the tabs, the search and the sheet's own padding.
 			_, wh := c.Size()
-			h = wh * 0.5
+			_, _, bottom, _ := c.SafeArea()
+			const chrome = 170
+			h = max(min(wh*0.5, wh*0.88-bottom-chrome), 140)
 		}
+		// A phone has no footer row (nothing to hover, and the room is the
+		// grid's): KLIPY's credit goes after the results (a notice already
+		// shows in their place).
+		credit := st.Tab != TabEmoji
 		ui.Scroll(c.Key("picker-body")).Height(h).Gap(S2).Children(func() {
 			switch st.Tab {
 			case TabEmoji:
@@ -143,7 +159,14 @@ func Picker(c *ui.Context, anchor ui.Element, st *PickerState, m *PickerModel) (
 			default:
 				gifTab(c, st, m, &r)
 			}
+			if compact && credit {
+				ui.Text(c, "Powered by KLIPY").FontSize(SizeCaption).FontWeight(WeightSemibold).TextColor(Of(c).TextFaint).
+					AlignSelf(ui.Center).Padding(S1, 0)
+			}
 		})
+		if compact {
+			return
+		}
 		// The footer: the emoji under the pointer, or KLIPY's credit.
 		ui.Row(c).Height(24).Gap(S2).AlignItems(ui.Center).Children(func() {
 			if st.Tab == TabEmoji {
