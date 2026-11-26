@@ -11,6 +11,7 @@
 //	icons/ios.png                   iOS: full bleed and opaque, the system rounds and glazes it
 //	icons/android-foreground.png    Android's adaptive icon, inside its safe zone
 //	icons/AppIcon.icon/Assets/*.png macOS 26's Liquid Glass layers, light and dark
+//	kit/assets/logo-*.png           the mark inside the app (kit.Logo)
 //
 // icons/AppIcon.icon/icon.json (the glass settings) is written by hand.
 package main
@@ -80,6 +81,7 @@ func main() {
 	writePNG("icons/android-foreground.png", centred(darkSVG, androidLogo))
 
 	for name, svg := range map[string][]byte{"dark": darkSVG, "light": lightSVG} {
+		writePNG("kit/assets/logo-"+name+".png", trimmed(svg, 256))
 		roof, pillars := layers(svg, fullLogo)
 		writePNG("icons/AppIcon.icon/Assets/roof-"+name+".png", roof)
 		writePNG("icons/AppIcon.icon/Assets/pillars-"+name+".png", pillars)
@@ -91,6 +93,16 @@ func main() {
 func centred(svg []byte, n int) *image.NRGBA {
 	img := render(svg, n)
 	return place(img, offset(img))
+}
+
+// trimmed is the mark alone, centred in a transparent square of side pixels
+// it nearly fills across: the logo as the app itself draws it.
+func trimmed(svg []byte, side int) *image.NRGBA {
+	img := render(svg, side*4/3) // the mark is about three quarters of its canvas
+	at := offset(img).Sub(image.Pt((size-side)/2, (size-side)/2))
+	out := image.NewNRGBA(image.Rect(0, 0, side, side))
+	draw.Draw(out, img.Bounds().Add(at), img, image.Point{}, draw.Src)
+	return out
 }
 
 // layers splits the logo into the roof and the pillars over it, placed alike:

@@ -304,7 +304,8 @@ Sources: `icons/logo-{dark,light}.svg`. `go run ./internal/icons/gen` (needs
 `rsvg-convert`) writes `resources/icon.png` (desktop tile and tray, dark),
 `icons/ios.png`, `icons/android-foreground.png` and the layers of
 `icons/AppIcon.icon` (macOS Liquid Glass, light and dark; `icon.json` is
-hand-written; keep the name `AppIcon`). Preview the glass with Icon Composer's
+hand-written; keep the name `AppIcon`), and `kit/assets/logo-*.png`, the mark
+in the app (`kit.Logo`, used on About). Preview the glass with Icon Composer's
 `ictool` (`--export-image`). mygo gives iOS one flat icon only (no `.icon` or
 dark variant there), and Android has no themed (monochrome) icon.
 `mygo.config.ts` is evaluated without mygo's arguments (`process.argv` is the

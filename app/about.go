@@ -14,11 +14,13 @@ import (
 
 func (a *App) aboutPage(c *ui.Context) {
 	p := kit.Of(c)
-	group(c, "slopement", "", func() {
-		ui.Column(c).Padding(kit.S2).Gap(2).Children(func() {
-			ui.Text(c, "slopement "+appVersion()).FontSize(kit.SizeBody).FontWeight(kit.WeightMedium)
-			ui.Text(c, "A super early alpha of a Matrix client. Not recommended for daily use yet.").FontSize(kit.SizeSmall).TextColor(p.TextMuted)
-		})
+	// The logo over the name and version, as phones' and the Mac's About do.
+	ui.Column(c).Padding(kit.S4, kit.S3).Gap(kit.S1).AlignItems(ui.Center).Children(func() {
+		kit.Logo(c, 96)
+		ui.Text(c, "slopement").FontSize(kit.SizeTitle).FontWeight(kit.WeightSemibold)
+		ui.Text(c, "Version "+appVersion()).FontSize(kit.SizeSmall).TextColor(p.TextMuted)
+		ui.Text(c, "A super early alpha of a Matrix client. Not recommended for daily use yet.").
+			FontSize(kit.SizeSmall).TextColor(p.TextMuted).TextAlign(ui.Center)
 	})
 	a.updatesGroup(c)
 	group(c, "Also used", "Not part of the app's code, but part of what it does.", func() {
