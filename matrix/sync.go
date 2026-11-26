@@ -147,6 +147,7 @@ type batchSyncer struct {
 
 func (b *batchSyncer) ProcessResponse(ctx context.Context, resp *mautrix.RespSync, since string) error {
 	if b.src != nil {
+		b.src.noteSyncOK()
 		b.src.post(func() { b.src.setOffline(false) }) // a sync answered: the connection is back
 		b.src.beginBatch()
 		b.src.takeInvites(resp) // invitations are not rooms: kept apart, out of the handlers' way
@@ -168,6 +169,7 @@ func (b *batchSyncer) OnFailedSync(res *mautrix.RespSync, err error) (time.Durat
 	}
 	if b.src != nil && isNetworkError(err) { // the connection is down: the app says so until a sync answers
 		b.src.post(func() { b.src.setOffline(true) })
+		return b.src.noteSyncFailure(), nil // 1, 2, 4, 8, then 10 s (wake.go), not 10 from the first
 	}
 	return b.DefaultSyncer.OnFailedSync(res, err)
 }
@@ -236,9 +238,21 @@ func (s *Source) Start(ctx context.Context) {
 		// backoff; it returns when ctx ends — or when the server refused
 		// the token the cache resumed from: then the cache goes, and the
 		// sync starts over from nothing.
+		//
+		// Each run has a context of its own, which Wake ends (wake.go): the
+		// sync then starts again at once.
 		for {
-			err := s.cli.SyncWithContext(ctx)
-			if ctx.Err() != nil || !(s.resumed && badSyncToken(err)) {
+			run, cancel := s.syncContext(ctx)
+			err := s.cli.SyncWithContext(run)
+			woken := run.Err() != nil
+			cancel()
+			if ctx.Err() != nil {
+				return
+			}
+			if woken {
+				continue
+			}
+			if !(s.resumed && badSyncToken(err)) {
 				return
 			}
 			s.resumed = false

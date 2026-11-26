@@ -750,7 +750,6 @@ func (a *App) bubbleRowAs(c *ui.Context, r model.Room, rows []trow, i int, lifte
 	// it shows with Read receipts off too), and the circles of whoever has read
 	// up to a message (only with Read receipts on).
 	b.Sent = b.Out && a.rs.sentID != "" && ev.ID == a.rs.sentID
-	b.Read = b.Out && a.rs.readID != "" && ev.ID == a.rs.readID
 	b.ReadBy = a.readers(ev)
 	if ev.Kind != model.EventUndecryptable {
 		var yt *kit.YouTubeSpec

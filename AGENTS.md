@@ -287,6 +287,15 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   by drag on the rail, the tabs' cards and the inbox (`reorderable`).
 - A DM without a chosen name is named by its partner's display name now
   (`Source.dmName`, `room.nameSet`).
+- Reconnecting: `matrix/wake.go`. `Source.Wake` (wired in `main.go` to
+  `mygo.App.OnDidBecomeActive` and `mygo.Power.OnResume`) restarts a sync that
+  has not answered in 35 s and has the connection watcher ask the server now;
+  network failures retry after 1/2/4/8/10 s; the watcher restarts a failing
+  sync when the server answers. A healthy sync is never touched.
+- Read receipts (`app/receipts.go`): readers show only on the user's own
+  messages, each once, on the last one at or before their place (receipt with
+  the setting on, or a message they wrote, setting or not); `kit.ReadStackOn`
+  draws them overlapping in the check's place.
 - Account data a resumed sync does not resend is fetched at start
   (`matrix/accountdata.go`): add new `com.slopement.*` account data there.
 

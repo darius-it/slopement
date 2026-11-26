@@ -64,6 +64,9 @@ type Source struct {
 
 	// offline: the connection to the server is down (failure.go); the app says so.
 	offline bool
+	// kick restarts the sync when the app comes back, or the server does
+	// (wake.go).
+	kick syncKick
 	// The connection watcher's seams for tests (connection.go): the question put
 	// to the server, the system's change events, and its two waits (settle, retry).
 	probeFn     func(context.Context) error

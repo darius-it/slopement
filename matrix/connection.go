@@ -62,7 +62,13 @@ func (s *Source) watchConnection(ctx context.Context) {
 			return
 		}
 		retrying, gap = nil, first
+		// The server is back while the sync waits out its gap: it goes now
+		// (wake.go), so the messages come with the bar going.
+		if s.syncFailing() {
+			s.restartSync()
+		}
 	}
+	wake := s.wakeChan()
 	for {
 		select {
 		case <-ctx.Done():
@@ -77,6 +83,9 @@ func (s *Source) watchConnection(ctx context.Context) {
 			}
 		case <-settling:
 			settling = nil
+			check()
+		case <-wake: // the app came back to the front: ask now, no settling
+			settling, retrying, gap = nil, nil, first
 			check()
 		case <-retrying:
 			retrying = nil

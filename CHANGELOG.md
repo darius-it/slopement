@@ -16,8 +16,15 @@ would notice; when you tag a release, rename that heading to the tag
   communities" back.
 - **Phones: a bigger + menu.** The + beside the message field opens a sheet of
   large buttons: Photos, Camera, File and Poll.
-- **Phones: a message someone answered shows as read** (a double check), instead
-  of keeping the "sent" circle.
+- **Read receipts fill the check with who read it.** Your message shows a hollow
+  check once sent; when someone reads it, the check turns into their picture (in
+  groups, a few overlapping pictures and "+N"). Each person shows once, on your
+  latest message they've seen. Someone who answered counts as having read, even
+  with Read receipts off.
+- **Faster reconnecting.** Coming back to the app (unlocking your phone,
+  switching to it, waking the computer) reconnects at once instead of after the
+  offline bar's retries, and a dropped connection is retried after 1, 2, 4 and 8
+  seconds rather than every 10.
 - **Phones: swipe a message to reply.** Drag a message toward the middle of the
   screen (to the right for messages on the left, to the left for your own): an
   arrow comes out beside it and ticks when it is far enough; let go there to

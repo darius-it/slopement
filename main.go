@@ -312,6 +312,19 @@ func main() {
 					a.SaveState()
 				}
 			})
+			// Back from the background (a phone unlocked, the app switched
+			// to) or from sleep: a sync the system froze starts again at once,
+			// rather than the offline bar waiting out its retries
+			// (matrix/wake.go; a healthy sync is left alone).
+			wake := func() {
+				win.Update(func() {
+					if cur != nil {
+						cur.src.Wake()
+					}
+				})
+			}
+			mygo.App.OnDidBecomeActive(wake)
+			mygo.Power.OnResume(wake)
 			// The account used last opens on its own: the sign-in shows only
 			// when there is none, or it cannot be opened.
 			lg.Resume()

@@ -53,9 +53,6 @@ type BubbleData struct {
 	// with a check on the bubble's side, as on desktop. It says nothing of
 	// anyone else, so it shows whatever the Read receipts setting is.
 	Sent bool
-	// Read: the user's last message someone has read (or answered): a double
-	// check in the accent, where no reader circles show.
-	Read bool
 	// Menu says what the message's menu (a long press) offers.
 	Menu MessageMenuState
 	// Pending shows as any sent message does; only a failure is marked.
@@ -340,7 +337,7 @@ func bubbleMeta(c *ui.Context, b BubbleData) (retry bool) {
 		// On the bubble's side, over the time: the circles of who has read up
 		// to it, or the hollow circle of a message that is sent (a clock while
 		// it is still going), as on desktop and in Element X.
-		ReadStack(c, b.ReadBy)
+		ReadStackOn(c, b.ReadBy, Of(c).Wallpaper)
 		statusMark(c, b)
 		if b.Last || len(b.Media) > 0 {
 			t := b.Time
@@ -366,8 +363,6 @@ func statusMark(c *ui.Context, b BubbleData) {
 		ui.Icon(c, IconClock).Size(15, 15).TextColor(p.TextFaint).Label("Sending")
 	case b.Sent && len(b.ReadBy) == 0:
 		ui.Icon(c, IconCircleCheck).Size(15, 15).TextColor(p.TextFaint).Label("Sent")
-	case b.Read && len(b.ReadBy) == 0:
-		ui.Icon(c, IconCheckCheck).Size(15, 15).TextColor(p.AccentStrong).Label("Read")
 	}
 }
 

@@ -9,10 +9,10 @@ import (
 	"slopement/model"
 )
 
-// On a phone, as on desktop, your last message has a small circle on the
-// bubble's side: hollow with a check while nobody has read it, the readers'
-// avatars once they have. The hollow circle shows with Read receipts off (it
-// says nothing of anyone else); the readers need them on.
+// On a phone, as on desktop, your messages have a small circle on the
+// bubble's side: hollow with a check while nobody has read it, filled with the
+// reader's picture once they have. Alex answered in the mock DM, so his picture
+// shows whatever the Read receipts setting is (his answer is public).
 func TestPhoneOwnMessagesShowTheirStatus(t *testing.T) {
 	for _, on := range []bool{false, true} {
 		a := testApp()
@@ -22,12 +22,8 @@ func TestPhoneOwnMessagesShowTheirStatus(t *testing.T) {
 		tt := ui.NewTester(a.View, 400, 800)
 		settle(tt)
 		snap(t, "phone-status-"+map[bool]string{false: "off", true: "on"}[on], tt)
-		read := tt.HasText("Read by")
-		if on && !read {
-			t.Errorf("receipts on: no reader circles (texts: %v)", tt.Texts())
-		}
-		if !on && read {
-			t.Error("receipts off: readers are shown")
+		if !tt.HasText("Read by") {
+			t.Errorf("receipts %v: no reader circle on an answered message (texts: %v)", on, tt.Texts())
 		}
 	}
 }
