@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -20,6 +21,22 @@ import (
 //     rather than every 10 from the first.
 //   - The connection watcher's answer, when the server is back while the sync
 //     waits out its gap, starts the sync at once too.
+
+// checkedTransport is the account client's transport. Over HTTP/2 every
+// request shares one connection, and one that died quietly (the network
+// changed, the computer slept) went on being used: cancelling a request does
+// not close it, so each new one hung too, for minutes. A connection silent
+// for a while is now pinged, and closed when the ping gets no answer.
+func checkedTransport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.HTTP2 = &http.HTTP2Config{SendPingTimeout: pingAfter, PingTimeout: pingWait}
+	return t
+}
+
+const (
+	pingAfter = 10 * time.Second // silence before a ping
+	pingWait  = 5 * time.Second  // for its answer
+)
 
 // syncRetry is the wait before trying a failed sync again: the n-th failure
 // in a row (from 1).

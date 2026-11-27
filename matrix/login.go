@@ -278,6 +278,7 @@ func Dial(ctx context.Context, s *Session) (*mautrix.Client, error) {
 		return nil, err
 	}
 	cli.Log = clientLogger()
+	cli.Client.Transport = checkedTransport()
 	// NewClient takes no device ID; without it the crypto helper (rightly)
 	// refuses the client as not logged in.
 	cli.DeviceID = s.DeviceID

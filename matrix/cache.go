@@ -270,13 +270,29 @@ func (c *Cache) close() error {
 	return c.db.Close()
 }
 
-// tokenStore is the sync store the client uses: the filter id stays in
-// the crypto store as before, but the sync token is the cache's — it is
-// saved together with the state it continues, never on its own.
+// tokenStore is the sync store the client uses. On disk the sync token is
+// the cache's: saved together with the state it continues, never on its own.
+// Here it is only held in memory, so that a sync run started again (a wake,
+// a dropped connection) goes on from where the last one was rather than from
+// where the app started. The filter id is held the same way: the crypto
+// store keeps none, and every run would upload the filter before it synced.
+// The sync goroutine's alone.
 type tokenStore struct {
 	mautrix.SyncStore
-	token string
+	token  string
+	filter string
 }
 
 func (t *tokenStore) LoadNextBatch(context.Context, id.UserID) (string, error) { return t.token, nil }
-func (t *tokenStore) SaveNextBatch(context.Context, id.UserID, string) error   { return nil }
+
+func (t *tokenStore) SaveNextBatch(_ context.Context, _ id.UserID, token string) error {
+	t.token = token
+	return nil
+}
+
+func (t *tokenStore) LoadFilterID(context.Context, id.UserID) (string, error) { return t.filter, nil }
+
+func (t *tokenStore) SaveFilterID(_ context.Context, _ id.UserID, filter string) error {
+	t.filter = filter
+	return nil
+}

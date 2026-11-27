@@ -233,37 +233,52 @@ func (s *Source) Start(ctx context.Context) {
 		go s.verify.restoreSaved(ctx)
 		go s.keyWatch(ctx)
 	}
-	go func() {
-		// SyncWithContext retries on its own, with the default syncer's
-		// backoff; it returns when ctx ends — or when the server refused
-		// the token the cache resumed from: then the cache goes, and the
-		// sync starts over from nothing.
-		//
-		// Each run has a context of its own, which Wake ends (wake.go): the
-		// sync then starts again at once.
-		for {
-			run, cancel := s.syncContext(ctx)
-			err := s.cli.SyncWithContext(run)
-			woken := run.Err() != nil
+	go s.syncLoop(ctx)
+}
+
+// syncLoop keeps the sync running until ctx ends or the login is gone.
+//
+// SyncWithContext retries a failed /sync on its own, but returns on any
+// other failure: the filter it uploads before the first one (a connection
+// not back yet after a wake), or a response it could not process. Those are
+// tried again too, or nothing would ever arrive until the app restarted.
+// A server that refuses the token the cache resumed from has the cache
+// dropped, and the sync starts over from nothing.
+//
+// Each run has a context of its own, which Wake ends (wake.go): the sync, or
+// the wait before trying again, then starts over at once.
+func (s *Source) syncLoop(ctx context.Context) {
+	for {
+		run, cancel := s.syncContext(ctx)
+		err := s.cli.SyncWithContext(run)
+		switch {
+		case ctx.Err() != nil || errors.Is(err, mautrix.MUnknownToken):
 			cancel()
-			if ctx.Err() != nil {
-				return
-			}
-			if woken {
-				continue
-			}
-			if !(s.resumed && badSyncToken(err)) {
-				return
-			}
+			return
+		case run.Err() != nil: // woken
+		case s.resumed && badSyncToken(err):
 			s.resumed = false
 			if ts, ok := s.cli.Store.(*tokenStore); ok {
-				ts.token = ""
+				ts.token, ts.filter = "", ""
 			}
 			if s.cache != nil {
 				s.cache.reset(ctx)
 			}
+		default:
+			debugf("sync stopped, trying again: %v", err)
+			if isNetworkError(err) {
+				s.post(func() { s.setOffline(true) })
+			}
+			select {
+			case <-run.Done():
+			case <-time.After(s.noteSyncFailure()):
+			}
 		}
-	}()
+		cancel()
+		if ctx.Err() != nil {
+			return
+		}
+	}
 }
 
 // ---- the sync, into the model --------------------------------------------------------

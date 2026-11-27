@@ -8,6 +8,12 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+### Fixed
+- New messages no longer stop arriving, or take minutes, after coming back to
+  the app or changing networks: a connection that died is noticed within
+  seconds, a failed reconnect is retried, and reconnecting fetches only what is
+  new.
+
 ## v0.3.0-alpha.1
 
 Mostly phones, plus a new icon.
