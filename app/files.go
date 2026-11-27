@@ -246,39 +246,6 @@ func (a *App) sendFiles(room string, reply string) bool {
 	return true
 }
 
-// downloadFile saves the file of a message where the user says: the bytes
-// come from the source (downloaded and decrypted), the place from the
-// system's save dialog.
-func (a *App) downloadFile(ev model.Event) {
-	loader, ok := a.src.(model.MediaLoader)
-	if !ok || a.win == nil || len(ev.Media) == 0 {
-		return
-	}
-	m, win := ev.Media[0], a.win
-	name := m.Name
-	if name == "" {
-		name = "file"
-	}
-	go func() {
-		to, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name})
-		if err != nil || to == "" {
-			return
-		}
-		loader.LoadMedia(m, func(data []byte, err error) {
-			if err == nil {
-				err = os.WriteFile(to, data, 0o644)
-			}
-			win.Update(func() {
-				if err != nil {
-					a.toast = "Could not save " + name + ": " + err.Error()
-				} else {
-					a.toast = "Saved " + filepath.Base(to)
-				}
-			})
-		})
-	}()
-}
-
 // sendGIF sends a GIF or sticker from the picker: as its link, which costs
 // the homeserver nothing and shows as the GIF here (the default), or — with
 // "Send GIFs as files" on — as a picture uploaded to the media repo, which

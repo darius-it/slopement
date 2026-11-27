@@ -81,6 +81,7 @@ type App struct {
 	// Tests' file dialogs (dialogs.go), and the key storage dialog (keys.go).
 	pickFileFn       func(title, ext string, done func(path string))
 	saveFileFn       func(title, name string, done func(path string))
+	saveCopyFn       func(path, name string) (string, error) // a phone's picker (download.go)
 	keys             keysDialog
 	source           eventSource                         // "View source" (source.go)
 	testRowHook      func(*model.Event)                  // tests: runs inside each timeline row (to make one panic)

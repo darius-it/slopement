@@ -1,9 +1,6 @@
 package app
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
@@ -88,11 +85,14 @@ func (a *App) makeLogExport(le model.LogExporter, includeRooms bool) {
 			return
 		}
 		a.saveFile("Save the logs", name, func(path string) {
-			if err := os.WriteFile(path, data, 0o600); err != nil {
-				a.toast = "Could not save the logs: " + err.Error()
-				return
-			}
-			a.toast = "Saved " + filepath.Base(path)
+			a.writeSaved(path, data, 0o600, func(saved string, err error) {
+				switch {
+				case err != nil:
+					a.toast = "Could not save the logs: " + err.Error()
+				case saved != "":
+					a.toast = "Saved " + saved
+				}
+			})
 		})
 	})
 }

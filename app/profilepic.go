@@ -19,7 +19,8 @@ func (a *App) openProfilePicture(person string) {
 	}
 	media := model.Media{Kind: model.MediaImage, URL: p.Avatar, Name: p.Name}
 	spec := kit.MediaSpec{ID: "avatar:" + p.ID, Kind: kit.MediaImage, W: 1, H: 1, Progress: -1,
-		Label: p.Name + "'s profile picture", Full: func() ui.ImageSource { return a.fullPic(media) }}
+		Label: p.Name + "'s profile picture", Full: func() ui.ImageSource { return a.fullPic(media) },
+		Save: func() { a.saveMedia(media) }}
 	if img := a.avatar(p, 0).Image; img != nil { // not a nil bitmap as a non-nil source
 		spec.Still = img
 	}

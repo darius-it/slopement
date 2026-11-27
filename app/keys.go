@@ -207,12 +207,15 @@ func (a *App) exportKeys() {
 			return
 		}
 		a.saveFile("Save your room keys", "slopement-room-keys.txt", func(path string) {
-			if err := os.WriteFile(path, data, 0o600); err != nil {
-				d.Busy, d.Err = false, "Could not save the file: "+err.Error()
-				return
-			}
-			d.Busy, d.Pass, d.Pass2 = false, "", ""
-			d.Done = fmt.Sprintf("Saved %d keys to %s.", count, filepath.Base(path))
+			a.writeSaved(path, data, 0o600, func(name string, err error) {
+				switch {
+				case err != nil:
+					d.Busy, d.Err = false, "Could not save the file: "+err.Error()
+				case name != "":
+					d.Busy, d.Pass, d.Pass2 = false, "", ""
+					d.Done = fmt.Sprintf("Saved %d keys to %s.", count, name)
+				}
+			})
 		})
 		d.Busy = false // the dialog may be cancelled: nothing is waiting
 	})

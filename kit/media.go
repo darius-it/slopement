@@ -44,6 +44,8 @@ type MediaSpec struct {
 	// the picker's favorites; Starred fills it. Star gets the new state.
 	Star    func(on bool)
 	Starred bool
+	// Save, when set, saves the medium out of the app: the viewer's Download.
+	Save func()
 	// Paused shows a GIF's first frame without playing it (the app's
 	// "Animate GIFs" setting).
 	Paused bool
@@ -567,6 +569,9 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 				actions = append(actions[:2:2], append([]viewAction{fav}, actions[2:]...)...)
 			}
 			for _, a := range actions {
+				if a.label == "Download" && m.Save == nil {
+					continue
+				}
 				if Touch(c) && (a.label == "Zoom in" || a.label == "Zoom out") {
 					continue // a finger pinches
 				}
@@ -590,6 +595,8 @@ func MediaViewer(c *ui.Context, open *bool, items []MediaSpec, index *int) {
 					case "Add to favorite GIFs", "Remove from favorite GIFs":
 						m.Star(!m.Starred)
 						items[*index].Starred = !m.Starred // the viewer shows it at once
+					case "Download":
+						m.Save()
 					case "Close":
 						*open = false
 					case "Zoom in":
