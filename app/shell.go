@@ -117,12 +117,26 @@ func (a *App) emptyMain(c *ui.Context) {
 // buttons); everything else starts under it.
 const topBarHeight = 32
 
+// topBarNameRoom is the least width the place's name keeps when the top bar's
+// two sides are made equal.
+const topBarNameRoom = 160
+
 // topBar is that bar: the sidebar's material, a hairline under it, the
 // place you're in, small and muted, in the middle. It drags the window and
 // double-clicking it zooms, as a title bar does.
 func (a *App) topBar(c *ui.Context) {
 	p := kit.Of(c)
 	bar := c.TitleBar()
+	// The window's controls are on one side only (Windows' buttons at the
+	// right, macOS's lights at the left): the same room is left on the other,
+	// so the name is in the middle of the window and not of what is left of it.
+	// A window too narrow for that keeps the room for the name instead.
+	const arrows = 2*26 + 2
+	var before, after float32 // empty room beside the name that evens the sides
+	side := max(bar.Left, bar.Right)
+	if w, _ := c.Size(); w-2*(side+kit.S3+arrows) >= topBarNameRoom {
+		before, after = side-bar.Left, side-bar.Right
+	}
 	ui.Row(c).Height(max(topBarHeight, bar.Height)).Shrink(0).Padding(0, bar.Right+kit.S3, 0, bar.Left+kit.S3).
 		AlignItems(ui.Center).Justify(ui.Center).Background(a.sideBg(c)).BorderWidth(0, 0, 1, 0).BorderColor(p.Border).
 		DragWindow().Children(func() {
@@ -130,7 +144,6 @@ func (a *App) topBar(c *ui.Context) {
 		// arrows at the left, the place's name still in the middle (an equal
 		// space at the right keeps it there). The mouse's side buttons and
 		// ⌘[ ⌘] / Alt+←→ do the same (nav.go).
-		const arrows = 2*26 + 2
 		ui.Row(c.Key("navarrows")).Width(arrows).Shrink(0).Gap(2).AlignItems(ui.Center).Children(func() {
 			if kit.IconButton(c, kit.Ghost, kit.IconArrowLeft, "Back").Size(26, 26).Disabled(!a.canGoBack()).Clicked() {
 				a.navGo(-1)
@@ -139,10 +152,11 @@ func (a *App) topBar(c *ui.Context) {
 				a.navGo(1)
 			}
 		})
+		ui.Box(c).Width(before).Shrink(0)
 		ui.Row(c.Key("placename")).Grow(1).MinWidth(0).Justify(ui.Center).Children(func() {
 			ui.Text(c, a.placeName()).FontSize(kit.SizeCaption).FontWeight(kit.WeightMedium).TextColor(p.TextMuted).SingleLine().Shrink(1)
 		})
-		ui.Box(c).Width(arrows).Shrink(0)
+		ui.Box(c).Width(arrows + after).Shrink(0)
 	})
 }
 

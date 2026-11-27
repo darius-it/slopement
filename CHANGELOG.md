@@ -19,6 +19,8 @@ would notice; when you tag a release, rename that heading to the tag
 - Download in the picture viewer now works. On phones, saving a file or picture
   (also room keys and logs) opens the system's file picker, instead of saying
   "Saved" and putting it where you could not reach it.
+- The name at the top of the window is in its middle on Windows, Linux and
+  macOS, not pushed aside by the window's buttons.
 - New messages no longer stop arriving, or take minutes, after coming back to
   the app or changing networks: a connection that died is noticed within
   seconds, a failed reconnect is retried, and reconnecting fetches only what is
