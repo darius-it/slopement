@@ -19,7 +19,10 @@ func TestEditLastPicksTheLastEditableOfMine(t *testing.T) {
 		model.Event{ID: "$failed", Room: room.ID, Sender: me, Kind: model.EventText, Body: "nope", Failed: true},
 	)
 	a.editLast(room.ID)
-	st := a.draft(room.ID)
+	if a.edit == nil {
+		t.Fatal("nothing is being edited")
+	}
+	st := &a.edit.st
 	if st.Editing != "$mine-new" || st.Text != "the last one" {
 		t.Fatalf("editing %q with %q", st.Editing, st.Text)
 	}

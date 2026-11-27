@@ -8,7 +8,14 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+### Changed
+- On computers, a message is now edited where it is, with Save and Cancel under
+  it (Enter saves, Escape cancels).
+
 ### Fixed
+- Editing a message no longer overwrites the new message you were writing. On
+  phones, where editing stays in the message field, your draft comes back
+  afterwards.
 - New messages no longer stop arriving, or take minutes, after coming back to
   the app or changing networks: a connection that died is noticed within
   seconds, a failed reconnect is retried, and reconnecting fetches only what is

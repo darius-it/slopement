@@ -227,7 +227,7 @@ func fieldKey(st *ComposerState, k ui.Key, mods ui.Modifiers, touch bool) bool {
 		return true
 	}
 	if k == ui.KeyEscape && st.Editing != "" {
-		st.Editing, st.Text = "", "" // changed your mind: the old message stays as it was
+		st.EndEdit() // changed your mind: the old message stays as it was
 		return true
 	}
 	if k == ui.KeyEscape && st.Reply != nil {

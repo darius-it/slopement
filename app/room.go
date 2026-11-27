@@ -133,6 +133,7 @@ func (a *App) roomView(c *ui.Context, back bool) {
 			ls := a.listState(r.ID)
 			ls.Key = func(i int) any { return rows[i].key }
 			a.jumpStep(r.ID, rows, ls)
+			a.editorStep(r.ID, rows, ls)
 			a.readStep(r, rows, ls)
 			a.pageStep(r.ID, ls)
 			// The timeline with what floats over it: who is typing and Jump to
@@ -369,6 +370,14 @@ func (a *App) timelineRow(c *ui.Context, r model.Room, tr trow) {
 	}
 	// Your own name and picture open your card too.
 	m.Profile, m.ProfileOpen = a.profile(ev.Sender), a.profileMsg == ev.ID
+	if e := a.editing(r.ID, ev); e != nil {
+		m.Editor = func() {
+			if kit.EditBox(c, &e.st) {
+				a.editStep(r.ID, &e.st)
+				c.Invalidate()
+			}
+		}
+	}
 	ui.Column(c.Key(ev.ID)).Children(func() {
 		a.messageAct(r.ID, ev, m.Media, kit.Message(c, m, &a.colors))
 	})
@@ -389,6 +398,9 @@ func (a *App) messageAct(room string, ev model.Event, media []kit.MediaSpec, act
 		a.picker.Open, a.picker.Tab = true, kit.TabEmoji
 	case act.Reply:
 		d := a.draft(room)
+		if d.Editing != "" {
+			d.EndEdit() // replying instead: the draft comes back, then takes the quote
+		}
 		d.Reply = a.quote(room, ev.ID)
 		a.replyTo[room] = ev.ID
 		d.Focus()

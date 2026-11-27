@@ -13,6 +13,8 @@ type ComposerState struct {
 	// Editing is the ID of the message being edited ("" when writing a new
 	// one): the field holds its text, and sending replaces it.
 	Editing string
+	// stash is the draft set aside while the field holds an edit (edit.go).
+	stash *draftStash
 	// Files wait to be sent with the next message.
 	Files []ComposerFile
 	send  bool

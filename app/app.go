@@ -241,6 +241,7 @@ type App struct {
 	toast         string
 	reactTo       string            // the message the picker reacts to
 	replyTo       map[string]string // per room: the event replied to
+	edit          *inlineEdit       // the message edited in place (actions.go)
 	roomInfo      kit.SheetState    // phones: room info
 	roomSheet     kit.SheetState    // phones: a room's actions
 	panelSheet    kit.SheetState    // phones: the pins or a thread, where wide windows have a side panel

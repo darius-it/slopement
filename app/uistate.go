@@ -170,8 +170,8 @@ func (a *App) state() uiState {
 		}
 	}
 	for room, d := range a.drafts {
-		if d.Text != "" {
-			st.Drafts[room] = d.Text
+		if text := d.DraftText(); text != "" {
+			st.Drafts[room] = text
 		}
 	}
 	return st

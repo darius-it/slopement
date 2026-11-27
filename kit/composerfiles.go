@@ -92,7 +92,7 @@ func editBanner(c *ui.Context, st *ComposerState) {
 			}
 			x.Children(func() { ui.Icon(c, IconX).Size(14, 14).TextColor(p.TextMuted) })
 			if x.Clicked() {
-				st.Editing, st.Text = "", ""
+				st.EndEdit()
 			}
 		})
 }

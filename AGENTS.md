@@ -76,7 +76,11 @@ package** (Go, GPU-drawn, no webview). Full requirements + design language:
   directly.
   The app's composer pieces live in `app/files.go` (files waiting as chips,
   paste, drop, GIFs uploaded), `app/suggest.go` (@mentions, `:emoji:`),
-  `app/actions.go` (message menu, edit, pins), `app/previews.go` (link
+  `app/actions.go` (message menu, edit, pins; wide windows edit in the
+  message's place with a `ComposerState` of their own, `kit/edit.go` `EditBox`,
+  as Slack's in-place edit, https://mobbin.com/screens/c14d3eca-524b-4fbe-8665-edc5cefb04d0;
+  narrow ones in the composer, `BeginEdit`/`EndEdit` setting the draft aside),
+  `app/previews.go` (link
   cards), `app/history.go` (asks for older messages near the top).
   Stage-5 app files: `app/rooms.go` (join/create/explore + invite dialogs, the
   Invitations section), `app/search.go` (⌘⇧F screen), `app/threads.go` (thread

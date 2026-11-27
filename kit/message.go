@@ -98,6 +98,9 @@ type MessageData struct {
 	// (MessageAction.Profile); ProfileOpen shows it, by the name.
 	Profile     *ProfileSpec
 	ProfileOpen bool
+	// Editor, set while the message is being edited, draws the field in place
+	// of its words (EditBox); the toolbar and menu are away meanwhile.
+	Editor func()
 }
 
 // YouTubeSpec is a YouTube link's card.
@@ -322,6 +325,8 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				}
 			}
 			switch {
+			case m.Editor != nil:
+				m.Editor()
 			case m.Undecryptable:
 				ui.Row(c).Gap(S15).AlignItems(ui.Center).Children(func() {
 					ui.Icon(c, IconLock).Size(14, 14).TextColor(p.TextMuted)
@@ -438,7 +443,7 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 			})
 		}
 		// The hover toolbar.
-		if hov {
+		if hov && m.Editor == nil {
 			ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(-12).Left(-S4).
 				Padding(2).Gap(1).Radius(RadiusSm+2).Background(p.Raised).Border(1, p.Border).
 				Shadow(0, 2, 6, -2, p.Shadow).Transition(ui.ElementTransition{Duration: DurFast, Enter: &ui.Motion{}}).
@@ -499,8 +504,8 @@ func Message(c *ui.Context, m MessageData, colors *UserColors) (a MessageAction)
 				})
 		}
 	})
-	if !m.Menu.Off {
-		ContextMenu(c, row, func(mm *ui.Menu) { a.chose(MessageMenu(mm, m.Menu)) })
+	if !m.Menu.Off && m.Editor == nil {
+		ContextMenu(c, row,func(mm *ui.Menu) { a.chose(MessageMenu(mm, m.Menu)) })
 	}
 	return a
 }

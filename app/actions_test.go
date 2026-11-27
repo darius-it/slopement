@@ -80,10 +80,12 @@ func TestMessageMenuRules(t *testing.T) {
 	}
 }
 
-// Editing puts the message's words in the composer; sending replaces the
-// message instead of sending a new one; emptying it, or Escape, stops.
+// On a phone, editing puts the message's words in the composer; sending
+// replaces the message instead of sending a new one; emptying it, or Escape,
+// stops.
 func TestEditFlow(t *testing.T) {
 	a, src, room := actApp(t)
+	a.narrow = true
 	ev := model.Event{ID: "$mine", Room: room.ID, Sender: a.src.Me().ID, Kind: model.EventText, Body: "tyop"}
 
 	a.messageChoice(room.ID, ev, kit.MsgEdit)

@@ -60,11 +60,7 @@ func (a *App) messageChoice(room string, ev model.Event, ch kit.MessageChoice) {
 		}
 	case kit.MsgEdit:
 		if canAct {
-			st := a.draft(room)
-			st.Editing, st.Text = ev.ID, ev.Body
-			st.Reply = nil
-			delete(a.replyTo, room)
-			st.Focus()
+			a.startEdit(room, ev)
 		}
 	case kit.MsgPin:
 		if canAct {
@@ -127,19 +123,74 @@ func (a *App) editLast(room string) {
 	}
 }
 
-// editStep sends an edit when the composer was editing a message: the
-// words replace the message's; empty words stop the edit. It reports
-// whether this send was an edit.
+// inlineEdit is the message being edited in its own place in the timeline,
+// with a field of its own: the composer keeps what was being written.
+type inlineEdit struct {
+	room   string
+	st     kit.ComposerState
+	scroll bool // bring the message into view (↑ may pick one out of sight)
+}
+
+// startEdit begins editing a message: in its place on a wide window, in the
+// composer on a narrow one (a phone), which sets the draft aside meanwhile.
+func (a *App) startEdit(room string, ev model.Event) {
+	var st *kit.ComposerState
+	if a.narrow {
+		a.edit = nil
+		st = a.draft(room)
+	} else {
+		a.edit = &inlineEdit{room: room, scroll: true}
+		st = &a.edit.st
+	}
+	st.BeginEdit(ev.ID, ev.Body)
+	st.Focus()
+}
+
+// editing is the edit shown in this message's place, if there is one. A reply
+// of a thread is edited in the thread's panel, everything else in the room.
+func (a *App) editing(room string, ev model.Event) *inlineEdit {
+	e := a.edit
+	if e == nil || e.room != room || e.st.Editing != ev.ID || a.inThread != (a.threadsOn() && ev.ThreadRoot != "") {
+		return nil
+	}
+	return e
+}
+
+// editorStep runs before a room's timeline is built: an edit that was left
+// (Escape, Cancel, saved) gives the keyboard back to the composer, and a new
+// one is scrolled into view.
+func (a *App) editorStep(room string, rows []trow, ls *ui.ListState) {
+	e := a.edit
+	if e == nil {
+		return
+	}
+	if e.st.Editing == "" {
+		a.edit, a.focusRoom = nil, e.room
+		return
+	}
+	if !e.scroll || e.room != room {
+		return
+	}
+	e.scroll = false
+	for i := range rows {
+		if rows[i].ev != nil && rows[i].ev.ID == e.st.Editing {
+			ls.ScrollIntoView(i)
+		}
+	}
+}
+
+// editStep sends an edit when the field was editing a message: the words
+// replace the message's; empty words stop the edit. It reports whether this
+// send was an edit.
 func (a *App) editStep(room string, st *kit.ComposerState) bool {
 	if st.Editing == "" {
 		return false
 	}
-	id := st.Editing
-	st.Editing = ""
-	if acts, ok := a.src.(model.Actions); ok && hasWords(st.Text) {
-		acts.Edit(room, id, st.Text)
+	id, text := st.Editing, st.Text
+	st.EndEdit()
+	if acts, ok := a.src.(model.Actions); ok && hasWords(text) {
+		acts.Edit(room, id, text)
 	}
-	st.Text = ""
 	return true
 }
 
