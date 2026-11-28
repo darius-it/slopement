@@ -8,6 +8,10 @@ would notice; when you tag a release, rename that heading to the tag
 
 ## Unreleased
 
+## v0.3.0-alpha.2
+
+Fixes for syncing, editing, downloading and the window title.
+
 ### Changed
 - On computers, a message is now edited where it is, with Save and Cancel under
   it (Enter saves, Escape cancels).
